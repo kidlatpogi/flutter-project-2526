@@ -193,10 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: AppConstants.buttonHeight,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Implement login logic
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Login functionality coming soon')),
-                    );
+                    Navigator.pushReplacementNamed(context, RouteNames.dashboard);
                   },
                   child: const Text('Log In'),
                 ),
