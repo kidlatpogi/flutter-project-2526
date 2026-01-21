@@ -370,8 +370,11 @@ class _MainDashboardState extends State<MainDashboard> {
             if (index == 0) {
               // Scripts
               Navigator.pushReplacementNamed(context, RouteNames.script);
+            } else if (index == 1) {
+              // Progress
+              Navigator.pushReplacementNamed(context, RouteNames.progress);
             }
-            // TODO: Handle other navigation items (1=Progress, 2=Home, 3=Profile, 4=Settings)
+            // TODO: Handle other navigation items (3=Profile, 4=Settings)
           }
         },
       ),

@@ -112,11 +112,14 @@ class _ScriptScreenState extends State<ScriptScreen> {
               _currentIndex = index;
             });
             // Navigate based on index
-            if (index == 2) {
+            if (index == 1) {
+              // Progress
+              Navigator.pushReplacementNamed(context, RouteNames.progress);
+            } else if (index == 2) {
               // Home
               Navigator.pushReplacementNamed(context, RouteNames.dashboard);
             }
-            // TODO: Handle other navigation items (1=Progress, 3=Profile, 4=Settings)
+            // TODO: Handle other navigation items (3=Profile, 4=Settings)
           }
         },
       ),
