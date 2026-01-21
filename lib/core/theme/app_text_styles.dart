@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_colors.dart';
 
 class AppTextStyles {
   // Header - Font Size 32, Inter, Bold
@@ -20,7 +21,7 @@ class AppTextStyles {
   static TextStyle paragraph = GoogleFonts.inter(
     fontSize: 13,
     fontWeight: FontWeight.normal,
-    color: Colors.grey,
+    color: AppColors.textSecondary,
   );
 
   // Button text
