@@ -16,6 +16,7 @@ import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/test_audio_video_screen.dart';
 import '../features/practice/screens/practice_setup_screen.dart';
 import '../features/practice/screens/recording_session_screen.dart';
+import '../features/practice/screens/analysis_result_screen.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -51,6 +52,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const PracticeSetupScreen());
       case RouteNames.recording:
         return MaterialPageRoute(builder: (_) => const RecordingSessionScreen());
+      case RouteNames.analysis:
+        return MaterialPageRoute(builder: (_) => const AnalysisResultScreen());
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),

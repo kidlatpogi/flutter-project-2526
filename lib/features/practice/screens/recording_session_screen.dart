@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import '../../../core/theme/app_colors.dart';
+import '../../../routing/route_names.dart';
 
 class RecordingSessionScreen extends StatefulWidget {
   const RecordingSessionScreen({super.key});
@@ -37,14 +38,19 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
   }
 
   void _toggleRecording() {
-    setState(() {
-      _isRecording = !_isRecording;
-      if (_isRecording) {
+    if (!_isRecording) {
+      setState(() {
+        _isRecording = true;
         _startTimer();
-      } else {
+      });
+    } else {
+      setState(() {
+        _isRecording = false;
         _timer?.cancel();
-      }
-    });
+      });
+      // Navigate to analysis result after stopping
+      Navigator.pushNamed(context, RouteNames.analysis);
+    }
   }
 
   String _formatTime(int totalSeconds) {
