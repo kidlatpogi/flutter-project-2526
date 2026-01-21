@@ -306,7 +306,11 @@ class AnalysisResultScreen extends StatelessWidget {
                       height: 50,
                       child: TextButton(
                         onPressed: () {
-                          // TODO: Navigate to detailed feedback
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            RouteNames.progress,
+                            (route) => false,
+                          );
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.primary,
