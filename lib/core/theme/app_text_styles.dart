@@ -14,7 +14,7 @@ class AppTextStyles {
   static TextStyle subHeader = GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: Colors.black,
+    color: AppColors.textSecondary,
   );
 
   // Paragraph - Font Size 13 Regular, Inter
