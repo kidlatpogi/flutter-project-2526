@@ -10,6 +10,10 @@ import '../features/auth/screens/reset_password_screen.dart';
 import '../features/dashboard/screens/main_dashboard.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
+import '../features/profile/screens/profile_screen.dart';
+import '../features/profile/screens/change_password_screen.dart';
+import '../features/settings/screens/settings_screen.dart';
+import '../features/settings/screens/test_audio_video_screen.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -37,6 +41,20 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ScriptScreen());
       case RouteNames.progress:
         return MaterialPageRoute(builder: (_) => const ProgressAnalyticsScreen());
+      case RouteNames.profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      case RouteNames.settings:
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
+      case RouteNames.changePassword:
+        return MaterialPageRoute(
+          builder: (_) => const ChangePasswordScreen(),
+          fullscreenDialog: true,
+        );
+      case RouteNames.testAudioVideo:
+        return MaterialPageRoute(
+          builder: (_) => const TestAudioVideoScreen(),
+          fullscreenDialog: true,
+        );
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

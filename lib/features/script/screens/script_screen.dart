@@ -118,8 +118,13 @@ class _ScriptScreenState extends State<ScriptScreen> {
             } else if (index == 2) {
               // Home
               Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+            } else if (index == 3) {
+              // Profile
+              Navigator.pushReplacementNamed(context, RouteNames.profile);
+            } else if (index == 4) {
+              // Settings
+              Navigator.pushReplacementNamed(context, RouteNames.settings);
             }
-            // TODO: Handle other navigation items (3=Profile, 4=Settings)
           }
         },
       ),

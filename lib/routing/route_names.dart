@@ -14,4 +14,7 @@ class RouteNames {
   static const String analysis = '/analysis';
   static const String script = '/script';
   static const String progress = '/progress';
+  static const String settings = '/settings';
+  static const String changePassword = '/change-password';
+  static const String testAudioVideo = '/test-audio-video';
 }

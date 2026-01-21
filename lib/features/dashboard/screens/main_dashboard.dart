@@ -373,8 +373,13 @@ class _MainDashboardState extends State<MainDashboard> {
             } else if (index == 1) {
               // Progress
               Navigator.pushReplacementNamed(context, RouteNames.progress);
+            } else if (index == 3) {
+              // Profile
+              Navigator.pushReplacementNamed(context, RouteNames.profile);
+            } else if (index == 4) {
+              // Settings
+              Navigator.pushReplacementNamed(context, RouteNames.settings);
             }
-            // TODO: Handle other navigation items (3=Profile, 4=Settings)
           }
         },
       ),
