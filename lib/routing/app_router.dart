@@ -14,6 +14,7 @@ import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/change_password_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/test_audio_video_screen.dart';
+import '../features/practice/screens/practice_setup_screen.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -45,6 +46,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case RouteNames.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
+      case RouteNames.practiceSetup:
+        return MaterialPageRoute(builder: (_) => const PracticeSetupScreen());
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),

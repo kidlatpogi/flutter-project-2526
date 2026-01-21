@@ -10,6 +10,7 @@ class RouteNames {
   static const String dashboard = '/dashboard';
   static const String profile = '/profile';
   static const String practice = '/practice';
+  static const String practiceSetup = '/practice-setup';
   static const String recording = '/recording';
   static const String analysis = '/analysis';
   static const String script = '/script';

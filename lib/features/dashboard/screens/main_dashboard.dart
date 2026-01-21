@@ -139,7 +139,7 @@ class _MainDashboardState extends State<MainDashboard> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () {
-                            // TODO: Navigate to practice screen
+                            Navigator.pushNamed(context, RouteNames.practiceSetup);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
