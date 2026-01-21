@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../routing/route_names.dart';
 import '../widgets/dashboard_navbar.dart';
 
 class MainDashboard extends StatefulWidget {
@@ -361,9 +362,17 @@ class _MainDashboardState extends State<MainDashboard> {
       bottomNavigationBar: DashboardNavbar(
         currentIndex: _currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          if (index != _currentIndex) {
+            setState(() {
+              _currentIndex = index;
+            });
+            // Navigate based on index
+            if (index == 0) {
+              // Scripts
+              Navigator.pushReplacementNamed(context, RouteNames.script);
+            }
+            // TODO: Handle other navigation items (1=Progress, 2=Home, 3=Profile, 4=Settings)
+          }
         },
       ),
     );
