@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../features/splash/screens/splash_screen1.dart';
 import '../features/splash/screens/splash_screen2.dart';
 import '../features/splash/screens/splash_screen3.dart';
+import '../features/auth/screens/login_screen.dart';
+import '../features/auth/screens/create_account_screen.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -13,6 +15,10 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const SplashScreen2());
       case RouteNames.splash3:
         return MaterialPageRoute(builder: (_) => const SplashScreen3());
+      case RouteNames.login:
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
+      case RouteNames.createAccount:
+        return MaterialPageRoute(builder: (_) => const CreateAccountScreen());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

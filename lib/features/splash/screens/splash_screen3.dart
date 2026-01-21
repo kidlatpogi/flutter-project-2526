@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
+import '../../../routing/route_names.dart';
 
 class SplashScreen3 extends StatelessWidget {
   const SplashScreen3({super.key});
@@ -85,10 +86,7 @@ class SplashScreen3 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Navigate to registration screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Create Account pressed')),
-                    );
+                    Navigator.pushNamed(context, RouteNames.createAccount);
                   },
                   child: const Text('Create Account'),
                 ),
@@ -102,10 +100,7 @@ class SplashScreen3 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: OutlinedButton(
                   onPressed: () {
-                    // TODO: Navigate to login screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Login pressed')),
-                    );
+                    Navigator.pushNamed(context, RouteNames.login);
                   },
                   child: const Text('Login'),
                 ),
