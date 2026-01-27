@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import '../../../core/services/api_service.dart';
+import '../../../core/services/audio_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/models/analysis_model.dart';
 import '../../../routing/route_names.dart';
 
 class RecordingSessionScreen extends StatefulWidget {
@@ -12,20 +17,74 @@ class RecordingSessionScreen extends StatefulWidget {
 }
 
 class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
-  bool _isRecording = true;
+  final AudioService _audioService = AudioService();
+  final ApiService _apiService = ApiService();
+  
+  bool _isRecording = false;
+  bool _isAnalyzing = false;
   int _seconds = 0;
   Timer? _timer;
   bool _showScript = true;
+  String? _errorMessage;
+  double _amplitude = 0.0;
+  Timer? _amplitudeTimer;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    _initRecording();
+  }
+
+  Future<void> _initRecording() async {
+    try {
+      // Request permission and start recording automatically
+      final hasPermission = await _audioService.requestPermission();
+      if (hasPermission) {
+        await _startRecording();
+      } else {
+        setState(() {
+          _errorMessage = 'Microphone permission is required to record';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to initialize recording: $e';
+      });
+    }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      await _audioService.startRecording();
+      setState(() {
+        _isRecording = true;
+        _errorMessage = null;
+      });
+      _startTimer();
+      _startAmplitudeMonitor();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to start recording: $e';
+      });
+    }
+  }
+
+  void _startAmplitudeMonitor() {
+    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      if (_isRecording) {
+        final amp = await _audioService.getAmplitude();
+        setState(() {
+          _amplitude = amp;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _amplitudeTimer?.cancel();
+    _audioService.dispose();
     super.dispose();
   }
 
@@ -37,19 +96,55 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     });
   }
 
+  Future<void> _stopAndAnalyze() async {
+    if (!_isRecording) return;
+
+    setState(() {
+      _isRecording = false;
+      _isAnalyzing = true;
+    });
+    _timer?.cancel();
+    _amplitudeTimer?.cancel();
+
+    try {
+      // Stop recording and get the file
+      final File? audioFile = await _audioService.stopRecording();
+      
+      if (audioFile == null) {
+        throw Exception('No audio file was recorded');
+      }
+
+      // Upload to backend for analysis
+      final AnalysisModel result = await _apiService.uploadAudio(audioFile);
+
+      // Navigate to analysis result with the data
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          RouteNames.analysis,
+          arguments: result,
+        );
+      }
+    } on ApiException catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+        _errorMessage = 'Analysis failed: $e';
+      });
+    }
+  }
+
   void _toggleRecording() {
-    if (!_isRecording) {
-      setState(() {
-        _isRecording = true;
-        _startTimer();
-      });
+    if (_isAnalyzing) return;
+    
+    if (_isRecording) {
+      _stopAndAnalyze();
     } else {
-      setState(() {
-        _isRecording = false;
-        _timer?.cancel();
-      });
-      // Navigate to analysis result after stopping
-      Navigator.pushNamed(context, RouteNames.analysis);
+      _startRecording();
     }
   }
 
@@ -181,30 +276,74 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
 
             const SizedBox(height: 8),
 
-            // Recording indicator
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
+            // Recording indicator or analyzing state
+            if (_isAnalyzing) ...[
+              const SizedBox(height: 20),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Analyzing your speech...',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ] else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _isRecording ? Colors.red : AppColors.inactive,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isRecording ? 'RECORDING' : 'PAUSED',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Error message
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _isRecording ? Colors.red : AppColors.inactive,
-                    shape: BoxShape.circle,
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'RECORDING',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
 
             const SizedBox(height: 32),
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,16 +19,19 @@ class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // Google Sign-In configuration
-  // Web Client ID from Google Cloud Console (required for Android native flow)
-  static const String _webClientId =
-      '330938873910-h5uqf2fjn76nkahp37sso1vvbh1i3qqm.apps.googleusercontent.com';
+  // Web/Mobile Client ID from Google Cloud Console
+  // This is the same ID used for both web and mobile platforms
+  static const String _clientId =
+      '224611722969-cegepmde5ctvv1f8llu07qt17t6d8l7q.apps.googleusercontent.com';
 
   late final GoogleSignIn _googleSignIn;
 
   AuthService() {
+    // Web: clientId is set via meta tag in index.html, no serverClientId allowed
+    // Mobile: use serverClientId for native flow
     _googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
-      serverClientId: _webClientId,
+      serverClientId: kIsWeb ? null : _clientId,
     );
   }
 
