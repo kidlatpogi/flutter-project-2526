@@ -35,6 +35,17 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^6.1.0
+  
+  # Authentication & Backend
+  supabase_flutter: ^2.3.0
+  google_sign_in: ^6.2.1
+  
+  # HTTP & Networking
+  http: ^1.2.0
+  
+  # State Management & Utilities
+  flutter_riverpod: ^2.4.9
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:
