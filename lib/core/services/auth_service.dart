@@ -63,7 +63,7 @@ class AuthService {
         // Web: Use Supabase OAuth flow (more reliable for web)
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
-          redirectTo: kIsWeb ? null : null,
+          redirectTo: 'http://localhost:3000',
           authScreenLaunchMode: LaunchMode.platformDefault,
         );
         // OAuth flow redirects, so we return null here
