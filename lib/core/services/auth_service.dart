@@ -85,7 +85,7 @@ class AuthService {
 
         if (idToken == null) {
           throw AuthException(
-            'Failed to get Google ID token. Please try again.',
+            'Missing ID Token',
             code: 'missing_id_token',
           );
         }
