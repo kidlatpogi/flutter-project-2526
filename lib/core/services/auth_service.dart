@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Exception thrown when authentication fails
 class AuthException implements Exception {
@@ -50,53 +51,60 @@ class AuthService {
   /// Stream of auth state changes
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 
-  /// Sign in with Google using native flow (recommended for mobile)
+  /// Sign in with Google
   ///
-  /// This flow:
-  /// 1. Opens Google Sign-In UI natively
-  /// 2. Gets Google credentials (idToken + accessToken)
-  /// 3. Exchanges them with Supabase for a session
+  /// On Web: Uses Supabase OAuth flow (opens popup)
+  /// On Mobile: Uses native Google Sign-In flow
   ///
   /// Throws [AuthException] if sign-in fails or is cancelled
   Future<User?> signInWithGoogle() async {
     try {
-      // Step 1: Trigger native Google Sign-In
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-      // User cancelled the sign-in
-      if (googleUser == null) {
-        throw AuthException('Google sign-in was cancelled', code: 'cancelled');
-      }
-
-      // Step 2: Get authentication details
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      final String? idToken = googleAuth.idToken;
-      final String? accessToken = googleAuth.accessToken;
-
-      if (idToken == null) {
-        throw AuthException(
-          'Failed to get Google ID token. Please try again.',
-          code: 'missing_id_token',
+      if (kIsWeb) {
+        // Web: Use Supabase OAuth flow (more reliable for web)
+        await _supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: kIsWeb ? null : null,
+          authScreenLaunchMode: LaunchMode.platformDefault,
         );
-      }
+        // OAuth flow redirects, so we return null here
+        // The auth state change listener will handle the session
+        return null;
+      } else {
+        // Mobile: Use native Google Sign-In flow
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      // Step 3: Sign in to Supabase using the Google ID token
-      final AuthResponse response = await _supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
+        if (googleUser == null) {
+          throw AuthException('Google sign-in was cancelled', code: 'cancelled');
+        }
 
-      if (response.user == null) {
-        throw AuthException(
-          'Supabase authentication failed',
-          code: 'supabase_auth_failed',
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+
+        final String? idToken = googleAuth.idToken;
+        final String? accessToken = googleAuth.accessToken;
+
+        if (idToken == null) {
+          throw AuthException(
+            'Failed to get Google ID token. Please try again.',
+            code: 'missing_id_token',
+          );
+        }
+
+        final AuthResponse response = await _supabase.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
         );
-      }
 
-      return response.user;
+        if (response.user == null) {
+          throw AuthException(
+            'Supabase authentication failed',
+            code: 'supabase_auth_failed',
+          );
+        }
+
+        return response.user;
+      }
     } on AuthException {
       // Re-throw our custom exceptions
       rethrow;
