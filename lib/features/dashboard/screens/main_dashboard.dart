@@ -28,15 +28,19 @@ class _MainDashboardState extends State<MainDashboard> {
   Future<void> _loadUserProfile() async {
     try {
       final nickname = await _userProfileService.getNickname();
-      setState(() {
-        _nickname = nickname ?? 'there';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _nickname = nickname ?? 'there';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _nickname = 'there';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _nickname = 'there';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -256,7 +260,7 @@ class _MainDashboardState extends State<MainDashboard> {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '12',
+                                  '0',
                                   style: GoogleFonts.inter(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
@@ -313,7 +317,7 @@ class _MainDashboardState extends State<MainDashboard> {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '84',
+                                  '0',
                                   style: GoogleFonts.inter(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
