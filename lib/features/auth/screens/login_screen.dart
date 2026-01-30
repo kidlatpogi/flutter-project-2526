@@ -67,24 +67,55 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      print('Attempting login...');
       await _authService.signInWithEmail(email, password);
       
+      print('Login successful, checking for nickname...');
+      
+      // Check if widget is still mounted before proceeding
+      if (!mounted) {
+        print('Widget unmounted, aborting navigation');
+        return;
+      }
+      
       // Check if user has nickname
-      if (mounted) {
-        final hasNickname = await _userProfileService.hasNickname();
-        
-        if (!hasNickname) {
-          // First time login - go to nickname setup
-          Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
-        } else {
-          // Has nickname - go to dashboard
-          Navigator.pushReplacementNamed(context, RouteNames.dashboard);
-        }
+      bool hasNickname = false;
+      try {
+        hasNickname = await _userProfileService.hasNickname();
+        print('Has nickname: $hasNickname');
+      } catch (e) {
+        print('Error checking nickname (backend might be down): $e');
+        // If backend is down, skip nickname check and go to dashboard
+        // The dashboard will handle the error gracefully
+        hasNickname = true;
+      }
+      
+      if (!mounted) {
+        print('Widget unmounted after nickname check, aborting navigation');
+        return;
+      }
+      
+      if (!hasNickname) {
+        print('Navigating to nickname setup...');
+        Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+      } else {
+        print('Navigating to dashboard...');
+        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+      print('Auth exception: ${e.message}');
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+      }
+    } catch (e) {
+      print('Unexpected error during login: $e');
+      if (mounted) {
+        setState(() => _errorMessage = 'Login failed. Please try again.');
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

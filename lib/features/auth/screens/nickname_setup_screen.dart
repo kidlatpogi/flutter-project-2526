@@ -129,10 +129,9 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
-                  hintText: 'Maria',
+                  hintText: 'Enter your nickname',
                   hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.inactive,
+                    color: AppColors.textSecondary.withOpacity(0.5),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
