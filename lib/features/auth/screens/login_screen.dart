@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
@@ -19,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _userProfileService = UserProfileService();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -48,8 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
+    // Validation
     if (email.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter email and password');
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
       return;
     }
 
@@ -59,15 +67,61 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      print('Attempting login...');
       await _authService.signInWithEmail(email, password);
-      if (mounted) {
+      
+      print('Login successful, checking for nickname...');
+      
+      // Check if widget is still mounted before proceeding
+      if (!mounted) {
+        print('Widget unmounted, aborting navigation');
+        return;
+      }
+      
+      // Check if user has nickname
+      bool hasNickname = false;
+      try {
+        hasNickname = await _userProfileService.hasNickname();
+        print('Has nickname: $hasNickname');
+      } catch (e) {
+        print('Error checking nickname (backend might be down): $e');
+        // If backend is down, skip nickname check and go to dashboard
+        // The dashboard will handle the error gracefully
+        hasNickname = true;
+      }
+      
+      if (!mounted) {
+        print('Widget unmounted after nickname check, aborting navigation');
+        return;
+      }
+      
+      if (!hasNickname) {
+        print('Navigating to nickname setup...');
+        Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+      } else {
+        print('Navigating to dashboard...');
         Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+      print('Auth exception: ${e.message}');
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+      }
+    } catch (e) {
+      print('Unexpected error during login: $e');
+      if (mounted) {
+        setState(() => _errorMessage = 'Login failed. Please try again.');
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  /// Validate email format
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
   /// Handle Google Sign-In

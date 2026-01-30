@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/greeting_utils.dart';
 import '../../../routing/route_names.dart';
 import '../widgets/dashboard_navbar.dart';
 
@@ -13,6 +15,40 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 2; // Home is selected
+  final _userProfileService = UserProfileService();
+  String? _nickname;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final nickname = await _userProfileService.getNickname();
+      if (mounted) {
+        setState(() {
+          _nickname = nickname ?? 'there';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nickname = 'there';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _userProfileService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,21 +93,35 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 // Greeting
                 Text(
-                  'Good afternoon,',
+                  '${GreetingUtils.getGreeting()},',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Maria',
-                  style: GoogleFonts.inter(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
+                _isLoading
+                    ? SizedBox(
+                        height: 40,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _nickname ?? 'there',
+                        style: GoogleFonts.inter(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
 
                 const SizedBox(height: 24),
 
@@ -210,7 +260,7 @@ class _MainDashboardState extends State<MainDashboard> {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '12',
+                                  '0',
                                   style: GoogleFonts.inter(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
@@ -267,7 +317,7 @@ class _MainDashboardState extends State<MainDashboard> {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '84',
+                                  '0',
                                   style: GoogleFonts.inter(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
@@ -301,13 +351,13 @@ class _MainDashboardState extends State<MainDashboard> {
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                        color: AppColors.textSecondary,
                         letterSpacing: 0.5,
                       ),
                     ),
                     TextButton(
                       onPressed: () {
-                        // TODO: Navigate to all sessions
+                        Navigator.pushNamed(context, RouteNames.progress);
                       },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
@@ -328,29 +378,45 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 16),
 
-                // Recent Sessions List
-                _buildSessionItem(
-                  icon: Icons.graphic_eq,
-                  title: 'Impromptu Speech #3',
-                  date: 'Oct 24',
-                  duration: '4 mins',
-                  score: '78',
-                ),
-                const SizedBox(height: 12),
-                _buildSessionItem(
-                  icon: Icons.school_outlined,
-                  title: 'Project Presentation',
-                  date: 'Oct 24',
-                  duration: '4 mins',
-                  score: '92',
-                ),
-                const SizedBox(height: 12),
-                _buildSessionItem(
-                  icon: Icons.chat_bubble_outline,
-                  title: 'Casual Conversation',
-                  date: 'Oct 24',
-                  duration: '4 mins',
-                  score: '64',
+                // Empty State - No Sessions Yet
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.inactive.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.history,
+                        size: 48,
+                        color: AppColors.inactive,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No sessions yet',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Start practicing to see your\nrecent sessions here',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppColors.textSecondary.withOpacity(0.7),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 80), // Space for bottom nav

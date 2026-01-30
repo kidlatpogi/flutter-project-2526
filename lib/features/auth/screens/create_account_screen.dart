@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
@@ -17,8 +19,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+  final _userProfileService = UserProfileService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -26,7 +32,113 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _authService;
+    _userProfileService.dispose();
     super.dispose();
+  }
+
+  /// Validate email format
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  /// Validate password strength
+  String? _validatePassword(String password) {
+    if (password.isEmpty) {
+      return 'Password is required';
+    }
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+      return 'Password must contain at least one special character';
+    }
+    return null;
+  }
+
+  /// Handle account creation
+  Future<void> _handleCreateAccount() async {
+    print('Create Account button clicked');
+    
+    final fullName = _fullNameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    print('Full Name: $fullName');
+    print('Email: $email');
+    print('Password length: ${password.length}');
+
+    // Validation
+    if (fullName.isEmpty) {
+      print('Validation failed: Full name is empty');
+      setState(() => _errorMessage = 'Please enter your full name');
+      return;
+    }
+
+    if (email.isEmpty) {
+      print('Validation failed: Email is empty');
+      setState(() => _errorMessage = 'Please enter your email');
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      print('Validation failed: Invalid email format');
+      setState(() => _errorMessage = 'Please enter a valid email address');
+      return;
+    }
+
+    final passwordError = _validatePassword(password);
+    if (passwordError != null) {
+      print('Validation failed: $passwordError');
+      setState(() => _errorMessage = passwordError);
+      return;
+    }
+
+    if (password != confirmPassword) {
+      print('Validation failed: Passwords do not match');
+      setState(() => _errorMessage = 'Passwords do not match');
+      return;
+    }
+
+    print('All validations passed, attempting signup...');
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      print('Calling signUpWithEmail...');
+      await _authService.signUpWithEmail(email, password, name: fullName);
+      
+      print('Signup successful, navigating to nickname setup...');
+      
+      if (mounted) {
+        // After signup, go to nickname setup
+        Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+      }
+    } on AuthException catch (e) {
+      print('AuthException caught: ${e.message}');
+      setState(() => _errorMessage = e.message);
+    } catch (e) {
+      print('Unexpected error caught: $e');
+      setState(() => _errorMessage = 'Failed to create account. Please try again.');
+    } finally {
+      if (mounted) {
+        print('Setting loading to false');
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -268,10 +380,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   width: double.infinity,
                   height: AppConstants.buttonHeight,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(context, RouteNames.dashboard);
-                    },
-                    child: const Text('Sign up'),
+                    onPressed: _isLoading ? null : _handleCreateAccount,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Create Account'),
                   ),
                 ),
                 

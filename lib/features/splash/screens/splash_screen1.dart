@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/page_transitions.dart';
 import '../../../routing/route_names.dart';
+import 'splash_screen2.dart';
 
 class SplashScreen1 extends StatelessWidget {
   const SplashScreen1({super.key});
@@ -85,7 +87,10 @@ class SplashScreen1 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, RouteNames.splash2);
+                    Navigator.push(
+                      context,
+                      FadePageRoute(page: const SplashScreen2()),
+                    );
                   },
                   child: const Text('Next'),
                 ),

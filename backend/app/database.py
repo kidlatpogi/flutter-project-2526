@@ -10,7 +10,7 @@ from uuid import UUID
 from supabase import create_client, Client
 
 from app.config import get_settings
-from app.models import AnalysisResult
+from app.models import AnalysisResult, UserProfile, UpdateUserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -145,3 +145,87 @@ async def check_connection() -> bool:
     except Exception as e:
         logger.warning(f"Supabase connection check failed: {e}")
         return False
+
+
+async def get_user_profile(user_id: str) -> Optional[dict[str, Any]]:
+    """
+    Retrieve user profile by user ID.
+    
+    Args:
+        user_id: The Supabase auth user ID.
+        
+    Returns:
+        The user profile if found, None otherwise.
+    """
+    client = get_supabase()
+    
+    try:
+        response = client.table("user_profiles").select("*").eq(
+            "id", user_id
+        ).execute()
+        
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to retrieve user profile: {e}")
+        raise
+
+
+async def create_user_profile(user_id: str, profile_data: UpdateUserProfile) -> dict[str, Any]:
+    """
+    Create a new user profile.
+    
+    Args:
+        user_id: The Supabase auth user ID.
+        profile_data: The profile data to create.
+        
+    Returns:
+        The created profile record.
+    """
+    client = get_supabase()
+    
+    record = {
+        "id": user_id,
+        "nickname": profile_data.nickname,
+        "full_name": profile_data.full_name,
+    }
+    
+    try:
+        response = client.table("user_profiles").insert(record).execute()
+        logger.info(f"Successfully created user profile for user {user_id}")
+        return response.data[0] if response.data else record
+    except Exception as e:
+        logger.error(f"Failed to create user profile: {e}")
+        raise
+
+
+async def update_user_profile(user_id: str, profile_data: UpdateUserProfile) -> dict[str, Any]:
+    """
+    Update an existing user profile.
+    
+    Args:
+        user_id: The Supabase auth user ID.
+        profile_data: The profile data to update.
+        
+    Returns:
+        The updated profile record.
+    """
+    client = get_supabase()
+    
+    # Build update dict with only provided fields
+    update_data = {}
+    if profile_data.nickname is not None:
+        update_data["nickname"] = profile_data.nickname
+    if profile_data.full_name is not None:
+        update_data["full_name"] = profile_data.full_name
+    
+    try:
+        response = client.table("user_profiles").update(update_data).eq(
+            "id", user_id
+        ).execute()
+        logger.info(f"Successfully updated user profile for user {user_id}")
+        return response.data[0] if response.data else update_data
+    except Exception as e:
+        logger.error(f"Failed to update user profile: {e}")
+        raise

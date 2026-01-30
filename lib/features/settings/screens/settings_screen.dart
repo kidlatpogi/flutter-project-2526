@@ -13,11 +13,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   int _currentIndex = 4; // Settings is selected
-  bool _selfReportedAnxiety = false;
   bool _microphoneAccess = false;
-  bool _cameraAccess = false;
   String _selectedMicrophone = 'Default - Built-in Microphone';
-  String _selectedCamera = 'Front Camera';
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +36,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: AppColors.primary,
                   ),
                 ),
-
-                const SizedBox(height: 24),
-
-                // Account Section
-                _buildSectionTitle('Account'),
-                const SizedBox(height: 12),
-                _buildInfoField('Email', 'juan@school.edu.ph'),
 
                 const SizedBox(height: 24),
 
@@ -79,32 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 const SizedBox(height: 16),
 
-                // Camera Source
-                Text(
-                  'CAMERA SOURCE',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDropdown(
-                  value: _selectedCamera,
-                  items: [
-                    'Front Camera',
-                    'Back Camera',
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedCamera = value!;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
                 // Test Audio/Video Button
                 SizedBox(
                   width: double.infinity,
@@ -124,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     child: Text(
-                      'TEST AUDIO / VIDEO',
+                      'TEST AUDIO',
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -132,47 +96,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Preferences Section
-                _buildSectionTitle('PREFERENCES'),
-                const SizedBox(height: 12),
-                _buildToggleItem(
-                  'Self-Reported Anxiety',
-                  'Students can report their anxiety before and during assessments.',
-                  _selfReportedAnxiety,
-                  (value) {
-                    setState(() {
-                      _selfReportedAnxiety = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Privacy Section
-                _buildSectionTitle('PRIVACY'),
-                const SizedBox(height: 12),
-                _buildSimpleToggle(
-                  'Microphone Access',
-                  _microphoneAccess,
-                  (value) {
-                    setState(() {
-                      _microphoneAccess = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildSimpleToggle(
-                  'Camera Access',
-                  _cameraAccess,
-                  (value) {
-                    setState(() {
-                      _cameraAccess = value;
-                    });
-                  },
                 ),
 
                 const SizedBox(height: 24),

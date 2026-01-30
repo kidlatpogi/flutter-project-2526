@@ -4,11 +4,13 @@ import '../features/splash/screens/splash_screen2.dart';
 import '../features/splash/screens/splash_screen3.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/create_account_screen.dart';
+import '../features/auth/screens/nickname_setup_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
 import '../features/dashboard/screens/main_dashboard.dart';
 import '../features/script/screens/script_screen.dart';
+import '../features/script/screens/create_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/change_password_screen.dart';
@@ -32,6 +34,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case RouteNames.createAccount:
         return MaterialPageRoute(builder: (_) => const CreateAccountScreen());
+      case RouteNames.nicknameSetup:
+        return MaterialPageRoute(builder: (_) => const NicknameSetupScreen());
       case RouteNames.forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
@@ -42,6 +46,11 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const MainDashboard());
       case RouteNames.script:
         return MaterialPageRoute(builder: (_) => const ScriptScreen());
+      case RouteNames.createScript:
+        return MaterialPageRoute(
+          builder: (_) => const CreateScriptScreen(),
+          fullscreenDialog: true,
+        );
       case RouteNames.progress:
         return MaterialPageRoute(builder: (_) => const ProgressAnalyticsScreen());
       case RouteNames.profile:

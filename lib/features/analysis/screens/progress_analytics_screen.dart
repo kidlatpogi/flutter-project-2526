@@ -65,63 +65,41 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 24),
 
-                      // Score and Change
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '88%',
-                            style: GoogleFonts.inter(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                              height: 1,
+                      // Empty State
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.show_chart,
+                              size: 64,
+                              color: AppColors.inactive,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                            const SizedBox(height: 16),
+                            Text(
+                              'No data yet',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Complete practice sessions to\nsee your performance trend',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppColors.textSecondary.withOpacity(0.7),
+                                height: 1.5,
+                              ),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.trending_up,
-                                  size: 14,
-                                  color: Colors.green,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '12%',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 24),
-
-                      // Chart Placeholder
-                      SizedBox(
-                        height: 150,
-                        child: CustomPaint(
-                          painter: LineChartPainter(),
-                          size: const Size(double.infinity, 150),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -152,7 +130,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '12',
+                              '0',
                               style: GoogleFonts.inter(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
@@ -195,7 +173,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '84%',
+                              '0%',
                               style: GoogleFonts.inter(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
@@ -231,55 +209,50 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         color: AppColors.primary,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        // TODO: Navigate to all history
-                      },
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'View All',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
 
                 const SizedBox(height: 16),
 
-                // Recent History Items
-                _buildHistoryItem(
-                  icon: Icons.graphic_eq,
-                  title: 'Impromptu Speech',
-                  date: 'Yesterday',
-                  subtitle: 'Vowel Clarity',
-                  score: '88',
-                  rating: 'EXCELLENT',
-                ),
-                const SizedBox(height: 12),
-                _buildHistoryItem(
-                  icon: Icons.menu_book,
-                  title: 'Prepared Oration',
-                  date: 'Oct 24',
-                  subtitle: 'National Heroes',
-                  score: '79',
-                  rating: 'GOOD',
-                ),
-                const SizedBox(height: 12),
-                _buildHistoryItem(
-                  icon: Icons.menu_book,
-                  title: 'Prepared Oration',
-                  date: 'Oct 3',
-                  subtitle: 'Vocal Drills',
-                  score: '92',
-                  rating: 'PERFECT',
+                // Empty State - No History
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.inactive.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.history,
+                        size: 48,
+                        color: AppColors.inactive,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No history yet',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your practice history will\nappear here',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppColors.textSecondary.withOpacity(0.7),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 80), // Space for bottom nav

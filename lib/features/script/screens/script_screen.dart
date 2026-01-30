@@ -38,7 +38,7 @@ class _ScriptScreenState extends State<ScriptScreen> {
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      // TODO: Navigate to create script
+                      Navigator.pushNamed(context, RouteNames.createScript);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -63,42 +63,75 @@ class _ScriptScreenState extends State<ScriptScreen> {
               ),
             ),
 
-            // Scripts List
+            // Empty State - No Scripts Yet
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  ScriptListItem(
-                    title: 'Graduation Speech Draft 1',
-                    description:
-                        'Follow students, teachers, and parents, Today marks the end of long journey, but also the beginning of an exciting new...',
-                    editedTime: 'EDITED 2H AGO',
-                    onUseInPractice: () {
-                      // TODO: Navigate to practice with this script
-                    },
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(32),
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.inactive.withOpacity(0.3),
+                      width: 1,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  ScriptListItem(
-                    title: 'Debate Opening Statement',
-                    description:
-                        'The proposition clearly states that renewable energy is the only path forward for sustainable economic growth. To...',
-                    editedTime: 'EDITED YESTERDAY',
-                    onUseInPractice: () {
-                      // TODO: Navigate to practice with this script
-                    },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 64,
+                        color: AppColors.inactive,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No scripts yet',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Create your first script to\nstart practicing your speech',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppColors.textSecondary.withOpacity(0.7),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, RouteNames.createScript);
+                        },
+                        icon: Icon(Icons.add, size: 20),
+                        label: Text(
+                          'Create Script',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  ScriptListItem(
-                    title: 'Impromptu Practice',
-                    description:
-                        'Topic: If I could travel anywhere in time, I would choose the Renaissance period. The explosion of art, science and culture...',
-                    editedTime: 'EDITED 30 AGO',
-                    onUseInPractice: () {
-                      // TODO: Navigate to practice with this script
-                    },
-                  ),
-                  const SizedBox(height: 80), // Space for bottom nav
-                ],
+                ),
               ),
             ),
           ],
