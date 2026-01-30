@@ -85,30 +85,7 @@ class SplashScreen1 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: Navigator(
-                              onGenerateRoute: (settings) {
-                                return MaterialPageRoute(
-                                  builder: (_) => const SplashScreen2(),
-                                  settings: settings,
-                                );
-                              },
-                            ),
-                          );
-                        },
-                        transitionDuration: const Duration(milliseconds: 400),
-                      ),
-                    ).then((_) {
-                      // Pop the navigator when coming back
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      }
-                    });
+                    Navigator.pushNamed(context, RouteNames.splash2);
                   },
                   child: const Text('Next'),
                 ),
