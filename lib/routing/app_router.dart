@@ -4,6 +4,7 @@ import '../features/splash/screens/splash_screen2.dart';
 import '../features/splash/screens/splash_screen3.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/create_account_screen.dart';
+import '../features/auth/screens/nickname_setup_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
@@ -32,6 +33,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case RouteNames.createAccount:
         return MaterialPageRoute(builder: (_) => const CreateAccountScreen());
+      case RouteNames.nicknameSetup:
+        return MaterialPageRoute(builder: (_) => const NicknameSetupScreen());
       case RouteNames.forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:

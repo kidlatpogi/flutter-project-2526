@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
@@ -19,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _userProfileService = UserProfileService();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -48,8 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
+    // Validation
     if (email.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter email and password');
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
       return;
     }
 
@@ -60,14 +68,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await _authService.signInWithEmail(email, password);
+      
+      // Check if user has nickname
       if (mounted) {
-        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+        final hasNickname = await _userProfileService.hasNickname();
+        
+        if (!hasNickname) {
+          // First time login - go to nickname setup
+          Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+        } else {
+          // Has nickname - go to dashboard
+          Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+        }
       }
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Validate email format
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
   /// Handle Google Sign-In

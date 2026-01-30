@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/greeting_utils.dart';
 import '../../../routing/route_names.dart';
 import '../widgets/dashboard_navbar.dart';
 
@@ -13,6 +15,36 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 2; // Home is selected
+  final _userProfileService = UserProfileService();
+  String? _nickname;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final nickname = await _userProfileService.getNickname();
+      setState(() {
+        _nickname = nickname ?? 'there';
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _nickname = 'there';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _userProfileService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,21 +89,35 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 // Greeting
                 Text(
-                  'Good afternoon,',
+                  '${GreetingUtils.getGreeting()},',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Maria',
-                  style: GoogleFonts.inter(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
+                _isLoading
+                    ? SizedBox(
+                        height: 40,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _nickname ?? 'there',
+                        style: GoogleFonts.inter(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
 
                 const SizedBox(height: 24),
 

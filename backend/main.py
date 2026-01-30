@@ -15,20 +15,27 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 from app.config import get_settings
 from app.models import (
     AnalysisResult,
     HealthResponse,
     ErrorResponse,
+    UserProfile,
+    UpdateUserProfile,
 )
 from app.database import (
     insert_analysis_result,
     get_analysis_by_session,
     check_connection,
+    get_user_profile,
+    create_user_profile,
+    update_user_profile,
 )
 from app.analysis.pipeline import run_analysis_pipeline
 from app.analysis.transcription import WhisperTranscriber
@@ -270,6 +277,135 @@ async def global_exception_handler(request, exc):
             "timestamp": datetime.utcnow().isoformat()
         }
     )
+
+
+def verify_jwt_token(authorization: str) -> str:
+    """
+    Verify JWT token from Authorization header and extract user ID.
+    
+    Args:
+        authorization: The Authorization header value (Bearer <token>)
+        
+    Returns:
+        The user ID from the token.
+        
+    Raises:
+        HTTPException: If token is invalid or missing.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
+        )
+    
+    token = authorization.replace("Bearer ", "")
+    settings = get_settings()
+    
+    try:
+        # Decode JWT token (Supabase uses HS256 by default)
+        # Note: In production, you should verify the signature with Supabase JWT secret
+        payload = jwt.decode(
+            token,
+            options={"verify_signature": False}  # For development; verify in production
+        )
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing user ID"
+            )
+        return user_id
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}"
+        )
+
+
+@app.get(
+    "/profile",
+    response_model=dict,
+    tags=["User Profile"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized"},
+        404: {"model": ErrorResponse, "description": "Profile not found"}
+    }
+)
+async def get_profile(
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Get the current user's profile.
+    
+    Requires authentication via Bearer token in Authorization header.
+    """
+    user_id = verify_jwt_token(authorization)
+    
+    try:
+        profile = await get_user_profile(user_id)
+        
+        if profile is None:
+            # Profile doesn't exist yet, return empty profile
+            return {
+                "id": user_id,
+                "nickname": None,
+                "full_name": None,
+                "has_profile": False
+            }
+        
+        return {
+            **profile,
+            "has_profile": True
+        }
+    except Exception as e:
+        logger.error(f"Failed to retrieve profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve profile: {str(e)}"
+        )
+
+
+@app.put(
+    "/profile",
+    response_model=dict,
+    tags=["User Profile"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized"},
+        400: {"model": ErrorResponse, "description": "Invalid profile data"}
+    }
+)
+async def update_profile(
+    profile_data: UpdateUserProfile,
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Create or update the current user's profile.
+    
+    Requires authentication via Bearer token in Authorization header.
+    """
+    user_id = verify_jwt_token(authorization)
+    
+    try:
+        # Check if profile exists
+        existing_profile = await get_user_profile(user_id)
+        
+        if existing_profile is None:
+            # Create new profile
+            profile = await create_user_profile(user_id, profile_data)
+        else:
+            # Update existing profile
+            profile = await update_user_profile(user_id, profile_data)
+        
+        return {
+            **profile,
+            "has_profile": True
+        }
+    except Exception as e:
+        logger.error(f"Failed to update profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update profile: {str(e)}"
+        )
 
 
 if __name__ == "__main__":

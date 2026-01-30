@@ -4,6 +4,7 @@ class RouteNames {
   static const String splash3 = '/splash3';
   static const String login = '/login';
   static const String createAccount = '/create-account';
+  static const String nicknameSetup = '/nickname-setup';
   static const String forgotPassword = '/forgot-password';
   static const String verifyEmail = '/verify-email';
   static const String resetPassword = '/reset-password';
