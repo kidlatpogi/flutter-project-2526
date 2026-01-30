@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/page_transitions.dart';
 import '../../../routing/route_names.dart';
+import '../../auth/screens/create_account_screen.dart';
+import '../../auth/screens/login_screen.dart';
 
 class SplashScreen3 extends StatelessWidget {
   const SplashScreen3({super.key});
@@ -86,7 +89,10 @@ class SplashScreen3 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, RouteNames.createAccount);
+                    Navigator.push(
+                      context,
+                      FadeSlidePageRoute(page: const CreateAccountScreen()),
+                    );
                   },
                   child: const Text('Create Account'),
                 ),
@@ -100,7 +106,10 @@ class SplashScreen3 extends StatelessWidget {
                 height: AppConstants.buttonHeight,
                 child: OutlinedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, RouteNames.login);
+                    Navigator.push(
+                      context,
+                      FadeSlidePageRoute(page: const LoginScreen()),
+                    );
                   },
                   child: const Text('Login'),
                 ),
