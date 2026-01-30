@@ -13,15 +13,13 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _currentIndex = 3; // Profile is selected
-  final _fullNameController = TextEditingController(text: 'Juan Dela Cruz');
-  final _emailController = TextEditingController(text: 'juan@university.edu.ph');
-  final _schoolYearController = TextEditingController(text: 'National University - 3rd year');
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
-    _schoolYearController.dispose();
     super.dispose();
   }
 
@@ -156,53 +154,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: AppColors.primary,
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.inactive.withOpacity(0.3),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.inactive.withOpacity(0.3),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // School / Year
-                Text(
-                  'School / Year',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _schoolYearController,
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    color: AppColors.primary,
-                  ),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: AppColors.surface,

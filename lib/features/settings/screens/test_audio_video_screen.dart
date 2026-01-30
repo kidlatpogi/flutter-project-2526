@@ -10,9 +10,8 @@ class TestAudioVideoScreen extends StatefulWidget {
 }
 
 class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
-  bool _isTesting = true;
-  bool _audioDetected = true;
-  bool _videoDetected = true;
+  bool _isTesting = false;
+  bool _audioDetected = false;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +28,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
                 children: [
                   const SizedBox(width: 40), // Balance the close button
                   Text(
-                    'AUDIO/VIDEO TESTER',
+                    'AUDIO TESTER',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -47,25 +46,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
               ),
             ),
 
-            // Video Preview Area
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.inactive.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.videocam,
-                    size: 60,
-                    color: AppColors.inactive,
-                  ),
-                ),
-              ),
-            ),
+
 
             // Audio Waveform Visualization
             Padding(
@@ -101,27 +82,6 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'AUDIO - ${_audioDetected ? 'DETECTED' : 'NOT DETECTED'}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _videoDetected ? Icons.check_circle : Icons.cancel,
-                        color: _videoDetected ? Colors.green : Colors.red,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'VIDEO - ${_videoDetected ? 'DETECTED' : 'NOT DETECTED'}',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -175,75 +135,33 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
             // Control Buttons
             Padding(
               padding: const EdgeInsets.all(24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Switch Camera Button
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.inactive.withOpacity(0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.flip_camera_ios,
-                        color: AppColors.inactive,
-                      ),
-                      onPressed: () {
-                        // TODO: Switch camera
-                      },
-                    ),
+              child: Center(
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: _isTesting ? Colors.red : AppColors.primary,
+                    shape: BoxShape.circle,
                   ),
-
-                  // Record/Stop Button
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
+                  child: IconButton(
+                    icon: Icon(
+                      _isTesting ? Icons.stop : Icons.mic,
+                      color: AppColors.surface,
+                      size: 40,
                     ),
-                    child: IconButton(
-                      icon: Icon(
-                        _isTesting ? Icons.stop : Icons.play_arrow,
-                        color: AppColors.surface,
-                        size: 40,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isTesting = !_isTesting;
-                        });
-                      },
-                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isTesting = !_isTesting;
+                        if (_isTesting) {
+                          // TODO: Start microphone test
+                          _audioDetected = true;
+                        } else {
+                          // TODO: Stop microphone test
+                        }
+                      });
+                    },
                   ),
-
-                  // Settings Button
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.inactive.withOpacity(0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.settings,
-                        color: AppColors.inactive,
-                      ),
-                      onPressed: () {
-                        // TODO: Open settings
-                      },
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
 
