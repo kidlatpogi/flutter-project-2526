@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart';
 import 'routing/route_names.dart';
+import 'features/auth/screens/auth_wrapper.dart';
 
 /// Supabase configuration
 const String supabaseUrl = 'https://krbcgixttxxdofdmevyj.supabase.co';
@@ -31,7 +32,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Bigkas',
       theme: AppTheme.theme,
-      initialRoute: RouteNames.splash1,
+      home: const AuthWrapper(),
       onGenerateRoute: AppRouter.generateRoute,
       debugShowCheckedModeBanner: false,
     );

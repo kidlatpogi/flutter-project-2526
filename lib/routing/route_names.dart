@@ -1,4 +1,5 @@
 class RouteNames {
+  static const String authWrapper = '/auth-wrapper';
   static const String splash1 = '/';
   static const String splash2 = '/splash2';
   static const String splash3 = '/splash3';
@@ -19,5 +20,6 @@ class RouteNames {
   static const String progress = '/progress';
   static const String settings = '/settings';
   static const String changePassword = '/change-password';
+  static const String editNickname = '/edit-nickname';
   static const String testAudioVideo = '/test-audio-video';
 }

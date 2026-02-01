@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Service for managing user profiles
 class UserProfileService {
   // Base URL for the FastAPI backend
-  static const String baseUrl = 'http://localhost:3000';
+  static const String baseUrl = 'http://localhost:8000';
   
   // For Android emulator, use: 'http://10.0.2.2:3000'
 
@@ -105,6 +105,40 @@ class UserProfileService {
       final profile = await getUserProfile();
       return profile?['nickname'] as String?;
     } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get user's nickname with fallback to display name
+  Future<String?> getNicknameOrDisplayName() async {
+    try {
+      final profile = await getUserProfile();
+      final nickname = profile?['nickname'] as String?;
+      
+      // If we have a nickname, return it
+      if (nickname != null && nickname.isNotEmpty) {
+        return nickname;
+      }
+      
+      // Otherwise, try to get display name from current user
+      final user = Supabase.instance.client.auth.currentUser;
+      final displayName = user?.userMetadata?['full_name'] ?? user?.userMetadata?['name'];
+      
+      if (displayName != null) {
+        // Return first name from display name
+        return (displayName as String).split(' ').first;
+      }
+      
+      return null;
+    } catch (e) {
+      // If backend fails, try to get display name from current user
+      final user = Supabase.instance.client.auth.currentUser;
+      final displayName = user?.userMetadata?['full_name'] ?? user?.userMetadata?['name'];
+      
+      if (displayName != null) {
+        return (displayName as String).split(' ').first;
+      }
+      
       return null;
     }
   }

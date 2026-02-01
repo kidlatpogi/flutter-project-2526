@@ -8,12 +8,14 @@ import '../features/auth/screens/nickname_setup_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
+import '../features/auth/screens/auth_wrapper.dart';
 import '../features/dashboard/screens/main_dashboard.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/change_password_screen.dart';
+import '../features/profile/screens/edit_nickname_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/test_audio_video_screen.dart';
 import '../features/practice/screens/practice_setup_screen.dart';
@@ -24,6 +26,8 @@ import 'route_names.dart';
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case RouteNames.authWrapper:
+        return MaterialPageRoute(builder: (_) => const AuthWrapper());
       case RouteNames.splash1:
         return MaterialPageRoute(builder: (_) => const SplashScreen1());
       case RouteNames.splash2:
@@ -66,6 +70,11 @@ class AppRouter {
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),
+          fullscreenDialog: true,
+        );
+      case RouteNames.editNickname:
+        return MaterialPageRoute(
+          builder: (_) => const EditNicknameScreen(),
           fullscreenDialog: true,
         );
       case RouteNames.testAudioVideo:

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/greeting_utils.dart';
@@ -16,7 +17,10 @@ class MainDashboard extends StatefulWidget {
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 2; // Home is selected
   final _userProfileService = UserProfileService();
+  final _authService = AuthService();
   String? _nickname;
+  String? _displayName;
+  String? _avatarUrl;
   bool _isLoading = true;
 
   @override
@@ -27,7 +31,13 @@ class _MainDashboardState extends State<MainDashboard> {
 
   Future<void> _loadUserProfile() async {
     try {
-      final nickname = await _userProfileService.getNickname();
+      // Get Google account info first
+      _displayName = _authService.displayName;
+      _avatarUrl = _authService.avatarUrl;
+      
+      // Try to get nickname or display name from service
+      final nickname = await _userProfileService.getNicknameOrDisplayName();
+      
       if (mounted) {
         setState(() {
           _nickname = nickname ?? 'there';
@@ -37,7 +47,8 @@ class _MainDashboardState extends State<MainDashboard> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _nickname = 'there';
+          // Fallback to display name if available
+          _nickname = _displayName?.split(' ').first ?? 'there';
           _isLoading = false;
         });
       }
@@ -73,17 +84,34 @@ class _MainDashboardState extends State<MainDashboard> {
                         color: AppColors.primary,
                       ),
                     ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary, width: 2),
-                      ),
-                      child: Icon(
-                        Icons.person_outline,
-                        color: AppColors.primary,
-                        size: 24,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(context, RouteNames.profile);
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.primary, width: 2),
+                        ),
+                        child: _avatarUrl != null
+                            ? ClipOval(
+                                child: Image.network(
+                                  _avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Icon(
+                                    Icons.person_outline,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.person_outline,
+                                color: AppColors.primary,
+                                size: 24,
+                              ),
                       ),
                     ),
                   ],

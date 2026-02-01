@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -15,6 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _currentIndex = 4; // Settings is selected
   bool _microphoneAccess = false;
   String _selectedMicrophone = 'Default - Built-in Microphone';
+  final _authService = AuthService();
 
   @override
   Widget build(BuildContext context) {
@@ -481,13 +483,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                RouteNames.login,
-                (route) => false,
-              );
+              try {
+                await _authService.signOut();
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    RouteNames.splash1,
+                    (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Logout failed: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: Text(
               'Log Out',
