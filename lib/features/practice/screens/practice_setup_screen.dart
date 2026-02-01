@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 
@@ -22,23 +23,44 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
   }
 
   Future<void> _loadScripts() async {
-    // TODO: In a real app, fetch from your backend/database
-    // For now, using mock data that would come from script storage
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    setState(() {
-      // Mock scripts - replace with actual API call
-      _scripts = [
-        'Talumpati ng Pagbati-Draft 1',
-        'Impromptu Speech',
-        'Prepared Oration',
-      ];
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
       
-      // Set first script as default if available
-      if (_scripts.isNotEmpty) {
-        _selectedScript = _scripts.first;
+      if (currentUser == null) {
+        print('User not authenticated');
+        return;
       }
-    });
+      
+      // Query scripts table for current user
+      final response = await supabase
+          .from('scripts')
+          .select('id, title')
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false);
+      
+      if (mounted) {
+        setState(() {
+          // Extract script titles from response
+          _scripts = (response as List)
+              .map((script) => script['title'] as String)
+              .toList();
+          
+          // Set first script as default if available
+          if (_scripts.isNotEmpty) {
+            _selectedScript = _scripts.first;
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading scripts: $e');
+      // Keep empty list if error occurs
+      if (mounted) {
+        setState(() {
+          _scripts = [];
+        });
+      }
+    }
   }
 
   @override
