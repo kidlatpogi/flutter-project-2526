@@ -51,6 +51,31 @@ class AuthService {
   /// Stream of auth state changes
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 
+  /// Refresh session if token is near expiry
+  Future<void> refreshSessionIfNeeded() async {
+    final session = _supabase.auth.currentSession;
+    if (session == null) return;
+
+    final expiresAt = session.expiresAt;
+    if (expiresAt == null) return;
+
+    final expiry = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
+    final now = DateTime.now().toUtc();
+
+    // On web implicit flow, refresh token may be missing
+    final refreshToken = session.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) return;
+
+    if (now.isAfter(expiry.subtract(const Duration(minutes: 1)))) {
+      try {
+        await _supabase.auth.refreshSession();
+      } catch (e) {
+        // Ignore refresh errors to avoid breaking flow on web implicit auth
+        print('Session refresh failed: $e');
+      }
+    }
+  }
+
   /// Sign in with Google
   ///
   /// On Web: Uses Supabase OAuth flow (opens popup)
@@ -61,9 +86,13 @@ class AuthService {
     try {
       if (kIsWeb) {
         // Web: Use Supabase OAuth flow (more reliable for web)
+        // Use the current page origin for redirect
+        final redirectTo = Uri.base.origin;
+        print('OAuth redirect URL: $redirectTo');
+        
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
-          redirectTo: 'http://localhost:3000',
+          redirectTo: redirectTo,
           authScreenLaunchMode: LaunchMode.platformDefault,
         );
         // OAuth flow redirects, so we return null here
@@ -130,6 +159,11 @@ class AuthService {
         email: email,
         password: password,
       );
+      // If email confirmation is required, block login until verified
+      if (response.user?.emailConfirmedAt == null) {
+        await _supabase.auth.signOut();
+        throw AuthException('Please verify your email before logging in.');
+      }
       return response.user;
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
@@ -142,10 +176,12 @@ class AuthService {
   Future<User?> signUpWithEmail(String email, String password,
       {String? name}) async {
     try {
+      final emailRedirectTo = kIsWeb ? Uri.base.origin : null;
       final AuthResponse response = await _supabase.auth.signUp(
         email: email,
         password: password,
         data: name != null ? {'full_name': name} : null,
+        emailRedirectTo: emailRedirectTo,
       );
       return response.user;
     } on AuthApiException catch (e) {
@@ -153,6 +189,73 @@ class AuthService {
     } catch (e) {
       throw AuthException('Registration failed: ${e.toString()}');
     }
+  }
+
+  /// Resend email confirmation link
+  Future<void> resendConfirmationEmail(String email) async {
+    try {
+      await _supabase.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to resend confirmation: ${e.toString()}');
+    }
+  }
+
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      final redirectTo = kIsWeb ? '${Uri.base.origin}/#/reset-password' : null;
+      await _supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: redirectTo,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to send reset email: ${e.toString()}');
+    }
+  }
+
+  /// Verify current password by re-authenticating
+  Future<void> verifyPassword(String password) async {
+    final email = currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw AuthException('Email not available for this account.');
+    }
+
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Password verification failed: ${e.toString()}');
+    }
+  }
+
+  /// Update password for current user (used for reset flow)
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to update password: ${e.toString()}');
+    }
+  }
+
+  /// Change password with old password verification
+  Future<void> changePassword({required String oldPassword, required String newPassword}) async {
+    await verifyPassword(oldPassword);
+    await updatePassword(newPassword);
   }
 
   /// Sign out from both Supabase and Google

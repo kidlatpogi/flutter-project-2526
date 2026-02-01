@@ -6,6 +6,8 @@ Orchestrates the complete audio analysis workflow.
 import logging
 import tempfile
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from uuid import UUID, uuid4
 from datetime import datetime
@@ -61,15 +63,86 @@ class AnalysisPipeline:
         """
         if audio_path.suffix.lower() == '.wav':
             return audio_path
+
+        # For webm/ogg, try ffmpeg first, then fallback to librosa
+        if audio_path.suffix.lower() in {'.webm', '.ogg'}:
+            ffmpeg = shutil.which('ffmpeg')
+            
+            # Try common installation paths if not in PATH
+            if not ffmpeg:
+                potential_paths = [
+                    'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+                    'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe',
+                    'C:\\ffmpeg\\bin\\ffmpeg.exe',
+                ]
+                for path in potential_paths:
+                    if os.path.exists(path):
+                        ffmpeg = path
+                        break
+            
+            if ffmpeg:
+                logger.info(f"Converting {audio_path.suffix} to WAV using ffmpeg: {ffmpeg}")
+                wav_path = audio_path.with_suffix('.wav')
+                try:
+                    subprocess.run(
+                        [
+                            ffmpeg,
+                            '-y',
+                            '-i',
+                            str(audio_path),
+                            '-ar',
+                            '16000',
+                            '-ac',
+                            '1',
+                            str(wav_path),
+                        ],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        timeout=30,
+                    )
+                    logger.info(f"Successfully converted to WAV using ffmpeg: {wav_path}")
+                    return wav_path
+                except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+                    logger.warning(f"FFmpeg conversion failed, falling back to librosa: {e}")
+                    # Fall through to librosa
+            else:
+                logger.info(f"FFmpeg not found, using librosa to convert {audio_path.suffix} to WAV")
         
-        # Load and save as WAV
-        y, sr = librosa.load(str(audio_path), sr=None)
-        
-        wav_path = audio_path.with_suffix('.wav')
-        import soundfile as sf
-        sf.write(str(wav_path), y, sr)
-        
-        return wav_path
+        # Fallback: Load and save as WAV using librosa
+        logger.info(f"Converting {audio_path.suffix} to WAV using librosa and soundfile")
+        try:
+            # For webm/ogg, librosa may need audioread backend
+            y, sr = librosa.load(str(audio_path), sr=16000, mono=True)
+            
+            if y is None or len(y) == 0:
+                raise RuntimeError("No audio data loaded from file")
+            
+            wav_path = audio_path.with_suffix('.wav')
+            import soundfile as sf
+            sf.write(str(wav_path), y, sr)
+            logger.info(f"Successfully converted to WAV using librosa: {wav_path}, samples: {len(y)}")
+            
+            return wav_path
+        except Exception as e:
+            logger.error(f"Failed to convert audio to WAV with librosa: {e}")
+            # Try pydub as last resort
+            try:
+                from pydub import AudioSegment
+                logger.info(f"Trying pydub for {audio_path.suffix} conversion...")
+                audio_segment = AudioSegment.from_file(str(audio_path))
+                wav_path = audio_path.with_suffix('.wav')
+                audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
+                audio_segment.export(str(wav_path), format='wav')
+                logger.info(f"Successfully converted to WAV using pydub: {wav_path}")
+                return wav_path
+            except ImportError:
+                logger.warning("pydub not installed, cannot use as fallback")
+            except Exception as pydub_error:
+                logger.error(f"pydub conversion also failed: {pydub_error}")
+            
+            raise RuntimeError(f'Failed to convert {audio_path.suffix} to WAV: {e}')
+
     
     async def analyze(self, audio_path: Path) -> AnalysisResult:
         """

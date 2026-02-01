@@ -78,14 +78,26 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
     Raises:
         Exception: If transcription fails.
     """
+    import librosa
+    
     model = WhisperTranscriber.get_model()
     
     logger.info(f"Transcribing audio: {audio_path}")
     
     try:
+        # Load audio using librosa (doesn't require FFmpeg)
+        # Whisper expects 16kHz mono audio
+        audio, sr = librosa.load(str(audio_path), sr=16000, mono=True)
+        
+        # Ensure audio is float32 numpy array (Whisper requirement)
+        audio = audio.astype(np.float32)
+        
+        logger.info(f"Audio loaded: {len(audio)} samples at {sr}Hz, duration: {len(audio)/sr:.2f}s")
+        
         # Transcribe with word-level timestamps
+        # Pass numpy array directly instead of file path
         result = model.transcribe(
-            str(audio_path),
+            audio,
             word_timestamps=True,
             verbose=False
         )

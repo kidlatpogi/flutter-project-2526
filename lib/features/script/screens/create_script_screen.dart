@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 
 class CreateScriptScreen extends StatefulWidget {
@@ -12,12 +13,73 @@ class CreateScriptScreen extends StatefulWidget {
 class _CreateScriptScreenState extends State<CreateScriptScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  bool _isSaving = false;
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSaveScript() async {
+    if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please fill in all fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) throw Exception('Not authenticated');
+
+      print('Saving script for user: ${currentUser.id}');
+      print('Title: ${_titleController.text}');
+      print('Content length: ${_contentController.text.length}');
+
+      // Insert script into database - let database handle created_at
+      final response = await supabase.from('scripts').insert({
+        'user_id': currentUser.id,
+        'title': _titleController.text,
+        'content': _contentController.text,
+      }).select();
+
+      print('Insert response: $response');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Script saved successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      }
+    } catch (e) {
+      print('Error saving script: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save script: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -42,34 +104,24 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {
-              if (_titleController.text.isNotEmpty &&
-                  _contentController.text.isNotEmpty) {
-                // TODO: Save script to backend
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Script saved successfully'),
-                    backgroundColor: Colors.green,
+            onPressed: _isSaving ? null : _handleSaveScript,
+            child: _isSaving
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                    ),
+                  )
+                : Text(
+                    'Save',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
                   ),
-                );
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Please fill in all fields'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: Text(
-              'Save',
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
           ),
         ],
       ),
@@ -181,12 +233,17 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
               const SizedBox(height: 24),
 
               // Character Count
-              Text(
-                '${_contentController.text.length} characters',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _contentController,
+                builder: (context, value, _) {
+                  return Text(
+                    '${value.text.length} characters',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  );
+                },
               ),
             ],
           ),

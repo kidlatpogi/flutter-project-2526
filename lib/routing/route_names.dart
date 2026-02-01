@@ -1,4 +1,5 @@
 class RouteNames {
+  static const String authWrapper = '/auth-wrapper';
   static const String splash1 = '/';
   static const String splash2 = '/splash2';
   static const String splash3 = '/splash3';
@@ -9,6 +10,7 @@ class RouteNames {
   static const String verifyEmail = '/verify-email';
   static const String resetPassword = '/reset-password';
   static const String dashboard = '/dashboard';
+  static const String sessions = '/sessions';
   static const String profile = '/profile';
   static const String practice = '/practice';
   static const String practiceSetup = '/practice-setup';
@@ -17,7 +19,9 @@ class RouteNames {
   static const String script = '/script';
   static const String createScript = '/create-script';
   static const String progress = '/progress';
+  static const String detailedFeedback = '/detailed-feedback';
   static const String settings = '/settings';
   static const String changePassword = '/change-password';
+  static const String editNickname = '/edit-nickname';
   static const String testAudioVideo = '/test-audio-video';
 }

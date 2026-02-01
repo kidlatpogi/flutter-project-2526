@@ -19,7 +19,14 @@ class Settings(BaseSettings):
     
     # Audio Processing Configuration
     max_audio_duration_seconds: int = 600  # 10 minutes max
-    allowed_audio_types: list[str] = ["audio/wav", "audio/mpeg", "audio/mp3", "audio/x-wav"]
+    allowed_audio_types: list[str] = [
+        "audio/wav",
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/x-wav",
+        "audio/webm",
+        "audio/ogg",
+    ]
     
     # Filler words to detect
     filler_words: list[str] = ["um", "uh", "ah", "like", "you know", "er", "hmm", "so", "actually", "basically"]

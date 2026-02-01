@@ -128,6 +128,7 @@ class UserProfile(BaseModel):
     id: UUID = Field(..., description="User ID from Supabase auth")
     nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
     full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
+    is_active: bool = Field(default=True, description="Whether the account is active")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -139,6 +140,7 @@ class UpdateUserProfile(BaseModel):
     
     nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
     full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
+    is_active: Optional[bool] = Field(None, description="Whether the account is active")
     
     @field_validator('nickname')
     @classmethod

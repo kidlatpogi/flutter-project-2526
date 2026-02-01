@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS features (
     
     -- Session identifier (from the API)
     session_id UUID NOT NULL UNIQUE,
+
+    -- User identifier
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     
     -- Transcription
     transcription TEXT,
@@ -51,6 +54,7 @@ CREATE TABLE IF NOT EXISTS features (
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_features_session_id ON features(session_id);
+CREATE INDEX IF NOT EXISTS idx_features_user_id ON features(user_id);
 CREATE INDEX IF NOT EXISTS idx_features_analyzed_at ON features(analyzed_at);
 CREATE INDEX IF NOT EXISTS idx_features_confidence_score ON features(confidence_score);
 
@@ -59,6 +63,7 @@ ALTER TABLE features ENABLE ROW LEVEL SECURITY;
 
 -- Create a policy that allows all operations (adjust as needed for your auth setup)
 -- For production, you should create more restrictive policies based on user authentication
+DROP POLICY IF EXISTS "Allow all operations on features" ON features;
 CREATE POLICY "Allow all operations on features" ON features
     FOR ALL
     USING (true)

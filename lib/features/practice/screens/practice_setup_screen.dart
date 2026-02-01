@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 
@@ -11,14 +12,62 @@ class PracticeSetupScreen extends StatefulWidget {
 }
 
 class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
-  String _selectedScript = 'Talumpati ng Pagbati-Draft 1';
+  String? _selectedScriptId;
   String _selectedFocus = 'scripted';
+  List<Map<String, dynamic>> _scripts = [];
 
-  final List<String> _scripts = [
-    'Talumpati ng Pagbati-Draft 1',
-    'Impromptu Speech',
-    'Prepared Oration',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadScripts();
+  }
+
+  Future<void> _loadScripts() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+      
+      if (currentUser == null) {
+        print('User not authenticated');
+        return;
+      }
+      
+      // Query scripts table for current user
+        final response = await supabase
+          .from('scripts')
+          .select('id, title, content')
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false);
+      
+      if (mounted) {
+        setState(() {
+          // Extract script titles from response
+          _scripts = List<Map<String, dynamic>>.from(response as List);
+          
+          // Set first script as default if available
+          if (_scripts.isNotEmpty) {
+            _selectedScriptId = _scripts.first['id'] as String?;
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading scripts: $e');
+      // Keep empty list if error occurs
+      if (mounted) {
+        setState(() {
+          _scripts = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _navigateToCreateScript() async {
+    final result = await Navigator.pushNamed(context, RouteNames.createScript);
+    // If a new script was created (result == true), reload scripts
+    if (result == true && mounted) {
+      _loadScripts();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,48 +112,107 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: _selectedFocus == 'free' 
+                    ? AppColors.inactive.withOpacity(0.1)
+                    : AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.inactive.withOpacity(0.3),
+                  color: _selectedFocus == 'free'
+                      ? AppColors.inactive.withOpacity(0.2)
+                      : AppColors.inactive.withOpacity(0.3),
                 ),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _selectedScript,
+                  value: _selectedScriptId,
                   isExpanded: true,
-                  icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                  disabledHint: Text(
+                    _scripts.isEmpty
+                        ? 'No scripts available'
+                        : (_getSelectedScriptTitle() ?? 'Select a script'),
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: AppColors.inactive,
+                    ),
+                  ),
+                  hint: Text(
+                    _scripts.isEmpty ? 'No scripts available' : 'Select a script',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: _selectedFocus == 'free' ? AppColors.inactive : AppColors.primary,
+                  ),
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     color: AppColors.primary,
                   ),
-                  items: _scripts.map((String script) {
-                    return DropdownMenuItem<String>(
-                      value: script,
-                      child: Text(script),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedScript = newValue;
-                      });
-                    }
-                  },
+                  items: _scripts.isEmpty
+                      ? [
+                          DropdownMenuItem<String>(
+                            value: 'new_script',
+                            child: Text('+ Create New Script'),
+                          )
+                        ]
+                      : [
+                          ...(_scripts.map((script) {
+                            return DropdownMenuItem<String>(
+                              value: script['id'] as String,
+                              child: Text(script['title'] ?? 'Untitled'),
+                            );
+                          }).toList()),
+                          DropdownMenuItem<String>(
+                            value: 'new_script',
+                            child: Text('+ Create New Script'),
+                          ),
+                        ],
+                  onChanged: _selectedFocus == 'free'
+                      ? null
+                      : (String? newValue) {
+                          if (newValue == 'new_script') {
+                            _navigateToCreateScript();
+                          } else if (newValue != null) {
+                            setState(() {
+                              _selectedScriptId = newValue;
+                            });
+                          }
+                        },
                 ),
               ),
             ),
 
             const SizedBox(height: 8),
 
-            // Selected from your library text
-            Text(
-              'Selected from your library',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            // Selected from your library text or No scripts message
+            if (_scripts.isEmpty)
+              Text(
+                'Create a script in the Scripts section to practice',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else if (_selectedFocus == 'free')
+              Text(
+                'Script selection is disabled for Free Speech mode',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else
+              Text(
+                'Selected from your library',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
 
             const SizedBox(height: 32),
 
@@ -147,8 +255,26 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Navigate to recording screen
-                  Navigator.pushNamed(context, RouteNames.recording);
+                  if (_selectedFocus == 'scripted' && _selectedScriptId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select a script for Scripted Accuracy'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final selectedScript = _findScriptById(_selectedScriptId);
+                  Navigator.pushNamed(
+                    context,
+                    RouteNames.recording,
+                    arguments: {
+                      'isScripted': _selectedFocus == 'scripted',
+                      'scriptTitle': selectedScript?['title'],
+                      'scriptContent': selectedScript?['content'],
+                    },
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -185,6 +311,18 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
     );
   }
 
+  Map<String, dynamic>? _findScriptById(String? id) {
+    if (id == null) return null;
+    for (final script in _scripts) {
+      if (script['id'] == id) return script;
+    }
+    return null;
+  }
+
+  String? _getSelectedScriptTitle() {
+    return _findScriptById(_selectedScriptId)?['title'] as String?;
+  }
+
   Widget _buildFocusOption({
     required String value,
     required String title,
@@ -196,6 +334,9 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
       onTap: () {
         setState(() {
           _selectedFocus = value;
+          if (_selectedFocus == 'scripted' && _selectedScriptId == null && _scripts.isNotEmpty) {
+            _selectedScriptId = _scripts.first['id'] as String?;
+          }
         });
       },
       child: Container(

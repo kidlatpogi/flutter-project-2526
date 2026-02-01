@@ -65,6 +65,27 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return null;
   }
 
+  /// Build password requirement indicator
+  Widget _buildPasswordRequirement(String label, bool met) {
+    return Row(
+      children: [
+        Icon(
+          met ? Icons.check_circle : Icons.cancel,
+          size: 16,
+          color: met ? Colors.green : Colors.red,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: met ? Colors.green : Colors.red,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Handle account creation
   Future<void> _handleCreateAccount() async {
     print('Create Account button clicked');
@@ -121,11 +142,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       print('Calling signUpWithEmail...');
       await _authService.signUpWithEmail(email, password, name: fullName);
       
-      print('Signup successful, navigating to nickname setup...');
+      print('Signup successful, prompting email confirmation...');
       
       if (mounted) {
-        // After signup, go to nickname setup
-        Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Check your email to confirm your account before logging in.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // After signup, go to verify email screen
+        Navigator.pushReplacementNamed(
+          context,
+          RouteNames.verifyEmail,
+          arguments: email,
+        );
       }
     } on AuthException catch (e) {
       print('AuthException caught: ${e.message}');
@@ -242,12 +273,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  maxLength: 50,
                   decoration: InputDecoration(
                     hintText: 'juandelacruz@email',
                     hintStyle: GoogleFonts.inter(
                       fontSize: 14,
                       color: AppColors.inactive,
                     ),
+                    counterText: '${_emailController.text.length}/50',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: AppColors.inactive),
@@ -265,13 +298,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       vertical: 14,
                     ),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 
                 const SizedBox(height: 24),
                 
                 // Password Field
                 Text(
-                  'PASSWORD',
+                  'PASSWORD (Minimum 8 characters)',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -283,6 +317,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
+                  onChanged: (_) => setState(() {}),
+                  maxLength: 128,
                   decoration: InputDecoration(
                     hintText: '••••••••',
                     hintStyle: GoogleFonts.inter(
@@ -319,6 +355,39 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (_passwordController.text.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPasswordRequirement(
+                        'At least 8 characters',
+                        _passwordController.text.length >= 8,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildPasswordRequirement(
+                        'Uppercase letter (A-Z)',
+                        _passwordController.text.contains(RegExp(r'[A-Z]')),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildPasswordRequirement(
+                        'Lowercase letter (a-z)',
+                        _passwordController.text.contains(RegExp(r'[a-z]')),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildPasswordRequirement(
+                        'Number (0-9)',
+                        _passwordController.text.contains(RegExp(r'[0-9]')),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildPasswordRequirement(
+                        'Special character (!@#\$%^&*)',
+                        _passwordController.text.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]')),
+                      ),
+                    ],
+                  )
+                else
+                  const SizedBox(height: 16),
                 
                 const SizedBox(height: 24),
                 

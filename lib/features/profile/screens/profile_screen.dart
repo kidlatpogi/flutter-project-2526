@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
+import '../../../core/services/image_upload_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -15,16 +19,224 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _currentIndex = 3; // Profile is selected
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _authService = AuthService();
+  final _userProfileService = UserProfileService();
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isUploadingImage = false;
+  String? _nickname;
+  String? _avatarUrl;
+  String? _originalFullName;
+  String? _originalAvatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // Load data from Supabase auth
+      _fullNameController.text = _authService.displayName ?? '';
+      _emailController.text = _authService.email ?? '';
+      _avatarUrl = _authService.avatarUrl;
+      
+      // Store original values
+      _originalFullName = _authService.displayName ?? '';
+      _originalAvatarUrl = _authService.avatarUrl;
+      
+      // Load nickname from backend
+      final profile = await _userProfileService.getUserProfile();
+      _nickname = profile?['nickname'];
+      
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  bool _hasUnsavedChanges() {
+    return _fullNameController.text != _originalFullName ||
+           _avatarUrl != _originalAvatarUrl;
+  }
+
+  Future<void> _handleCancel() async {
+    if (_hasUnsavedChanges()) {
+      final shouldCancel = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Discard Changes?',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          content: Text(
+            'You have unsaved changes. Are you sure you want to discard them?',
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Keep Editing',
+                style: GoogleFonts.inter(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Discard',
+                style: GoogleFonts.inter(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldCancel == true && mounted) {
+        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+      }
+    } else {
+      // No changes, go to dashboard
+      Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      // Use the cross-platform image upload service
+      final image = await ImageUploadService.pickImage();
+
+      if (image == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) throw Exception('Not authenticated');
+
+      // Upload to Supabase Storage - store in user folder
+      final fileName = '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final bytes = await image.readAsBytes();
+      
+      await supabase.storage
+          .from('avatars')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: true,
+            ),
+          );
+
+      // Get public URL
+      final publicUrl = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+      // Update user metadata
+      await supabase.auth.updateUser(
+        UserAttributes(data: {'avatar_url': publicUrl}),
+      );
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = publicUrl;
+          _isUploadingImage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    setState(() => _isSaving = true);
+
+    try {
+      await _userProfileService.updateUserProfile(
+        fullName: _fullNameController.text.trim(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
+    _userProfileService.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -57,30 +269,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           shape: BoxShape.circle,
                           color: AppColors.inactive.withOpacity(0.3),
                         ),
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
-                          color: AppColors.primary,
-                        ),
+                        child: _avatarUrl != null
+                            ? ClipOval(
+                                child: Image.network(
+                                  _avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Icon(
+                                    Icons.person,
+                                    size: 60,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.person,
+                                size: 60,
+                                color: AppColors.primary,
+                              ),
                       ),
                       Positioned(
                         right: 0,
                         bottom: 0,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.surface,
-                              width: 3,
+                        child: GestureDetector(
+                          onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: _isUploadingImage ? AppColors.inactive : AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.surface,
+                                width: 3,
+                              ),
                             ),
-                          ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 18,
-                            color: AppColors.surface,
+                            child: _isUploadingImage
+                                ? Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.surface,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.camera_alt,
+                                    size: 18,
+                                    color: AppColors.surface,
+                                  ),
                           ),
                         ),
                       ),
@@ -151,12 +386,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: _emailController,
                   style: GoogleFonts.inter(
                     fontSize: 15,
-                    color: AppColors.primary,
+                    color: AppColors.textSecondary,
                   ),
                   keyboardType: TextInputType.emailAddress,
+                  readOnly: true, // Email cannot be changed
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.surface,
+                    fillColor: AppColors.inactive.withOpacity(0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
@@ -172,13 +408,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 2,
+                        color: AppColors.inactive.withOpacity(0.3),
                       ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 16,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Nickname (read-only with edit button)
+                Text(
+                  'Nickname',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () async {
+                    final result = await Navigator.pushNamed(context, RouteNames.editNickname);
+                    if (result == true) {
+                      // Refresh user data if nickname was updated
+                      _loadUserData();
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _nickname ?? 'No nickname set',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              color: _nickname != null ? AppColors.primary : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.edit,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -225,15 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Save profile changes
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Profile updated successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
+                    onPressed: _isSaving ? null : _saveProfile,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.surface,
@@ -242,13 +520,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Save Changes',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Save Changes',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
 
@@ -259,9 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 50,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                    onPressed: _handleCancel,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: BorderSide(

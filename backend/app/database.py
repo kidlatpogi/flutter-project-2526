@@ -43,7 +43,7 @@ def get_supabase() -> Client:
     return SupabaseClient.get_client()
 
 
-async def insert_analysis_result(result: AnalysisResult) -> dict[str, Any]:
+async def insert_analysis_result(result: AnalysisResult, user_id: str | None = None) -> dict[str, Any]:
     """
     Insert analysis result into the 'features' table.
     
@@ -95,14 +95,97 @@ async def insert_analysis_result(result: AnalysisResult) -> dict[str, Any]:
         # Timestamp
         "analyzed_at": result.analyzed_at.isoformat()
     }
+
+    if user_id:
+        record["user_id"] = user_id
     
     try:
         response = client.table("features").insert(record).execute()
+        if getattr(response, "error", None):
+            logger.error(f"Supabase insert error (features): {response.error}")
         logger.info(f"Successfully inserted analysis result for session {result.session_id}")
         return response.data[0] if response.data else record
     except Exception as e:
+        error_message = str(e)
         logger.error(f"Failed to insert analysis result: {e}")
+
+        # Retry without analyzed_at if column doesn't exist
+        if "analyzed_at" in record and "analyzed_at" in error_message:
+            fallback = dict(record)
+            fallback.pop("analyzed_at", None)
+            try:
+                response = client.table("features").insert(fallback).execute()
+                if getattr(response, "error", None):
+                    logger.error(f"Supabase insert error (features fallback no analyzed_at): {response.error}")
+                logger.info("Inserted analysis result without analyzed_at")
+                return response.data[0] if response.data else fallback
+            except Exception as retry_error:
+                logger.error(f"Retry insert without analyzed_at failed: {retry_error}")
+
+        # Retry without user_id if column doesn't exist
+        if "user_id" in record and "user_id" in error_message:
+            fallback = dict(record)
+            fallback.pop("user_id", None)
+            try:
+                response = client.table("features").insert(fallback).execute()
+                if getattr(response, "error", None):
+                    logger.error(f"Supabase insert error (features fallback no user_id): {response.error}")
+                logger.info("Inserted analysis result without user_id")
+                return response.data[0] if response.data else fallback
+            except Exception as retry_error:
+                logger.error(f"Retry insert without user_id failed: {retry_error}")
+
+        # Final fallback: insert minimal columns only
+        minimal_record = {
+            "session_id": str(result.session_id),
+            "confidence_score": result.confidence_score.overall_score,
+            "audio_duration": result.audio_duration,
+        }
+        if user_id:
+            minimal_record["user_id"] = user_id
+
+        try:
+            response = client.table("features").insert(minimal_record).execute()
+            if getattr(response, "error", None):
+                logger.error(f"Supabase insert error (features minimal fallback): {response.error}")
+            logger.info("Inserted analysis result with minimal columns")
+            return response.data[0] if response.data else minimal_record
+        except Exception as retry_error:
+            logger.error(f"Minimal insert failed: {retry_error}")
+
         raise
+
+
+async def insert_session_record(
+    result: AnalysisResult,
+    user_id: str | None = None,
+    script_title: str | None = None,
+) -> None:
+    """
+    Insert a session summary into the 'sessions' table if it exists.
+    This is best-effort and will not raise if the table/columns are missing.
+    """
+    client = get_supabase()
+
+    record = {
+        "id": str(result.session_id),
+        "session_id": str(result.session_id),
+        "script_title": script_title or "Practice Session",
+        "duration_seconds": int(result.audio_duration),
+        "confidence_score": result.confidence_score.overall_score,
+        "created_at": result.analyzed_at.isoformat(),
+    }
+
+    if user_id:
+        record["user_id"] = user_id
+
+    try:
+        response = client.table("sessions").insert(record).execute()
+        if getattr(response, "error", None):
+            logger.error(f"Supabase insert error (sessions): {response.error}")
+        logger.info(f"Inserted session record {result.session_id}")
+    except Exception as e:
+        logger.error(f"Failed to insert session record: {e}")
 
 
 async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
@@ -113,7 +196,7 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
         session_id: The UUID of the session to retrieve.
         
     Returns:
-        The analysis record if found, None otherwise.
+        The analysis record in API-compatible format if found, None otherwise.
     """
     client = get_supabase()
     
@@ -123,11 +206,151 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
         ).execute()
         
         if response.data:
-            return response.data[0]
+            row = response.data[0]
+            # Convert flat DB row to nested API format for AnalysisModel
+            return {
+                "session_id": row.get("session_id"),
+                "transcription": row.get("transcription", ""),
+                "audio_duration": row.get("audio_duration", 0),
+                "audio_metrics": {
+                    "pitch_mean": row.get("pitch_mean", 0),
+                    "pitch_std": row.get("pitch_std", 0),
+                    "jitter_local": row.get("jitter_local", 0),
+                    "shimmer_local": row.get("shimmer_local", 0),
+                    "harmonics_to_noise_ratio": row.get("harmonics_to_noise_ratio", 0),
+                },
+                "fluency_metrics": {
+                    "words_per_minute": row.get("wpm", 0),
+                    "filler_count": row.get("filler_count", 0),
+                    "filler_words_found": row.get("filler_words_found", []),
+                    "total_words": row.get("total_words", 0),
+                    "articulation_rate": row.get("articulation_rate", 0),
+                },
+                "pause_metrics": {
+                    "total_pause_duration": row.get("total_pause_duration", 0),
+                    "pause_count": row.get("pause_count", 0),
+                    "pause_ratio": row.get("pause_ratio", 0),
+                    "average_pause_duration": row.get("average_pause_duration", 0),
+                    "longest_pause": row.get("longest_pause", 0),
+                },
+                "confidence_score": {
+                    "overall_score": row.get("confidence_score", 0),
+                    "pitch_score": row.get("pitch_score", 0),
+                    "fluency_score": row.get("fluency_score", 0),
+                    "voice_quality_score": row.get("voice_quality_score", 0),
+                    "pace_score": row.get("pace_score", 0),
+                },
+                "analyzed_at": row.get("analyzed_at") or row.get("created_at"),
+            }
         return None
     except Exception as e:
         logger.error(f"Failed to retrieve analysis result: {e}")
         raise
+
+
+async def get_db_debug_info() -> dict[str, Any]:
+    """
+    Return basic counts and latest rows for debugging.
+    """
+    client = get_supabase()
+
+    info: dict[str, Any] = {}
+
+    try:
+        features_resp = client.table("features").select(
+            "session_id, user_id, analyzed_at, created_at, confidence_score",
+            count="exact",
+        ).order("created_at", desc=True).limit(1).execute()
+        info["features_count"] = features_resp.count or 0
+        info["features_latest"] = features_resp.data[0] if features_resp.data else None
+    except Exception as e:
+        info["features_error"] = str(e)
+
+    try:
+        sessions_resp = client.table("sessions").select(
+            "session_id, user_id, created_at, confidence_score",
+            count="exact",
+        ).order("created_at", desc=True).limit(1).execute()
+        info["sessions_count"] = sessions_resp.count or 0
+        info["sessions_latest"] = sessions_resp.data[0] if sessions_resp.data else None
+    except Exception as e:
+        info["sessions_error"] = str(e)
+
+    return info
+
+
+async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    """
+    Retrieve session summaries for a user.
+    Attempts to read from sessions table; falls back to features table if needed.
+    """
+    client = get_supabase()
+    
+    logger.info(f"Getting sessions for user_id: {user_id}")
+
+    # First try sessions table
+    try:
+        response = client.table("sessions").select(
+            "id, session_id, script_title, created_at, duration_seconds, confidence_score"
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        if response.data:
+            logger.info(f"Found {len(response.data)} sessions in sessions table")
+            return response.data
+        logger.info("No sessions in sessions table, trying features table")
+    except Exception as e:
+        logger.error(f"Sessions table error (may not exist): {e}")
+
+    # Fallback: try features table
+    try:
+        # First try with analyzed_at
+        logger.info(f"Querying features table with user_id={user_id}")
+        response = client.table("features").select(
+            "session_id, analyzed_at, audio_duration, confidence_score, user_id"
+        ).eq("user_id", user_id).order("analyzed_at", desc=True).limit(limit).execute()
+
+        data = response.data or []
+        logger.info(f"Features with user_id filter: {len(data)} results")
+
+        return [
+            {
+                "id": row.get("session_id"),
+                "session_id": row.get("session_id"),
+                "script_title": "Practice Session",
+                "created_at": row.get("analyzed_at"),
+                "duration_seconds": int(row.get("audio_duration") or 0),
+                "confidence_score": row.get("confidence_score") or 0,
+            }
+            for row in data
+        ]
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Failed to retrieve sessions from features table: {e}")
+
+        # Fallback: if analyzed_at doesn't exist, try created_at
+        if "analyzed_at" in error_message:
+            try:
+                logger.info("Retrying features query using created_at")
+                response = client.table("features").select(
+                    "session_id, created_at, audio_duration, confidence_score, user_id"
+                ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+
+                data = response.data or []
+
+                return [
+                    {
+                        "id": row.get("session_id"),
+                        "session_id": row.get("session_id"),
+                        "script_title": "Practice Session",
+                        "created_at": row.get("created_at"),
+                        "duration_seconds": int(row.get("audio_duration") or 0),
+                        "confidence_score": row.get("confidence_score") or 0,
+                    }
+                    for row in data
+                ]
+            except Exception as retry_error:
+                logger.error(f"Retry with created_at failed: {retry_error}")
+
+        return []
 
 
 async def check_connection() -> bool:
@@ -189,6 +412,7 @@ async def create_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         "id": user_id,
         "nickname": profile_data.nickname,
         "full_name": profile_data.full_name,
+        "is_active": profile_data.is_active if profile_data.is_active is not None else True,
     }
     
     try:
@@ -219,6 +443,8 @@ async def update_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         update_data["nickname"] = profile_data.nickname
     if profile_data.full_name is not None:
         update_data["full_name"] = profile_data.full_name
+    if profile_data.is_active is not None:
+        update_data["is_active"] = profile_data.is_active
     
     try:
         response = client.table("user_profiles").update(update_data).eq(

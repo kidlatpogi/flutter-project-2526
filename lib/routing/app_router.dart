@@ -8,22 +8,29 @@ import '../features/auth/screens/nickname_setup_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
+import '../features/auth/screens/auth_wrapper.dart';
 import '../features/dashboard/screens/main_dashboard.dart';
+import '../features/dashboard/screens/sessions_screen.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
+import '../features/analysis/screens/detailed_feedback_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/change_password_screen.dart';
+import '../features/profile/screens/edit_nickname_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/test_audio_video_screen.dart';
 import '../features/practice/screens/practice_setup_screen.dart';
 import '../features/practice/screens/recording_session_screen.dart';
 import '../features/practice/screens/analysis_result_screen.dart';
+import '../data/models/analysis_model.dart';
 import 'route_names.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case RouteNames.authWrapper:
+        return MaterialPageRoute(builder: (_) => const AuthWrapper());
       case RouteNames.splash1:
         return MaterialPageRoute(builder: (_) => const SplashScreen1());
       case RouteNames.splash2:
@@ -39,11 +46,14 @@ class AppRouter {
       case RouteNames.forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
-        return MaterialPageRoute(builder: (_) => const VerifyEmailScreen());
+        final email = settings.arguments as String?;
+        return MaterialPageRoute(builder: (_) => VerifyEmailScreen(email: email));
       case RouteNames.resetPassword:
         return MaterialPageRoute(builder: (_) => const ResetPasswordScreen());
       case RouteNames.dashboard:
         return MaterialPageRoute(builder: (_) => const MainDashboard());
+      case RouteNames.sessions:
+        return MaterialPageRoute(builder: (_) => const SessionsScreen());
       case RouteNames.script:
         return MaterialPageRoute(builder: (_) => const ScriptScreen());
       case RouteNames.createScript:
@@ -53,6 +63,26 @@ class AppRouter {
         );
       case RouteNames.progress:
         return MaterialPageRoute(builder: (_) => const ProgressAnalyticsScreen());
+      case RouteNames.detailedFeedback:
+        final args = settings.arguments;
+        if (args is AnalysisModel) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => DetailedFeedbackScreen(analysisResult: args),
+          );
+        }
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => DetailedFeedbackScreen(
+              sessionId: args['sessionId'] as String?,
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const DetailedFeedbackScreen(),
+        );
       case RouteNames.profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case RouteNames.settings:
@@ -60,12 +90,42 @@ class AppRouter {
       case RouteNames.practiceSetup:
         return MaterialPageRoute(builder: (_) => const PracticeSetupScreen());
       case RouteNames.recording:
-        return MaterialPageRoute(builder: (_) => const RecordingSessionScreen());
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => RecordingSessionScreen(
+            isScripted: args?['isScripted'] as bool? ?? true,
+            scriptTitle: args?['scriptTitle'] as String?,
+            scriptContent: args?['scriptContent'] as String?,
+          ),
+        );
       case RouteNames.analysis:
-        return MaterialPageRoute(builder: (_) => const AnalysisResultScreen());
+        final args = settings.arguments;
+        if (args is AnalysisModel) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => AnalysisResultScreen(analysisResult: args),
+          );
+        }
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => AnalysisResultScreen(
+              sessionId: args['sessionId'] as String?,
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const AnalysisResultScreen(),
+        );
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),
+          fullscreenDialog: true,
+        );
+      case RouteNames.editNickname:
+        return MaterialPageRoute(
+          builder: (_) => const EditNicknameScreen(),
           fullscreenDialog: true,
         );
       case RouteNames.testAudioVideo:
@@ -74,10 +134,40 @@ class AppRouter {
           fullscreenDialog: true,
         );
       default:
+        // Check if this is an OAuth callback route (contains token parameters)
+        final routeName = settings.name ?? '';
+        if (routeName.contains('access_token') ||
+            routeName.contains('provider_token') ||
+            routeName.contains('refresh_token') ||
+            routeName.contains('expires_at') ||
+            routeName.contains('expires_in') ||
+            routeName.contains('token_type') ||
+            routeName.startsWith('access_token=')) {
+          print('AppRouter: OAuth callback detected, routing to AuthWrapper');
+          return MaterialPageRoute(builder: (_) => const AuthWrapper());
+        }
+        
+        // Unknown route - show error
+        print('AppRouter: Unknown route: ${settings.name}');
         return MaterialPageRoute(
-          builder: (_) => Scaffold(
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.white,
             body: Center(
-              child: Text('No route defined for ${settings.name}'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('No route defined for ${settings.name}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    },
+                    child: const Text('Go Home'),
+                  ),
+                ],
+              ),
             ),
           ),
         );

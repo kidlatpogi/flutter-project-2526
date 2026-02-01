@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -24,22 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
-  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Listen for auth state changes (for OAuth redirect on web)
-    _authSubscription = _authService.authStateChanges.listen((authState) {
-      if (authState.session != null && mounted) {
-        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
-      }
-    });
+    // Don't listen to auth state changes here - let AuthWrapper handle OAuth redirects
+    // OAuth will redirect and trigger auth state change which AuthWrapper will process
   }
 
   @override
   void dispose() {
-    _authSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -384,12 +376,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: AppConstants.buttonHeight,
                 child: OutlinedButton.icon(
                   onPressed: _isLoading ? null : _handleGoogleSignIn,
-                  icon: Image.network(
-                    'https://www.google.com/favicon.ico',
+                  icon: SizedBox(
                     height: 20,
                     width: 20,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.g_mobiledata, size: 24),
+                    child: _GoogleLogo(),
                   ),
                   label: Text(
                     'Continue with Google',
@@ -447,6 +437,72 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Google Logo Widget using the provided SVG
+class _GoogleLogo extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Using a simple multicolored square pattern to represent Google's brand colors
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4285F4), // Google Blue
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    color: const Color(0xFFFBBC05), // Google Yellow
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEA4335), // Google Red
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF34A853), // Google Green
+                      borderRadius: BorderRadius.only(
+                        bottomRight: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
