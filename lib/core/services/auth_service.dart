@@ -61,9 +61,13 @@ class AuthService {
     try {
       if (kIsWeb) {
         // Web: Use Supabase OAuth flow (more reliable for web)
+        // Use the current page origin for redirect
+        final redirectTo = Uri.base.origin;
+        print('OAuth redirect URL: $redirectTo');
+        
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
-          redirectTo: 'http://localhost:3000',
+          redirectTo: redirectTo,
           authScreenLaunchMode: LaunchMode.platformDefault,
         );
         // OAuth flow redirects, so we return null here
