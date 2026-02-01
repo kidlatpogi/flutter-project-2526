@@ -53,8 +53,10 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     });
 
     try {
+      print('Attempting to save nickname: $nickname');
       await _userProfileService.updateUserProfile(nickname: nickname);
-      
+      print('Nickname saved successfully');
+
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success
         ScaffoldMessenger.of(context).showSnackBar(
@@ -65,8 +67,19 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
         );
       }
     } catch (e) {
+      print('Error saving nickname: $e');
       if (mounted) {
-        setState(() => _errorMessage = 'Failed to update nickname. Please try again.');
+        setState(() {
+          // Show the actual error message from backend
+          String errorMsg = e.toString().replaceFirst('Exception: ', '');
+          if (errorMsg.contains('Unauthorized')) {
+            _errorMessage = 'Your session expired. Please log in again.';
+          } else if (errorMsg.contains('Connection refused')) {
+            _errorMessage = 'Cannot connect to server. Make sure the backend is running on port 8000.';
+          } else {
+            _errorMessage = 'Failed to update nickname: $errorMsg';
+          }
+        });
       }
     } finally {
       if (mounted) {

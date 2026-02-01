@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,9 +38,15 @@ class UserProfileService {
     final uri = Uri.parse('$baseUrl/profile');
 
     try {
+      print('Fetching profile from $uri');
+      print('Authorization header: ${_buildHeaders()['Authorization']}');
+      
       final response = await _client
           .get(uri, headers: _buildHeaders())
           .timeout(_timeout);
+
+      print('Profile response status: ${response.statusCode}');
+      print('Profile response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -47,11 +54,19 @@ class UserProfileService {
       } else if (response.statusCode == 404) {
         // Profile not found
         return null;
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized: Token may have expired.');
       } else {
         throw Exception('Failed to get profile: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Failed to get profile: $e');
+      print('Error fetching profile: $e');
+      if (e.toString().contains('TimeoutException') || e.toString().contains('Connection timed out')) {
+        throw Exception('Connection timeout. Make sure the backend server is running on port 8000.');
+      } else if (e.toString().contains('Connection refused')) {
+        throw Exception('Cannot connect to backend server at $baseUrl. Make sure it is running.');
+      }
+      rethrow;
     }
   }
 
@@ -66,6 +81,10 @@ class UserProfileService {
     if (nickname != null) body['nickname'] = nickname;
     if (fullName != null) body['full_name'] = fullName;
 
+    print('Updating profile with body: $body');
+    print('Authorization header: ${_buildHeaders()['Authorization']}');
+    print('Backend URL: $uri');
+
     try {
       final response = await _client
           .put(
@@ -75,14 +94,27 @@ class UserProfileService {
           )
           .timeout(_timeout);
 
+      print('Profile update response status: ${response.statusCode}');
+      print('Profile update response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return data;
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized: Token may have expired. Please log in again.');
+      } else if (response.statusCode == 422) {
+        throw Exception('Invalid nickname format. Please check your input.');
       } else {
-        throw Exception('Failed to update profile: ${response.statusCode}');
+        throw Exception('Failed to update profile: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Failed to update profile: $e');
+      print('Error updating profile: $e');
+      if (e.toString().contains('TimeoutException') || e.toString().contains('Connection timed out')) {
+        throw Exception('Connection timeout. Make sure the backend server is running on port 8000. (http://localhost:8000)');
+      } else if (e.toString().contains('Connection refused')) {
+        throw Exception('Cannot connect to backend server. Make sure it is running on port 8000. Start it with: run_backend_8000.ps1');
+      }
+      rethrow;
     }
   }
 
@@ -90,55 +122,35 @@ class UserProfileService {
   Future<bool> hasNickname() async {
     try {
       final profile = await getUserProfile();
-      return profile != null && 
-             profile['has_profile'] == true && 
+      return profile != null &&
+             profile['has_profile'] == true &&
              profile['nickname'] != null &&
              (profile['nickname'] as String).isNotEmpty;
     } catch (e) {
+      print('Error checking nickname: $e');
       return false;
     }
   }
 
-  /// Get user's nickname
-  Future<String?> getNickname() async {
-    try {
-      final profile = await getUserProfile();
-      return profile?['nickname'] as String?;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Get user's nickname with fallback to display name
+  /// Get user's nickname or display name (first name from full_name)
   Future<String?> getNicknameOrDisplayName() async {
     try {
       final profile = await getUserProfile();
-      final nickname = profile?['nickname'] as String?;
+      if (profile == null) return null;
       
-      // If we have a nickname, return it
-      if (nickname != null && nickname.isNotEmpty) {
-        return nickname;
+      // Prefer nickname if available
+      if (profile['nickname'] != null && (profile['nickname'] as String).isNotEmpty) {
+        return profile['nickname'] as String;
       }
       
-      // Otherwise, try to get display name from current user
-      final user = Supabase.instance.client.auth.currentUser;
-      final displayName = user?.userMetadata?['full_name'] ?? user?.userMetadata?['name'];
-      
-      if (displayName != null) {
-        // Return first name from display name
-        return (displayName as String).split(' ').first;
+      // Fall back to first name from full_name
+      if (profile['full_name'] != null && (profile['full_name'] as String).isNotEmpty) {
+        return (profile['full_name'] as String).split(' ').first;
       }
       
       return null;
     } catch (e) {
-      // If backend fails, try to get display name from current user
-      final user = Supabase.instance.client.auth.currentUser;
-      final displayName = user?.userMetadata?['full_name'] ?? user?.userMetadata?['name'];
-      
-      if (displayName != null) {
-        return (displayName as String).split(' ').first;
-      }
-      
+      print('Error getting nickname or display name: $e');
       return null;
     }
   }
