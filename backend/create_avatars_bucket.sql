@@ -8,45 +8,41 @@
 -- 4. Make it Public
 -- 5. Click Create
 
--- If you want to do it via CLI or SQL, you would use:
--- INSERT INTO storage.buckets (id, name, public)
--- VALUES ('avatars', 'avatars', true);
+-- After creating the bucket, ENABLE RLS and add these policies:
 
--- After creating the bucket, you can set these policies:
-
--- Allow authenticated users to upload their own avatar
-create policy "Authenticated users can upload their own avatar"
+-- Allow authenticated users to upload files to their own folder
+create policy "Authenticated users can upload avatar"
 on storage.objects for insert
 to authenticated
 with check (
   bucket_id = 'avatars' AND
-  (auth.uid())::text = (storage.foldername(name))[1]
+  auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- Allow anyone to view avatars
+-- Allow anyone to view avatars (bucket is public)
 create policy "Anyone can view avatars"
 on storage.objects for select
 to public
 using (bucket_id = 'avatars');
 
--- Allow users to update their own avatar
+-- Allow users to update their own avatar files
 create policy "Users can update their own avatar"
 on storage.objects for update
 to authenticated
 using (
   bucket_id = 'avatars' AND
-  (auth.uid())::text = (storage.foldername(name))[1]
+  auth.uid()::text = (storage.foldername(name))[1]
 )
 with check (
   bucket_id = 'avatars' AND
-  (auth.uid())::text = (storage.foldername(name))[1]
+  auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- Allow users to delete their own avatar
+-- Allow users to delete their own avatar files
 create policy "Users can delete their own avatar"
 on storage.objects for delete
 to authenticated
 using (
   bucket_id = 'avatars' AND
-  (auth.uid())::text = (storage.foldername(name))[1]
+  auth.uid()::text = (storage.foldername(name))[1]
 );

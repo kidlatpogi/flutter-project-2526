@@ -135,8 +135,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (currentUser == null) throw Exception('Not authenticated');
 
-      // Upload to Supabase Storage
-      final fileName = '${currentUser.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      // Upload to Supabase Storage - store in user folder
+      final fileName = '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
       final bytes = await image.readAsBytes();
       
       await supabase.storage
