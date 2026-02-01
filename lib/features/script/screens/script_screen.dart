@@ -64,6 +64,52 @@ class _ScriptScreenState extends State<ScriptScreen> {
   }
 
   Future<void> _deleteScript(String scriptId) async {
+    // Show confirmation dialog first
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Delete Script?',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete this script? This action cannot be undone.',
+          style: GoogleFonts.inter(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // If user confirmed deletion
+    if (shouldDelete != true) return;
+
     try {
       final supabase = Supabase.instance.client;
       await supabase.from('scripts').delete().eq('id', scriptId);
