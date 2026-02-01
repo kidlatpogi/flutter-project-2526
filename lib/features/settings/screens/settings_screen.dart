@@ -550,19 +550,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Close dialog first
               Navigator.pop(context);
               
+              // Capture the navigator and scaffold messenger before async operations
+              final navigator = Navigator.of(context);
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              
               try {
                 await _authService.signOut();
                 
                 // Navigate to root which will show AuthWrapper -> LoginScreen
-                if (mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/',
-                    (route) => false,
-                  );
-                }
+                // Don't check mounted here - we already have the navigator reference
+                navigator.pushNamedAndRemoveUntil(
+                  '/',
+                  (route) => false,
+                );
               } catch (e) {
+                // Only show error if widget is still mounted
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Logout failed: $e'),
                       backgroundColor: Colors.red,
