@@ -63,6 +63,14 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
     }
   }
 
+  Future<void> _navigateToCreateScript() async {
+    final result = await Navigator.pushNamed(context, RouteNames.createScript);
+    // If a new script was created (result == true), reload scripts
+    if (result == true && mounted) {
+      _loadScripts();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -143,17 +151,30 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
                     color: AppColors.primary,
                   ),
                   items: _scripts.isEmpty
-                      ? []
-                      : _scripts.map((String script) {
-                          return DropdownMenuItem<String>(
-                            value: script,
-                            child: Text(script),
-                          );
-                        }).toList(),
-                  onChanged: _selectedFocus == 'free' || _scripts.isEmpty
+                      ? [
+                          DropdownMenuItem<String>(
+                            value: 'new_script',
+                            child: Text('+ Create New Script'),
+                          )
+                        ]
+                      : [
+                          ...(_scripts.map((String script) {
+                            return DropdownMenuItem<String>(
+                              value: script,
+                              child: Text(script),
+                            );
+                          }).toList()),
+                          DropdownMenuItem<String>(
+                            value: 'new_script',
+                            child: Text('+ Create New Script'),
+                          ),
+                        ],
+                  onChanged: _selectedFocus == 'free'
                       ? null
                       : (String? newValue) {
-                          if (newValue != null) {
+                          if (newValue == 'new_script') {
+                            _navigateToCreateScript();
+                          } else if (newValue != null) {
                             setState(() {
                               _selectedScript = newValue;
                             });
