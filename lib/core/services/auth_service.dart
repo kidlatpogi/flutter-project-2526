@@ -134,6 +134,11 @@ class AuthService {
         email: email,
         password: password,
       );
+      // If email confirmation is required, block login until verified
+      if (response.user?.emailConfirmedAt == null) {
+        await _supabase.auth.signOut();
+        throw AuthException('Please verify your email before logging in.');
+      }
       return response.user;
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
@@ -146,16 +151,32 @@ class AuthService {
   Future<User?> signUpWithEmail(String email, String password,
       {String? name}) async {
     try {
+      final emailRedirectTo = kIsWeb ? Uri.base.origin : null;
       final AuthResponse response = await _supabase.auth.signUp(
         email: email,
         password: password,
         data: name != null ? {'full_name': name} : null,
+        emailRedirectTo: emailRedirectTo,
       );
       return response.user;
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       throw AuthException('Registration failed: ${e.toString()}');
+    }
+  }
+
+  /// Resend email confirmation link
+  Future<void> resendConfirmationEmail(String email) async {
+    try {
+      await _supabase.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to resend confirmation: ${e.toString()}');
     }
   }
 

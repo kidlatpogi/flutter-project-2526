@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
+import '../../../core/services/image_upload_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -21,7 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _emailController = TextEditingController();
   final _authService = AuthService();
   final _userProfileService = UserProfileService();
-  final _imagePicker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isUploadingImage = false;
@@ -124,54 +123,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      // Show source selection dialog
-      final source = await showDialog<ImageSource>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            'Choose Image Source',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.photo_library, color: AppColors.primary),
-                title: Text(
-                  'Gallery',
-                  style: GoogleFonts.inter(color: AppColors.primary),
-                ),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              ListTile(
-                leading: Icon(Icons.camera_alt, color: AppColors.primary),
-                title: Text(
-                  'Camera',
-                  style: GoogleFonts.inter(color: AppColors.primary),
-                ),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      if (source == null) return;
-
-      // Pick image
-      final XFile? image = await _imagePicker.pickImage(
-        source: source,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 75,
-      );
+      // Use the cross-platform image upload service
+      final image = await ImageUploadService.pickImage();
 
       if (image == null) return;
 

@@ -44,7 +44,8 @@ class AppRouter {
       case RouteNames.forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
-        return MaterialPageRoute(builder: (_) => const VerifyEmailScreen());
+        final email = settings.arguments as String?;
+        return MaterialPageRoute(builder: (_) => VerifyEmailScreen(email: email));
       case RouteNames.resetPassword:
         return MaterialPageRoute(builder: (_) => const ResetPasswordScreen());
       case RouteNames.dashboard:
