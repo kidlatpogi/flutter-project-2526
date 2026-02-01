@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../widgets/dashboard_navbar.dart';
@@ -16,6 +16,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
   int _currentIndex = 2; // Home is selected
   List<Map<String, dynamic>> _sessions = [];
   bool _isLoading = true;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -23,32 +24,23 @@ class _SessionsScreenState extends State<SessionsScreen> {
     _loadSessions();
   }
 
+  @override
+  void dispose() {
+    _apiService.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadSessions() async {
     try {
-      final supabase = Supabase.instance.client;
-      final currentUser = supabase.auth.currentUser;
-
-      if (currentUser == null) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-        return;
-      }
-
-      // Query sessions table for current user
-      final response = await supabase
-          .from('sessions')
-          .select('id, script_title, created_at, duration_seconds, confidence_score')
-          .eq('user_id', currentUser.id)
-          .order('created_at', ascending: false);
+      final response = await _apiService.getSessions(limit: 50);
 
       if (mounted) {
         setState(() {
-          _sessions = (response as List).map((session) {
+          _sessions = response.map((session) {
             final createdAt = DateTime.parse(session['created_at']);
             final formattedDate = _formatDate(createdAt);
             final duration = _formatDuration(session['duration_seconds'] ?? 0);
-            
+
             return {
               'id': session['id'].toString(),
               'title': session['script_title'] ?? 'Untitled Session',

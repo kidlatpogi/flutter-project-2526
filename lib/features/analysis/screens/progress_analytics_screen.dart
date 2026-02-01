@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -19,6 +19,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   int _avgScore = 0;
   List<Map<String, dynamic>> _recentHistory = [];
   List<double> _trendScores = [];
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -28,22 +29,11 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
 
   Future<void> _loadProgressData() async {
     try {
-      final supabase = Supabase.instance.client;
-      final currentUser = supabase.auth.currentUser;
+      print('Loading progress data...');
+      final response = await _apiService.getSessions(limit: 20);
+      print('Progress: got ${response.length} sessions');
 
-      if (currentUser == null) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      final response = await supabase
-          .from('sessions')
-          .select('id, script_title, created_at, duration_seconds, confidence_score')
-          .eq('user_id', currentUser.id)
-          .order('created_at', ascending: false)
-          .limit(20);
-
-      final sessions = (response as List).map((session) {
+      final sessions = response.map((session) {
         final createdAt = DateTime.parse(session['created_at']);
         return {
           'id': session['id'].toString(),
@@ -75,8 +65,10 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           _trendScores = trendScores;
           _isLoading = false;
         });
+        print('Progress loaded: $_totalSessions total, $_avgScore avg');
       }
-    } catch (_) {
+    } catch (e) {
+      print('Progress load error: $e');
       if (mounted) {
         setState(() {
           _totalSessions = 0;

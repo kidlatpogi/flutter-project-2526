@@ -13,9 +13,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query, Header
+from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import jwt
@@ -30,13 +30,16 @@ from app.models import (
     UpdateUserProfile,
 )
 from app.database import (
+    get_supabase,
     insert_analysis_result,
     insert_session_record,
+    get_sessions,
     get_analysis_by_session,
     check_connection,
     get_user_profile,
     create_user_profile,
     update_user_profile,
+    get_db_debug_info,
 )
 from app.analysis.pipeline import run_analysis_pipeline
 from app.analysis.transcription import WhisperTranscriber
@@ -145,7 +148,8 @@ async def health_check():
 async def analyze_audio(
     audio: Annotated[UploadFile, File(description="Audio file (WAV or MP3)")],
     save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
-    authorization: Annotated[str, Header()] = ""
+    authorization: Annotated[str, Header()] = "",
+    script_title: Annotated[str | None, Form()] = None
 ):
     """
     Analyze an audio recording for public speaking confidence metrics.
@@ -214,7 +218,7 @@ async def analyze_audio(
                         user_id = None
 
                 await insert_analysis_result(result, user_id=user_id)
-                await insert_session_record(result, user_id=user_id)
+                await insert_session_record(result, user_id=user_id, script_title=script_title)
                 logger.info(f"Analysis result saved to database: {result.session_id}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
@@ -237,6 +241,34 @@ async def analyze_audio(
                 os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file: {e}")
+
+
+@app.get(
+    "/sessions",
+    response_model=list,
+    tags=["Sessions"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def list_sessions(
+    authorization: Annotated[str, Header()] = "",
+    limit: Annotated[int, Query(description="Max number of sessions")] = 20
+):
+    """
+    Return recent session summaries for the authenticated user.
+    """
+    user_id = verify_jwt_token(authorization)
+
+    try:
+        sessions = await get_sessions(user_id=user_id, limit=limit)
+        return sessions
+    except Exception as e:
+        logger.error(f"Failed to retrieve sessions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve sessions: {str(e)}"
+        )
 
 
 @app.get(
@@ -277,6 +309,52 @@ async def get_analysis(session_id: UUID):
             detail=f"Failed to retrieve analysis: {str(e)}"
         )
 
+
+@app.get(
+    "/debug/db-stats",
+    response_model=dict,
+    tags=["Debug"],
+)
+async def debug_db_stats():
+    """
+    Return basic DB stats for features and sessions.
+    """
+    try:
+        return await get_db_debug_info()
+    except Exception as e:
+        logger.error(f"Failed to retrieve debug stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve debug stats: {str(e)}",
+        )
+
+
+@app.post(
+    "/debug/insert-test",
+    response_model=dict,
+    tags=["Debug"],
+)
+async def debug_insert_test():
+    """
+    Try inserting a minimal feature row to validate DB writes.
+    """
+    client = get_supabase()
+    test_id = str(uuid4())
+    record = {
+        "session_id": test_id,
+        "confidence_score": 50,
+        "audio_duration": 10,
+    }
+    try:
+        response = client.table("features").insert(record).execute()
+        return {
+            "ok": True,
+            "record": record,
+            "data": response.data,
+            "error": str(getattr(response, "error", None)),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "record": record}
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):

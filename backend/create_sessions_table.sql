@@ -8,7 +8,8 @@ DROP POLICY IF EXISTS "Users can update their own sessions" ON public.sessions;
 DROP POLICY IF EXISTS "Users can delete their own sessions" ON public.sessions;
 
 -- Drop existing table if it exists (start fresh)
-DROP TABLE IF EXISTS public.sessions;
+-- Use CASCADE to remove dependent constraints (e.g., features_session_id_fkey)
+DROP TABLE IF EXISTS public.sessions CASCADE;
 
 -- Create sessions table for storing session summaries
 CREATE TABLE public.sessions (

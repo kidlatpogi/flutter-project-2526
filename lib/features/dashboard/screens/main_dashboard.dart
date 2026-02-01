@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -19,6 +19,7 @@ class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 2; // Home is selected
   final _userProfileService = UserProfileService();
   final _authService = AuthService();
+  final _apiService = ApiService();
   String? _nickname;
   String? _displayName;
   String? _avatarUrl;
@@ -64,15 +65,15 @@ class _MainDashboardState extends State<MainDashboard> {
   @override
   void dispose() {
     _userProfileService.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
     try {
-      final supabase = Supabase.instance.client;
-      final currentUser = supabase.auth.currentUser;
-
-      if (currentUser == null) {
+      print('Loading dashboard data...');
+      if (_authService.currentUser == null) {
+        print('No current user, skipping stats load');
         if (mounted) {
           setState(() {
             _isStatsLoading = false;
@@ -81,14 +82,11 @@ class _MainDashboardState extends State<MainDashboard> {
         return;
       }
 
-      final response = await supabase
-          .from('sessions')
-          .select('id, script_title, created_at, duration_seconds, confidence_score')
-          .eq('user_id', currentUser.id)
-          .order('created_at', ascending: false)
-          .limit(6);
+      print('User ID: ${_authService.currentUser!.id}');
+      final response = await _apiService.getSessions(limit: 6);
+      print('Got ${response.length} sessions from API');
 
-      final sessions = (response as List).map((session) {
+      final sessions = response.map((session) {
         final createdAt = DateTime.parse(session['created_at']);
         return {
           'id': session['id'].toString(),
@@ -116,8 +114,10 @@ class _MainDashboardState extends State<MainDashboard> {
           _streakDays = streakDays;
           _isStatsLoading = false;
         });
+        print('Dashboard loaded: $streakDays day streak, $avgScore avg score, ${_recentSessions.length} recent sessions');
       }
     } catch (e) {
+      print('Dashboard data load error: $e');
       if (mounted) {
         setState(() {
           _recentSessions = [];

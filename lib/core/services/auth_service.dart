@@ -51,6 +51,22 @@ class AuthService {
   /// Stream of auth state changes
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 
+  /// Refresh session if token is near expiry
+  Future<void> refreshSessionIfNeeded() async {
+    final session = _supabase.auth.currentSession;
+    if (session == null) return;
+
+    final expiresAt = session.expiresAt;
+    if (expiresAt == null) return;
+
+    final expiry = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
+    final now = DateTime.now().toUtc();
+
+    if (now.isAfter(expiry.subtract(const Duration(minutes: 1)))) {
+      await _supabase.auth.refreshSession();
+    }
+  }
+
   /// Sign in with Google
   ///
   /// On Web: Uses Supabase OAuth flow (opens popup)

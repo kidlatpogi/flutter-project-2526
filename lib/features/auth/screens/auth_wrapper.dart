@@ -42,6 +42,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     setState(() => _isLoading = true);
 
     try {
+      await _authService.refreshSessionIfNeeded();
       if (_authService.isLoggedIn) {
         // User is logged in, check if they have a profile
         print('User is logged in, checking profile...');

@@ -38,6 +38,26 @@ class ApiService {
 
   ApiService({http.Client? client}) : _client = client ?? http.Client();
 
+  Future<void> _ensureFreshSession({bool forceRefresh = false}) async {
+    final supabase = Supabase.instance.client;
+    final session = supabase.auth.currentSession;
+    if (session == null) return;
+
+    if (forceRefresh) {
+      await supabase.auth.refreshSession();
+      return;
+    }
+
+    final expiresAt = session.expiresAt;
+    if (expiresAt == null) return;
+
+    final expiry = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
+    final now = DateTime.now().toUtc();
+    if (now.isAfter(expiry.subtract(const Duration(minutes: 1)))) {
+      await supabase.auth.refreshSession();
+    }
+  }
+
   /// Get the current JWT access token from Supabase session
   String? get _accessToken =>
       Supabase.instance.client.auth.currentSession?.accessToken;
@@ -62,7 +82,11 @@ class ApiService {
   /// Returns [AnalysisModel] with the analysis results
   ///
   /// Throws [ApiException] on failure
-  Future<AnalysisModel> uploadAudio(File audioFile) async {
+  Future<AnalysisModel> uploadAudio(
+    File audioFile, {
+    String? scriptTitle,
+  }) async {
+    await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
 
     try {
@@ -96,6 +120,10 @@ class ApiService {
         contentType: http.MediaType.parse(contentType),
       );
       request.files.add(multipartFile);
+
+      if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
+        request.fields['script_title'] = scriptTitle.trim();
+      }
 
       // Send request with timeout
       final streamedResponse = await request.send().timeout(_timeout);
@@ -172,7 +200,9 @@ class ApiService {
     Uint8List bytes, {
     String fileName = 'recording.wav',
     String contentType = 'audio/wav',
+    String? scriptTitle,
   }) async {
+    await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
 
     try {
@@ -186,6 +216,10 @@ class ApiService {
         contentType: http.MediaType.parse(contentType),
       );
       request.files.add(multipartFile);
+
+      if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
+        request.fields['script_title'] = scriptTitle.trim();
+      }
 
       final streamedResponse = await request.send().timeout(_timeout);
       final response = await http.Response.fromStream(streamedResponse);
@@ -254,6 +288,7 @@ class ApiService {
 
   /// Fetch a previous analysis result by session ID
   Future<AnalysisModel> getAnalysis(String sessionId) async {
+    await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analysis/$sessionId');
 
     try {
@@ -293,6 +328,63 @@ class ApiService {
       return response.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Fetch recent sessions for the current user
+  Future<List<Map<String, dynamic>>> getSessions({int limit = 20}) async {
+    final uri = Uri.parse('$baseUrl/sessions?limit=$limit');
+
+    print('Fetching sessions from $uri');
+    print('Auth token available: ${_accessToken != null}');
+
+    try {
+      await _ensureFreshSession();
+      final headers = _buildHeaders();
+      print('Request headers: $headers');
+      
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(_timeout);
+
+      print('Sessions response status: ${response.statusCode}');
+      print('Sessions response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as List<dynamic>;
+        print('Parsed ${data.length} sessions');
+        return data.cast<Map<String, dynamic>>();
+      } else if (response.statusCode == 401) {
+        await _ensureFreshSession(forceRefresh: true);
+        final retryHeaders = _buildHeaders();
+        final retryResponse = await _client
+            .get(uri, headers: retryHeaders)
+            .timeout(_timeout);
+        if (retryResponse.statusCode == 200) {
+          final data = json.decode(retryResponse.body) as List<dynamic>;
+          print('Parsed ${data.length} sessions after refresh');
+          return data.cast<Map<String, dynamic>>();
+        }
+        throw ApiException(
+          'Unauthorized. Please sign in again.',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      } else {
+        throw ApiException(
+          'Failed to fetch sessions',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      }
+    } on SocketException {
+      print('SocketException: Cannot connect to server');
+      throw ApiException('Cannot connect to server', statusCode: 0);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      print('Sessions fetch error: $e');
+      throw ApiException('Unexpected error: ${e.toString()}');
     }
   }
 

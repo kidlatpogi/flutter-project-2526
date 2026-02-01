@@ -14,6 +14,7 @@ import '../features/dashboard/screens/sessions_screen.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
+import '../features/analysis/screens/detailed_feedback_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/change_password_screen.dart';
 import '../features/profile/screens/edit_nickname_screen.dart';
@@ -62,6 +63,26 @@ class AppRouter {
         );
       case RouteNames.progress:
         return MaterialPageRoute(builder: (_) => const ProgressAnalyticsScreen());
+      case RouteNames.detailedFeedback:
+        final args = settings.arguments;
+        if (args is AnalysisModel) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => DetailedFeedbackScreen(analysisResult: args),
+          );
+        }
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => DetailedFeedbackScreen(
+              sessionId: args['sessionId'] as String?,
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const DetailedFeedbackScreen(),
+        );
       case RouteNames.profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case RouteNames.settings:

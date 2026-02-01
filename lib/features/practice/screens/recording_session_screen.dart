@@ -245,8 +245,12 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
               recorded.bytes ?? Uint8List(0),
               fileName: recorded.fileName,
               contentType: _getWebContentType(recorded.fileName),
+              scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
             )
-          : await _apiService.uploadAudio(recorded.file!);
+          : await _apiService.uploadAudio(
+              recorded.file!,
+              scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
+            );
 
       // Navigate to analysis result with the data
       if (mounted) {

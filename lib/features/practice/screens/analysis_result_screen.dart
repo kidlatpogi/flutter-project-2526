@@ -357,10 +357,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                       height: 50,
                       child: TextButton(
                         onPressed: () {
-                          Navigator.pushNamedAndRemoveUntil(
+                          Navigator.pushNamed(
                             context,
-                            RouteNames.progress,
-                            (route) => false,
+                            RouteNames.detailedFeedback,
+                            arguments: result,
                           );
                         },
                         style: TextButton.styleFrom(
