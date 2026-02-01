@@ -48,6 +48,10 @@ dependencies:
   path_provider: ^2.1.2
   permission_handler: ^11.3.0
   
+  # Image Picker & Date Formatting
+  image_picker: ^1.0.7
+  intl: ^0.19.0
+  
   # State Management & Utilities
   flutter_riverpod: ^2.4.9
   path: ^1.9.0

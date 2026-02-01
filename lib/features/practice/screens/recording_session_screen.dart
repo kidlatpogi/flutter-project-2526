@@ -489,12 +489,13 @@ class WaveformPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black
-      ..strokeWidth = 2
+      ..color = isActive ? AppColors.primary : AppColors.inactive.withOpacity(0.5)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.fill;
 
     final barWidth = 3.0;
-    final spacing = 2.0;
+    final spacing = 3.0;
     final totalBars = (size.width / (barWidth + spacing)).floor();
 
     for (int i = 0; i < totalBars; i++) {

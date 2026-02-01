@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -19,10 +21,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _emailController = TextEditingController();
   final _authService = AuthService();
   final _userProfileService = UserProfileService();
+  final _imagePicker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isUploadingImage = false;
   String? _nickname;
   String? _avatarUrl;
+  String? _originalFullName;
+  String? _originalAvatarUrl;
 
   @override
   void initState() {
@@ -37,6 +43,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _emailController.text = _authService.email ?? '';
       _avatarUrl = _authService.avatarUrl;
       
+      // Store original values
+      _originalFullName = _authService.displayName ?? '';
+      _originalAvatarUrl = _authService.avatarUrl;
+      
       // Load nickname from backend
       final profile = await _userProfileService.getUserProfile();
       _nickname = profile?['nickname'];
@@ -47,6 +57,178 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  bool _hasUnsavedChanges() {
+    return _fullNameController.text != _originalFullName ||
+           _avatarUrl != _originalAvatarUrl;
+  }
+
+  Future<void> _handleCancel() async {
+    if (_hasUnsavedChanges()) {
+      final shouldCancel = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Discard Changes?',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          content: Text(
+            'You have unsaved changes. Are you sure you want to discard them?',
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Keep Editing',
+                style: GoogleFonts.inter(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Discard',
+                style: GoogleFonts.inter(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldCancel == true && mounted) {
+        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+      }
+    } else {
+      // No changes, go to dashboard
+      Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      // Show source selection dialog
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Choose Image Source',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.photo_library, color: AppColors.primary),
+                title: Text(
+                  'Gallery',
+                  style: GoogleFonts.inter(color: AppColors.primary),
+                ),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: Icon(Icons.camera_alt, color: AppColors.primary),
+                title: Text(
+                  'Camera',
+                  style: GoogleFonts.inter(color: AppColors.primary),
+                ),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      // Pick image
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) throw Exception('Not authenticated');
+
+      // Upload to Supabase Storage
+      final fileName = '${currentUser.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final bytes = await image.readAsBytes();
+      
+      await supabase.storage
+          .from('avatars')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: true,
+            ),
+          );
+
+      // Get public URL
+      final publicUrl = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+      // Update user metadata
+      await supabase.auth.updateUser(
+        UserAttributes(data: {'avatar_url': publicUrl}),
+      );
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = publicUrl;
+          _isUploadingImage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -156,30 +338,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         right: 0,
                         bottom: 0,
                         child: GestureDetector(
-                          onTap: () {
-                            // TODO: Implement image picker for profile picture upload
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Profile picture upload coming soon!'),
-                              ),
-                            );
-                          },
+                          onTap: _isUploadingImage ? null : _pickAndUploadImage,
                           child: Container(
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              color: _isUploadingImage ? AppColors.inactive : AppColors.primary,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: AppColors.surface,
                                 width: 3,
                               ),
                             ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 18,
-                              color: AppColors.surface,
-                            ),
+                            child: _isUploadingImage
+                                ? Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.surface,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.camera_alt,
+                                    size: 18,
+                                    color: AppColors.surface,
+                                  ),
                           ),
                         ),
                       ),
@@ -410,9 +593,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 50,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                    onPressed: _handleCancel,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: BorderSide(

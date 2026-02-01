@@ -18,7 +18,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
   bool _audioDetected = false;
   final _audioRecorder = AudioRecorder();
   Timer? _amplitudeTimer;
-  List<double> _amplitudes = List.filled(60, 0.3);
+  List<double> _amplitudes = List.generate(60, (_) => 0.3);
   final Random _random = Random();
 
   @override
@@ -87,7 +87,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
       setState(() {
         _isTesting = false;
         _audioDetected = false;
-        _amplitudes = List.filled(60, 0.3);
+        _amplitudes = List.generate(60, (_) => 0.3);
       });
     }
   }
@@ -266,13 +266,13 @@ class WaveformPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = isActive ? AppColors.primary : AppColors.inactive
+      ..color = isActive ? AppColors.primary : AppColors.inactive.withOpacity(0.5)
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.fill;
 
     final barWidth = 3.0;
-    final spacing = 4.0;
+    final spacing = 3.0;
     final totalBars = amplitudes.length;
 
     for (int i = 0; i < totalBars; i++) {

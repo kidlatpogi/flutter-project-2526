@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../widgets/dashboard_navbar.dart';
@@ -13,31 +14,88 @@ class SessionsScreen extends StatefulWidget {
 
 class _SessionsScreenState extends State<SessionsScreen> {
   int _currentIndex = 2; // Home is selected
+  List<Map<String, dynamic>> _sessions = [];
+  bool _isLoading = true;
 
-  // Mock data - replace with actual data from backend
-  final List<Map<String, dynamic>> _sessions = [
-    {
-      'id': '1',
-      'title': 'Talumpati ng Pagbati-Draft 1',
-      'date': 'Today at 2:30 PM',
-      'duration': '5m 32s',
-      'confidenceScore': 78,
-    },
-    {
-      'id': '2',
-      'title': 'Prepared Oration',
-      'date': 'Yesterday at 10:15 AM',
-      'duration': '8m 45s',
-      'confidenceScore': 85,
-    },
-    {
-      'id': '3',
-      'title': 'Free Speech Practice',
-      'date': 'Dec 28, 2025 at 3:45 PM',
-      'duration': '6m 20s',
-      'confidenceScore': 72,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      // Query sessions table for current user
+      final response = await supabase
+          .from('sessions')
+          .select('id, script_title, created_at, duration_seconds, confidence_score')
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _sessions = (response as List).map((session) {
+            final createdAt = DateTime.parse(session['created_at']);
+            final formattedDate = _formatDate(createdAt);
+            final duration = _formatDuration(session['duration_seconds'] ?? 0);
+            
+            return {
+              'id': session['id'].toString(),
+              'title': session['script_title'] ?? 'Untitled Session',
+              'date': formattedDate,
+              'duration': duration,
+              'confidenceScore': (session['confidence_score'] ?? 0).round(),
+            };
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading sessions: $e');
+      if (mounted) {
+        setState(() {
+          _sessions = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return 'Today at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    } else if (difference.inDays == 1) {
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    } else {
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes}m ${remainingSeconds}s';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,26 +104,43 @@ class _SessionsScreenState extends State<SessionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header with Back Button
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'All Sessions',
-                    style: GoogleFonts.inter(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: AppColors.primary,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'All Sessions',
+                        style: GoogleFonts.inter(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '${_sessions.length} practice sessions',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
+                  Padding(
+                    padding: const EdgeInsets.only(left: 40),
+                    child: Text(
+                      _isLoading ? 'Loading...' : '${_sessions.length} practice sessions',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -73,7 +148,13 @@ class _SessionsScreenState extends State<SessionsScreen> {
             ),
 
             // Sessions List
-            if (_sessions.isEmpty)
+            if (_isLoading)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_sessions.isEmpty)
               Expanded(
                 child: Center(
                   child: Column(
