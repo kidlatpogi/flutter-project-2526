@@ -1,17 +1,29 @@
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own scripts" ON public.scripts;
+DROP POLICY IF EXISTS "Users can create scripts" ON public.scripts;
+DROP POLICY IF EXISTS "Users can update their own scripts" ON public.scripts;
+DROP POLICY IF EXISTS "Users can delete their own scripts" ON public.scripts;
+
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS scripts_updated_at_trigger ON public.scripts;
+DROP FUNCTION IF EXISTS update_scripts_updated_at();
+
+-- Drop existing table if it exists (start fresh)
+DROP TABLE IF EXISTS public.scripts;
+
 -- Create scripts table for storing user practice scripts
-CREATE TABLE IF NOT EXISTS public.scripts (
+CREATE TABLE public.scripts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  CONSTRAINT scripts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- Create index on user_id for faster queries
-CREATE INDEX IF NOT EXISTS scripts_user_id_idx ON public.scripts(user_id);
-CREATE INDEX IF NOT EXISTS scripts_created_at_idx ON public.scripts(created_at DESC);
+CREATE INDEX scripts_user_id_idx ON public.scripts(user_id);
+CREATE INDEX scripts_created_at_idx ON public.scripts(created_at DESC);
 
 -- Enable RLS on scripts table
 ALTER TABLE public.scripts ENABLE ROW LEVEL SECURITY;

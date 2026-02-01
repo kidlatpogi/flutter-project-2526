@@ -41,19 +41,25 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
 
       if (currentUser == null) throw Exception('Not authenticated');
 
-      // Insert script into database
-      await supabase.from('scripts').insert({
+      print('Saving script for user: ${currentUser.id}');
+      print('Title: ${_titleController.text}');
+      print('Content length: ${_contentController.text.length}');
+
+      // Insert script into database - let database handle created_at
+      final response = await supabase.from('scripts').insert({
         'user_id': currentUser.id,
         'title': _titleController.text,
         'content': _contentController.text,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      }).select();
+
+      print('Insert response: $response');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Script saved successfully'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
         Navigator.pop(context, true); // Return true to indicate success
@@ -65,6 +71,7 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
           SnackBar(
             content: Text('Failed to save script: $e'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
           ),
         );
       }
