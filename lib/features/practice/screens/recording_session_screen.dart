@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'dart:typed_data';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:async';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,29 +10,100 @@ import '../../../data/models/analysis_model.dart';
 import '../../../routing/route_names.dart';
 
 class RecordingSessionScreen extends StatefulWidget {
-  const RecordingSessionScreen({super.key});
+  final bool isScripted;
+  final String? scriptTitle;
+  final String? scriptContent;
+
+  const RecordingSessionScreen({
+    super.key,
+    this.isScripted = true,
+    this.scriptTitle,
+    this.scriptContent,
+  });
 
   @override
   State<RecordingSessionScreen> createState() => _RecordingSessionScreenState();
 }
 
-class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
+class _RecordingSessionScreenState extends State<RecordingSessionScreen> with SingleTickerProviderStateMixin {
   final AudioService _audioService = AudioService();
   final ApiService _apiService = ApiService();
   
   bool _isRecording = false;
   bool _isAnalyzing = false;
-  int _seconds = 0;
-  Timer? _timer;
+  bool _isPaused = false;
+  final Stopwatch _stopwatch = Stopwatch();
+  late final Ticker _ticker;
+  int _elapsedSeconds = 0;
   bool _showScript = true;
+  bool _isScripted = true;
+  String? _scriptTitle;
+  String? _scriptContent;
+  final ScrollController _teleprompterController = ScrollController();
+  bool _isTeleprompterRunning = false;
+  double _teleprompterSpeed = 40.0; // pixels per second
   String? _errorMessage;
-  final ValueNotifier<double> _amplitudeNotifier = ValueNotifier<double>(0.0);
-  Timer? _amplitudeTimer;
+  double _currentAmplitude = 0.0;
+  int _lastAmplitudeCheck = 0;
 
   @override
   void initState() {
     super.initState();
+    _isScripted = widget.isScripted;
+    _showScript = widget.isScripted;
+    _scriptTitle = widget.scriptTitle;
+    _scriptContent = widget.scriptContent;
+    
+    // Use Ticker for smooth, efficient updates
+    _ticker = createTicker(_onTick);
+    _ticker.start();
+    
     _initRecording();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (!mounted) return;
+    
+    // Update timer display (only when seconds change)
+    if (_stopwatch.isRunning) {
+      final newSeconds = _stopwatch.elapsed.inSeconds;
+      if (newSeconds != _elapsedSeconds) {
+        setState(() {
+          _elapsedSeconds = newSeconds;
+        });
+      }
+    }
+    
+    // Update amplitude every 300ms (not every frame)
+    final now = elapsed.inMilliseconds;
+    if (_isRecording && !_isPaused && now - _lastAmplitudeCheck >= 300) {
+      _lastAmplitudeCheck = now;
+      _updateAmplitude();
+    }
+    
+    // Smooth teleprompter scrolling
+    if (_isTeleprompterRunning && _teleprompterController.hasClients) {
+      final max = _teleprompterController.position.maxScrollExtent;
+      final pixelsPerFrame = _teleprompterSpeed / 60; // ~60 fps
+      final next = (_teleprompterController.offset + pixelsPerFrame).clamp(0.0, max);
+      if (next < max) {
+        _teleprompterController.jumpTo(next);
+      } else {
+        _isTeleprompterRunning = false;
+      }
+    }
+  }
+
+  Future<void> _updateAmplitude() async {
+    if (!_isRecording || _isPaused) return;
+    try {
+      final amp = await _audioService.getAmplitude();
+      if (mounted && (_currentAmplitude - amp).abs() > 0.02) {
+        setState(() {
+          _currentAmplitude = amp;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _initRecording() async {
@@ -59,10 +129,12 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
       await _audioService.startRecording();
       setState(() {
         _isRecording = true;
+        _isPaused = false;
         _errorMessage = null;
+        _currentAmplitude = 0.0;
       });
-      _startTimer();
-      _startAmplitudeMonitor();
+      _stopwatch.start();
+      _startTeleprompter();
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to start recording: $e';
@@ -70,30 +142,77 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     }
   }
 
-  void _startAmplitudeMonitor() {
-    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
-      if (_isRecording) {
-        final amp = await _audioService.getAmplitude();
-        _amplitudeNotifier.value = amp;
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _teleprompterController.dispose();
+    _audioService.dispose();
+    super.dispose();
+  }
+
+  void _startTeleprompter() {
+    if (!_isScripted || !_showScript) return;
+    // Small delay to ensure UI is rendered
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _isTeleprompterRunning = true;
       }
     });
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _amplitudeTimer?.cancel();
-    _audioService.dispose();
-    _amplitudeNotifier.dispose();
-    super.dispose();
+  void _stopTeleprompter() {
+    _isTeleprompterRunning = false;
   }
 
-  void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  Future<void> _togglePauseResume() async {
+    if (!_isRecording || _isAnalyzing) return;
+    try {
+      if (_isPaused) {
+        await _audioService.resumeRecording();
+        setState(() {
+          _isPaused = false;
+        });
+        _stopwatch.start();
+        _startTeleprompter();
+      } else {
+        await _audioService.pauseRecording();
+        setState(() {
+          _isPaused = true;
+          _currentAmplitude = 0.0;
+        });
+        _stopwatch.stop();
+        _stopTeleprompter();
+      }
+    } catch (e) {
       setState(() {
-        _seconds++;
+        _errorMessage = 'Failed to toggle pause: $e';
       });
-    });
+    }
+  }
+
+  Future<void> _restartRecording() async {
+    if (_isAnalyzing) return;
+    try {
+      await _audioService.cancelRecording();
+      _stopTeleprompter();
+      setState(() {
+        _elapsedSeconds = 0;
+        _isRecording = false;
+        _isPaused = false;
+        _currentAmplitude = 0.0;
+      });
+      _stopwatch
+        ..reset()
+        ..stop();
+      if (_teleprompterController.hasClients) {
+        _teleprompterController.jumpTo(0.0);
+      }
+      await _startRecording();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to restart recording: $e';
+      });
+    }
   }
 
   Future<void> _stopAndAnalyze() async {
@@ -102,20 +221,32 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     setState(() {
       _isRecording = false;
       _isAnalyzing = true;
+      _isPaused = false;
+      _currentAmplitude = 0.0;
     });
-    _timer?.cancel();
-    _amplitudeTimer?.cancel();
+    _stopTeleprompter();
+    _stopwatch.stop();
 
     try {
       // Stop recording and get the file
-      final File? audioFile = await _audioService.stopRecording();
-      
-      if (audioFile == null) {
+      final RecordedAudio? recorded = await _audioService.stopRecording();
+
+      if (recorded == null) {
         throw Exception('No audio file was recorded');
       }
 
       // Upload to backend for analysis
-      final AnalysisModel result = await _apiService.uploadAudio(audioFile);
+      if (kIsWeb && recorded.bytes == null) {
+        throw Exception('No audio data available for upload');
+      }
+
+      final AnalysisModel result = kIsWeb
+          ? await _apiService.uploadAudioBytes(
+              recorded.bytes ?? Uint8List(0),
+              fileName: recorded.fileName,
+              contentType: _getWebContentType(recorded.fileName),
+            )
+          : await _apiService.uploadAudio(recorded.file!);
 
       // Navigate to analysis result with the data
       if (mounted) {
@@ -140,11 +271,9 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
 
   void _toggleRecording() {
     if (_isAnalyzing) return;
-    
+
     if (_isRecording) {
       _stopAndAnalyze();
-    } else {
-      _startRecording();
     }
   }
 
@@ -152,6 +281,14 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
     final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _getWebContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.webm')) return 'audio/webm';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    return 'audio/wav';
   }
 
   @override
@@ -175,7 +312,9 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
                   Expanded(
                     child: Center(
                       child: Text(
-                        'SPEECH 1',
+                        _isScripted
+                            ? (_scriptTitle?.toUpperCase() ?? 'SCRIPTED SPEECH')
+                            : 'FREE SPEECH',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -199,49 +338,30 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: _showScript
+                child: _isScripted && _showScript
                     ? SingleChildScrollView(
-                        child: RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              height: 1.8,
-                              color: AppColors.primary,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: 'It is a long established\n',
-                                style: GoogleFonts.inter(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'fact that a reader will be distracted by the readable content ',
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using \'Content here, content here\', making it look like readable English.',
-                                style: GoogleFonts.inter(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
+                    controller: _teleprompterController,
+                        child: Text(
+                          _scriptContent?.trim().isNotEmpty == true
+                              ? _scriptContent!
+                              : 'No script content available.',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            height: 1.8,
+                            color: AppColors.primary,
                           ),
                         ),
                       )
                     : Center(
-                        child: Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppColors.inactive.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
+                        child: Text(
+                          _isScripted
+                              ? 'Teleprompter hidden'
+                              : 'Teleprompter disabled for Free Speech',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
               ),
@@ -253,13 +373,15 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
-                height: 60,
-                child: CustomPaint(
-                  painter: WaveformPainter(
-                    isActive: _isRecording,
-                    amplitudeListenable: _amplitudeNotifier,
+                height: 12,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: ((_isRecording && !_isPaused) ? _currentAmplitude : 0.0).clamp(0.0, 1.0),
+                    backgroundColor: AppColors.inactive.withOpacity(0.2),
+                    color: AppColors.primary,
+                    minHeight: 12,
                   ),
-                  size: const Size(double.infinity, 60),
                 ),
               ),
             ),
@@ -268,7 +390,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
 
             // Timer
             Text(
-              _formatTime(_seconds),
+              _formatTime(_elapsedSeconds),
               style: GoogleFonts.inter(
                 fontSize: 48,
                 fontWeight: FontWeight.bold,
@@ -299,13 +421,15 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: _isRecording ? Colors.red : AppColors.inactive,
+                      color: (_isRecording && !_isPaused)
+                          ? Colors.red
+                          : AppColors.inactive,
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _isRecording ? 'RECORDING' : 'PAUSED',
+                    (_isRecording && !_isPaused) ? 'RECORDING' : 'PAUSED',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -353,73 +477,122 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
             // Control Buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
                 children: [
-                  // Left button (Toggle script/video)
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.inactive.withOpacity(0.3),
-                        width: 2,
+                  // Toggle script button (only for scripted mode)
+                  if (_isScripted)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _showScript ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _showScript ? AppColors.primary : AppColors.inactive.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _showScript = !_showScript;
+                            });
+                            if (_showScript) {
+                              _startTeleprompter();
+                            } else {
+                              _stopTeleprompter();
+                            }
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _showScript ? Icons.visibility : Icons.visibility_off,
+                                color: _showScript ? AppColors.primary : AppColors.inactive,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _showScript ? 'Teleprompter ON' : 'Teleprompter OFF',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _showScript ? AppColors.primary : AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      color: AppColors.surface,
                     ),
-                    child: IconButton(
-                      icon: Icon(
-                        _showScript ? Icons.videocam_off : Icons.videocam,
-                        color: AppColors.inactive,
+                  
+                  // Main control buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Left button (Pause/Resume)
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.inactive.withOpacity(0.3),
+                            width: 2,
+                          ),
+                          color: AppColors.surface,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            _isPaused ? Icons.play_arrow : Icons.pause,
+                            color: _isRecording ? AppColors.inactive : AppColors.inactive.withOpacity(0.4),
+                          ),
+                          onPressed: _isRecording ? _togglePauseResume : null,
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _showScript = !_showScript;
-                        });
-                      },
-                    ),
-                  ),
 
-                  // Center button (Stop/Start recording)
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.stop_rounded,
-                        color: AppColors.surface,
-                        size: 40,
+                      // Center button (Stop/Start recording)
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.stop_rounded,
+                            color: AppColors.surface,
+                            size: 40,
+                          ),
+                          onPressed: _toggleRecording,
+                        ),
                       ),
-                      onPressed: _toggleRecording,
-                    ),
-                  ),
 
-                  // Right button (Settings/Options)
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.inactive.withOpacity(0.3),
-                        width: 2,
+                      // Right button (Settings/Options)
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.inactive.withOpacity(0.3),
+                            width: 2,
+                          ),
+                          color: AppColors.surface,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.replay,
+                            color: AppColors.inactive,
+                          ),
+                          onPressed: () {
+                            _restartRecording();
+                          },
+                        ),
                       ),
-                      color: AppColors.surface,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.more_horiz,
-                        color: AppColors.inactive,
-                      ),
-                      onPressed: () {
-                        // TODO: Show options
-                      },
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -483,57 +656,3 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
   }
 }
 
-// Waveform painter for audio visualization
-class WaveformPainter extends CustomPainter {
-  final bool isActive;
-  final ValueListenable<double> amplitudeListenable;
-
-  WaveformPainter({
-    required this.isActive,
-    required this.amplitudeListenable,
-  }) : super(repaint: amplitudeListenable);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final amplitude = amplitudeListenable.value.clamp(0.0, 1.0);
-    final paint = Paint()
-      ..color = isActive ? AppColors.primary : AppColors.inactive.withOpacity(0.5)
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.fill;
-
-    final barWidth = 3.0;
-    final spacing = 3.0;
-    final totalBars = (size.width / (barWidth + spacing)).floor();
-
-    for (int i = 0; i < totalBars; i++) {
-      final x = i * (barWidth + spacing);
-
-      // Generate varying heights for waveform effect
-        final heightFactor = isActive
-          ? (i % 5 == 0
-              ? 0.8
-              : i % 3 == 0
-                  ? 0.6
-                  : i % 2 == 0
-                      ? 0.4
-                      : 0.3)
-          : 0.2;
-        final barHeight = size.height * (heightFactor * (0.3 + amplitude * 0.7));
-      final y = (size.height - barHeight) / 2;
-
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, y, barWidth, barHeight),
-          const Radius.circular(2),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(WaveformPainter oldDelegate) {
-    return oldDelegate.isActive != isActive;
-  }
-}

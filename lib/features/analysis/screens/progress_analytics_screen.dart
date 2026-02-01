@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -13,6 +14,106 @@ class ProgressAnalyticsScreen extends StatefulWidget {
 
 class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   int _currentIndex = 1; // Progress is selected
+  bool _isLoading = true;
+  int _totalSessions = 0;
+  int _avgScore = 0;
+  List<Map<String, dynamic>> _recentHistory = [];
+  List<double> _trendScores = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProgressData();
+  }
+
+  Future<void> _loadProgressData() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final response = await supabase
+          .from('sessions')
+          .select('id, script_title, created_at, duration_seconds, confidence_score')
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      final sessions = (response as List).map((session) {
+        final createdAt = DateTime.parse(session['created_at']);
+        return {
+          'id': session['id'].toString(),
+          'title': session['script_title'] ?? 'Untitled Session',
+          'date': _formatDate(createdAt),
+          'duration': _formatDuration(session['duration_seconds'] ?? 0),
+          'confidenceScore': (session['confidence_score'] ?? 0).round(),
+          'createdAt': createdAt,
+        };
+      }).toList();
+
+      final scores = sessions.map((s) => (s['confidenceScore'] as int)).toList();
+      final avgScore = scores.isEmpty
+          ? 0
+          : (scores.reduce((a, b) => a + b) / scores.length).round();
+
+      final trendScores = sessions
+          .take(6)
+          .toList()
+          .reversed
+          .map((s) => (s['confidenceScore'] as int).toDouble())
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _totalSessions = sessions.length;
+          _avgScore = avgScore;
+          _recentHistory = sessions.take(5).toList();
+          _trendScores = trendScores;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _totalSessions = 0;
+          _avgScore = 0;
+          _recentHistory = [];
+          _trendScores = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return 'Today at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    } else if (difference.inDays == 1) {
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    } else {
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes}m ${remainingSeconds}s';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,37 +168,52 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Empty State
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.show_chart,
-                              size: 64,
-                              color: AppColors.inactive,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No data yet',
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_trendScores.isEmpty)
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.show_chart,
+                                size: 64,
+                                color: AppColors.inactive,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Complete practice sessions to\nsee your performance trend',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.textSecondary.withOpacity(0.7),
-                                height: 1.5,
+                              const SizedBox(height: 16),
+                              Text(
+                                'No data yet',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Text(
+                                'Complete practice sessions to\nsee your performance trend',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary.withOpacity(0.7),
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 180,
+                          child: CustomPaint(
+                            painter: LineChartPainter(scores: _trendScores),
+                            child: const SizedBox.expand(),
+                          ),
                         ),
-                      ),
 
                       const SizedBox(height: 24),
                     ],
@@ -130,7 +246,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '0',
+                              _isLoading ? '—' : '$_totalSessions',
                               style: GoogleFonts.inter(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
@@ -173,7 +289,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '0%',
+                              _isLoading ? '—' : '$_avgScore%',
                               style: GoogleFonts.inter(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
@@ -214,46 +330,71 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
 
                 const SizedBox(height: 16),
 
-                // Empty State - No History
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.inactive.withOpacity(0.3),
-                      width: 1,
+                if (_isLoading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
                     ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.history,
-                        size: 48,
-                        color: AppColors.inactive,
+                  )
+                else if (_recentHistory.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.inactive.withOpacity(0.3),
+                        width: 1,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No history yet',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 48,
+                          color: AppColors.inactive,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your practice history will\nappear here',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AppColors.textSecondary.withOpacity(0.7),
-                          height: 1.5,
+                        const SizedBox(height: 16),
+                        Text(
+                          'No history yet',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your practice history will\nappear here',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppColors.textSecondary.withOpacity(0.7),
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Column(
+                    children: _recentHistory.map((session) {
+                      final score = session['confidenceScore'] as int;
+                      final rating = _getRating(score);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildHistoryItem(
+                          icon: Icons.mic,
+                          title: session['title'] as String,
+                          date: session['date'] as String,
+                          subtitle: session['duration'] as String,
+                          score: score.toString(),
+                          rating: rating,
+                        ),
+                      );
+                    }).toList(),
                   ),
-                ),
 
                 const SizedBox(height: 80), // Space for bottom nav
               ],
@@ -390,10 +531,22 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
         return AppColors.textSecondary;
     }
   }
+
+  String _getRating(int score) {
+    if (score >= 90) return 'PERFECT';
+    if (score >= 80) return 'EXCELLENT';
+    if (score >= 60) return 'GOOD';
+    if (score >= 40) return 'FAIR';
+    return 'NEEDS WORK';
+  }
 }
 
 // Simple line chart painter
 class LineChartPainter extends CustomPainter {
+  final List<double> scores;
+
+  LineChartPainter({required this.scores});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -405,15 +558,20 @@ class LineChartPainter extends CustomPainter {
       ..color = Colors.black
       ..style = PaintingStyle.fill;
 
-    // Sample data points
-    final points = [
-      Offset(0, size.height * 0.7),
-      Offset(size.width * 0.2, size.height * 0.5),
-      Offset(size.width * 0.4, size.height * 0.4),
-      Offset(size.width * 0.6, size.height * 0.6),
-      Offset(size.width * 0.8, size.height * 0.3),
-      Offset(size.width, size.height * 0.1),
-    ];
+    if (scores.isEmpty) return;
+
+    final maxScore = 100.0;
+    final minScore = 0.0;
+    final count = scores.length;
+    final stepX = count == 1 ? 0.0 : size.width / (count - 1);
+
+    final points = List<Offset>.generate(count, (i) {
+      final x = stepX * i;
+      final score = scores[i].clamp(minScore, maxScore);
+      final normalized = (score - minScore) / (maxScore - minScore);
+      final y = size.height * (1 - normalized);
+      return Offset(x, y);
+    });
 
     // Draw line
     final path = Path();
@@ -435,5 +593,11 @@ class LineChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant LineChartPainter oldDelegate) {
+    if (scores.length != oldDelegate.scores.length) return true;
+    for (int i = 0; i < scores.length; i++) {
+      if (scores[i] != oldDelegate.scores[i]) return true;
+    }
+    return false;
+  }
 }

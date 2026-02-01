@@ -1,8 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
+
+import '../utils/web_audio_utils.dart';
 
 /// Exception thrown when audio operations fail
 class AudioException implements Exception {
@@ -11,6 +15,18 @@ class AudioException implements Exception {
 
   @override
   String toString() => 'AudioException: $message';
+}
+
+class RecordedAudio {
+  final File? file;
+  final Uint8List? bytes;
+  final String fileName;
+
+  const RecordedAudio({
+    this.file,
+    this.bytes,
+    required this.fileName,
+  });
 }
 
 /// Service for audio recording and file management
@@ -27,12 +43,14 @@ class AudioService {
 
   /// Request microphone permission
   Future<bool> requestPermission() async {
+    if (kIsWeb) return true;
     final status = await Permission.microphone.request();
     return status.isGranted;
   }
 
   /// Check if microphone permission is granted
   Future<bool> hasPermission() async {
+    if (kIsWeb) return true;
     return await Permission.microphone.isGranted;
   }
 
@@ -52,30 +70,55 @@ class AudioService {
       throw AudioException('Already recording');
     }
 
-    // Get temp directory for recording
-    final directory = await getTemporaryDirectory();
+    // Get temp directory for recording (not available on web)
+    String? path;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    _currentRecordingPath = '${directory.path}/recording_$timestamp.wav';
+    if (!kIsWeb) {
+      final directory = await getTemporaryDirectory();
+      path = '${directory.path}/recording_$timestamp.wav';
+      _currentRecordingPath = path;
+    } else {
+      path = 'recording_$timestamp.webm';
+      _currentRecordingPath = path;
+    }
 
     // Configure and start recording
     try {
-      await _recorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 44100,
-          numChannels: 1,
-        ),
-        path: _currentRecordingPath!,
+      const config = RecordConfig(
+        encoder: AudioEncoder.wav,
+        sampleRate: 44100,
+        numChannels: 1,
       );
+      await _recorder.start(config, path: path);
       _isRecording = true;
-      return _currentRecordingPath!;
+      return _currentRecordingPath ?? '';
     } catch (e) {
       throw AudioException('Failed to start recording: $e');
     }
   }
 
+  /// Pause recording
+  Future<void> pauseRecording() async {
+    if (!_isRecording) return;
+    try {
+      await _recorder.pause();
+    } catch (e) {
+      throw AudioException('Failed to pause recording: $e');
+    }
+  }
+
+  /// Resume recording
+  Future<void> resumeRecording() async {
+    if (!_isRecording) return;
+    try {
+      await _recorder.resume();
+    } catch (e) {
+      throw AudioException('Failed to resume recording: $e');
+    }
+  }
+
   /// Stop recording and return the file path
-  Future<File?> stopRecording() async {
+  Future<RecordedAudio?> stopRecording() async {
     if (!_isRecording) {
       return null;
     }
@@ -86,7 +129,12 @@ class AudioService {
 
       if (path != null) {
         _currentRecordingPath = path;
-        return File(path);
+        final fileName = path.split('/').last;
+        if (kIsWeb) {
+          final bytes = await readWebFileBytes(path);
+          return RecordedAudio(bytes: bytes, fileName: fileName);
+        }
+        return RecordedAudio(file: File(path), fileName: fileName);
       }
       return null;
     } catch (e) {
@@ -103,7 +151,7 @@ class AudioService {
     }
 
     // Delete the file if it exists
-    if (_currentRecordingPath != null) {
+    if (_currentRecordingPath != null && !kIsWeb) {
       final file = File(_currentRecordingPath!);
       if (await file.exists()) {
         await file.delete();

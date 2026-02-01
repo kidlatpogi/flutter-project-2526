@@ -11,9 +11,6 @@ if (-not (Test-Path ".venv\Scripts\Activate.ps1")) {
     & ".\.venv\Scripts\Activate.ps1"
     Write-Host "Installing dependencies..."
     pip install -r backend\requirements.txt
-} else {
-    Write-Host "Activating virtual environment..."
-    & ".\.venv\Scripts\Activate.ps1"
 }
 
 # Kill any existing processes on port 8000
@@ -27,6 +24,18 @@ if ($processes) {
 Write-Host "Starting server..."
 Write-Host ""
 
-# Start the backend server
-Set-Location backend
-python main.py
+# Start the backend server in a new window so it stays running
+$uvicornPath = Join-Path $PSScriptRoot ".venv\Scripts\uvicorn.exe"
+$backendPath = Join-Path $PSScriptRoot "backend"
+
+Start-Process -FilePath $uvicornPath `
+    -ArgumentList "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info" `
+    -WorkingDirectory $backendPath `
+    -WindowStyle Normal
+
+Write-Host "Backend server started in a new window."
+Write-Host "API available at: http://localhost:8000"
+Write-Host "API docs at: http://localhost:8000/docs"
+Write-Host ""
+Write-Host "To stop the server, close the backend window or run:"
+Write-Host "  Stop-Process -Name uvicorn -Force"

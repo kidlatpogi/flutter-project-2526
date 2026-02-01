@@ -43,7 +43,7 @@ def get_supabase() -> Client:
     return SupabaseClient.get_client()
 
 
-async def insert_analysis_result(result: AnalysisResult) -> dict[str, Any]:
+async def insert_analysis_result(result: AnalysisResult, user_id: str | None = None) -> dict[str, Any]:
     """
     Insert analysis result into the 'features' table.
     
@@ -95,14 +95,71 @@ async def insert_analysis_result(result: AnalysisResult) -> dict[str, Any]:
         # Timestamp
         "analyzed_at": result.analyzed_at.isoformat()
     }
+
+    if user_id:
+        record["user_id"] = user_id
     
     try:
         response = client.table("features").insert(record).execute()
         logger.info(f"Successfully inserted analysis result for session {result.session_id}")
         return response.data[0] if response.data else record
     except Exception as e:
+        error_message = str(e)
         logger.error(f"Failed to insert analysis result: {e}")
+
+        # Retry without analyzed_at if column doesn't exist
+        if "analyzed_at" in record and "analyzed_at" in error_message:
+            fallback = dict(record)
+            fallback.pop("analyzed_at", None)
+            try:
+                response = client.table("features").insert(fallback).execute()
+                logger.info("Inserted analysis result without analyzed_at")
+                return response.data[0] if response.data else fallback
+            except Exception as retry_error:
+                logger.error(f"Retry insert without analyzed_at failed: {retry_error}")
+
+        # Retry without user_id if column doesn't exist
+        if "user_id" in record and "user_id" in error_message:
+            fallback = dict(record)
+            fallback.pop("user_id", None)
+            try:
+                response = client.table("features").insert(fallback).execute()
+                logger.info("Inserted analysis result without user_id")
+                return response.data[0] if response.data else fallback
+            except Exception as retry_error:
+                logger.error(f"Retry insert without user_id failed: {retry_error}")
+
         raise
+
+
+async def insert_session_record(
+    result: AnalysisResult,
+    user_id: str | None = None,
+    script_title: str | None = None,
+) -> None:
+    """
+    Insert a session summary into the 'sessions' table if it exists.
+    This is best-effort and will not raise if the table/columns are missing.
+    """
+    client = get_supabase()
+
+    record = {
+        "id": str(result.session_id),
+        "session_id": str(result.session_id),
+        "script_title": script_title or "Practice Session",
+        "duration_seconds": int(result.audio_duration),
+        "confidence_score": result.confidence_score.overall_score,
+        "created_at": result.analyzed_at.isoformat(),
+    }
+
+    if user_id:
+        record["user_id"] = user_id
+
+    try:
+        client.table("sessions").insert(record).execute()
+        logger.info(f"Inserted session record {result.session_id}")
+    except Exception as e:
+        logger.error(f"Failed to insert session record: {e}")
 
 
 async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:

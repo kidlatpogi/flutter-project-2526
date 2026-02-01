@@ -22,6 +22,7 @@ import '../features/settings/screens/test_audio_video_screen.dart';
 import '../features/practice/screens/practice_setup_screen.dart';
 import '../features/practice/screens/recording_session_screen.dart';
 import '../features/practice/screens/analysis_result_screen.dart';
+import '../data/models/analysis_model.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -68,9 +69,34 @@ class AppRouter {
       case RouteNames.practiceSetup:
         return MaterialPageRoute(builder: (_) => const PracticeSetupScreen());
       case RouteNames.recording:
-        return MaterialPageRoute(builder: (_) => const RecordingSessionScreen());
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => RecordingSessionScreen(
+            isScripted: args?['isScripted'] as bool? ?? true,
+            scriptTitle: args?['scriptTitle'] as String?,
+            scriptContent: args?['scriptContent'] as String?,
+          ),
+        );
       case RouteNames.analysis:
-        return MaterialPageRoute(builder: (_) => const AnalysisResultScreen());
+        final args = settings.arguments;
+        if (args is AnalysisModel) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => AnalysisResultScreen(analysisResult: args),
+          );
+        }
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => AnalysisResultScreen(
+              sessionId: args['sessionId'] as String?,
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const AnalysisResultScreen(),
+        );
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),

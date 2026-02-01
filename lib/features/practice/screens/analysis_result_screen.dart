@@ -1,53 +1,136 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/analysis_model.dart';
 import '../../../routing/route_names.dart';
 
-class AnalysisResultScreen extends StatelessWidget {
+class AnalysisResultScreen extends StatefulWidget {
   final AnalysisModel? analysisResult;
+  final String? sessionId;
 
-  const AnalysisResultScreen({super.key, this.analysisResult});
+  const AnalysisResultScreen({super.key, this.analysisResult, this.sessionId});
+
+  @override
+  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+}
+
+class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
+  late final ApiService _apiService;
+  Future<AnalysisModel>? _analysisFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService();
+
+    if (widget.analysisResult == null && widget.sessionId != null) {
+      _analysisFuture = _apiService.getAnalysis(widget.sessionId!);
+    }
+  }
+
+  @override
+  void dispose() {
+    _apiService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Get the analysis result from arguments if not passed directly
-    final result = analysisResult ??
-        ModalRoute.of(context)?.settings.arguments as AnalysisModel?;
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+    final AnalysisModel? directResult = widget.analysisResult ??
+        (routeArgs is AnalysisModel ? routeArgs : null);
+    final String? routeSessionId = widget.sessionId ??
+        (routeArgs is Map<String, dynamic> ? routeArgs['sessionId'] as String? : null);
 
-    // If no result, show error state
-    if (result == null) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: AppColors.inactive),
-                const SizedBox(height: 16),
-                Text(
-                  'No analysis data available',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    RouteNames.dashboard,
-                    (route) => false,
-                  ),
-                  child: const Text('Go to Dashboard'),
-                ),
-              ],
-            ),
-          ),
-        ),
+    if (directResult == null && _analysisFuture == null && routeSessionId != null) {
+      _analysisFuture = _apiService.getAnalysis(routeSessionId);
+    }
+
+    if (directResult != null) {
+      return _buildContent(context, directResult);
+    }
+
+    if (_analysisFuture != null) {
+      return FutureBuilder<AnalysisModel>(
+        future: _analysisFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildLoading();
+          }
+          if (snapshot.hasError) {
+            return _buildError(context, 'Failed to load analysis');
+          }
+          final result = snapshot.data;
+          if (result == null) {
+            return _buildError(context, 'No analysis data available');
+          }
+          return _buildContent(context, result);
+        },
       );
     }
+
+    return _buildError(context, 'No analysis data available');
+  }
+
+  Widget _buildLoading() {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading analysis...',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(BuildContext context, String message) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: AppColors.inactive),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  RouteNames.dashboard,
+                  (route) => false,
+                ),
+                child: const Text('Go to Dashboard'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, AnalysisModel result) {
 
     // Helper to get score label and color
     String getScoreLabel(double score) {

@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.database import (
     insert_analysis_result,
+    insert_session_record,
     get_analysis_by_session,
     check_connection,
     get_user_profile,
@@ -94,7 +95,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -143,7 +144,8 @@ async def health_check():
 )
 async def analyze_audio(
     audio: Annotated[UploadFile, File(description="Audio file (WAV or MP3)")],
-    save_to_db: Annotated[bool, Query(description="Save results to database")] = True
+    save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
+    authorization: Annotated[str, Header()] = ""
 ):
     """
     Analyze an audio recording for public speaking confidence metrics.
@@ -164,16 +166,19 @@ async def analyze_audio(
     """
     settings = get_settings()
     
-    # Validate content type
-    if audio.content_type not in settings.allowed_audio_types:
+    # Validate content type (strip codecs like "audio/webm;codecs=opus")
+    content_type = (audio.content_type or "").split(";")[0].strip()
+    if content_type not in settings.allowed_audio_types:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Unsupported audio format: {audio.content_type}. Allowed: {settings.allowed_audio_types}"
         )
     
     # Determine file extension
-    if audio.content_type in ["audio/mpeg", "audio/mp3"]:
+    if content_type in ["audio/mpeg", "audio/mp3"]:
         suffix = ".mp3"
+    elif content_type in ["audio/webm", "audio/ogg"]:
+        suffix = ".webm"
     else:
         suffix = ".wav"
     
@@ -201,7 +206,15 @@ async def analyze_audio(
         # Save to database if requested
         if save_to_db:
             try:
-                await insert_analysis_result(result)
+                user_id = None
+                if authorization:
+                    try:
+                        user_id = verify_jwt_token(authorization)
+                    except Exception:
+                        user_id = None
+
+                await insert_analysis_result(result, user_id=user_id)
+                await insert_session_record(result, user_id=user_id)
                 logger.info(f"Analysis result saved to database: {result.session_id}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
@@ -415,6 +428,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,
         log_level="info"
     )

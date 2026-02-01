@@ -12,9 +12,9 @@ class PracticeSetupScreen extends StatefulWidget {
 }
 
 class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
-  String? _selectedScript;
+  String? _selectedScriptId;
   String _selectedFocus = 'scripted';
-  List<String> _scripts = [];
+  List<Map<String, dynamic>> _scripts = [];
 
   @override
   void initState() {
@@ -33,22 +33,20 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
       }
       
       // Query scripts table for current user
-      final response = await supabase
+        final response = await supabase
           .from('scripts')
-          .select('id, title')
+          .select('id, title, content')
           .eq('user_id', currentUser.id)
           .order('created_at', ascending: false);
       
       if (mounted) {
         setState(() {
           // Extract script titles from response
-          _scripts = (response as List)
-              .map((script) => script['title'] as String)
-              .toList();
+          _scripts = List<Map<String, dynamic>>.from(response as List);
           
           // Set first script as default if available
           if (_scripts.isNotEmpty) {
-            _selectedScript = _scripts.first;
+            _selectedScriptId = _scripts.first['id'] as String?;
           }
         });
       }
@@ -126,10 +124,12 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _selectedScript,
+                  value: _selectedScriptId,
                   isExpanded: true,
                   disabledHint: Text(
-                    _scripts.isEmpty ? 'No scripts available' : _selectedScript ?? 'Select a script',
+                    _scripts.isEmpty
+                        ? 'No scripts available'
+                        : (_getSelectedScriptTitle() ?? 'Select a script'),
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       color: AppColors.inactive,
@@ -158,10 +158,10 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
                           )
                         ]
                       : [
-                          ...(_scripts.map((String script) {
+                          ...(_scripts.map((script) {
                             return DropdownMenuItem<String>(
-                              value: script,
-                              child: Text(script),
+                              value: script['id'] as String,
+                              child: Text(script['title'] ?? 'Untitled'),
                             );
                           }).toList()),
                           DropdownMenuItem<String>(
@@ -176,7 +176,7 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
                             _navigateToCreateScript();
                           } else if (newValue != null) {
                             setState(() {
-                              _selectedScript = newValue;
+                              _selectedScriptId = newValue;
                             });
                           }
                         },
@@ -255,8 +255,26 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Navigate to recording screen
-                  Navigator.pushNamed(context, RouteNames.recording);
+                  if (_selectedFocus == 'scripted' && _selectedScriptId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Please select a script for Scripted Accuracy'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final selectedScript = _findScriptById(_selectedScriptId);
+                  Navigator.pushNamed(
+                    context,
+                    RouteNames.recording,
+                    arguments: {
+                      'isScripted': _selectedFocus == 'scripted',
+                      'scriptTitle': selectedScript?['title'],
+                      'scriptContent': selectedScript?['content'],
+                    },
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -293,6 +311,18 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
     );
   }
 
+  Map<String, dynamic>? _findScriptById(String? id) {
+    if (id == null) return null;
+    for (final script in _scripts) {
+      if (script['id'] == id) return script;
+    }
+    return null;
+  }
+
+  String? _getSelectedScriptTitle() {
+    return _findScriptById(_selectedScriptId)?['title'] as String?;
+  }
+
   Widget _buildFocusOption({
     required String value,
     required String title,
@@ -304,6 +334,9 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
       onTap: () {
         setState(() {
           _selectedFocus = value;
+          if (_selectedFocus == 'scripted' && _selectedScriptId == null && _scripts.isNotEmpty) {
+            _selectedScriptId = _scripts.first['id'] as String?;
+          }
         });
       },
       child: Container(

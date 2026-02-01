@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,10 +25,10 @@ class ApiService {
   // Base URL for the FastAPI backend
   // Web: use localhost directly
   // Android Emulator: use 10.0.2.2 (alias for host machine's localhost)
-  static const String baseUrl = 'http://localhost:3000';
+  static const String baseUrl = 'http://localhost:8000';
 
   // For Android emulator, uncomment this instead:
-  // static const String baseUrl = 'http://10.0.2.2:3000';
+  // static const String baseUrl = 'http://10.0.2.2:8000';
 
   // HTTP client with timeout configuration
   final http.Client _client;
@@ -126,6 +127,91 @@ class ApiService {
         );
       } else {
         // Parse error message from backend if available
+        String errorMessage = 'Analysis failed';
+        try {
+          final errorJson = json.decode(response.body);
+          errorMessage = errorJson['detail'] ?? errorJson['error'] ?? errorMessage;
+        } catch (_) {}
+
+        throw ApiException(
+          errorMessage,
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      }
+    } on SocketException {
+      throw ApiException(
+        'Cannot connect to server. Please check your internet connection and ensure the backend is running.',
+        statusCode: 0,
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        'Network error: ${e.message}',
+        statusCode: 0,
+      );
+    } on FormatException {
+      throw ApiException(
+        'Invalid response from server',
+        statusCode: 0,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw ApiException(
+          'Request timed out. The audio file might be too long to process.',
+          statusCode: 0,
+        );
+      }
+      throw ApiException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  /// Upload audio bytes to the backend (web)
+  Future<AnalysisModel> uploadAudioBytes(
+    Uint8List bytes, {
+    String fileName = 'recording.wav',
+    String contentType = 'audio/wav',
+  }) async {
+    final uri = Uri.parse('$baseUrl/analyze-audio');
+
+    try {
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_buildHeaders());
+
+      final multipartFile = http.MultipartFile.fromBytes(
+        'audio',
+        bytes,
+        filename: fileName,
+        contentType: http.MediaType.parse(contentType),
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send().timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body) as Map<String, dynamic>;
+        return AnalysisModel.fromJson(jsonData);
+      } else if (response.statusCode == 401) {
+        throw ApiException(
+          'Unauthorized. Please sign in again.',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      } else if (response.statusCode == 413) {
+        throw ApiException(
+          'Audio file is too large. Please use a shorter recording.',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      } else if (response.statusCode == 422) {
+        throw ApiException(
+          'Unsupported audio format. Please use WAV or MP3.',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      } else {
         String errorMessage = 'Analysis failed';
         try {
           final errorJson = json.decode(response.body);

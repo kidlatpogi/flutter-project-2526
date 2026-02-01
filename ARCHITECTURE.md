@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         BIGKAS APP SYSTEM                            │
+│                         BIGKAS APP SYSTEM                           │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────┐
@@ -15,19 +15,19 @@
 │  │  Backend:8000  │  │ .\run_backend_8000.ps1
 │  │   FastAPI      │  │ 
 │  │   Server       │  │
-│  └────────┬────────┘  │
-│           │           │
-│           │ Python    │
-│           │ Process   │
-│  ┌────────▼────────┐  │ Terminal 2 (PowerShell)
-│  │ Frontend:3000   │  │ .\run_web_3000.ps1
-│  │   Flutter Web   │  │
-│  │   (Chrome/Edge) │  │
-│  └────────┬────────┘  │
-│           │           │
-│           │ HTTP/REST │
-│           │ Requests  │
-└───────────┼───────────┘
+│  └────────┬───────┘  │
+│           │          │
+│           │ Python   │
+│           │ Process  │
+│  ┌────────▼────────┐ │ Terminal 2 (PowerShell)
+│  │ Frontend:3000   │ │ .\run_web_3000.ps1
+│  │   Flutter Web   │ │
+│  │   (Chrome/Edge) │ │
+│  └────────┬────────┘ │
+│           │          │
+│           │ HTTP/REST│
+│           │ Requests │
+└───────────┼──────────┘
             │
             │ Internet
             │
@@ -63,26 +63,26 @@ USER                    FRONTEND            BACKEND           SUPABASE
  │                        │                   │                  │
  │                        ├─ GET /profile ───►│                  │
  │                        │                   ├─ Check JWT ───┐  │
- │                        │                   │                │  │
- │                        │                   │◄────── Valid ──┘  │
+ │                        │                   │               │  │
+ │                        │                   │◄────── Valid ─┘  │
  │                        │                   │                  │
- │                        │◄─ 200 OK ────────┤                  │
- │                        │  {nickname:"John"}                  │
+ │                        │◄─ 200 OK ────────┤                   │
+ │                        │  {nickname:"John"}                   │
  │                        │                   │                  │
  │                        ├─ PUT /profile ───►│                  │
  │                        │ {nickname:"John"} │                  │
  │                        │                   ├─ Verify JWT ───┐ │
- │                        │                   │                 │ │
- │                        │                   │◄─── Valid ──────┘ │
+ │                        │                   │                │ │
+ │                        │                   │◄─── Valid ─────┘ │
  │                        │                   │                  │
  │                        │                   ├─ Update Profile ─┤
  │                        │                   │                  │
  │                        │                   │  UPDATE user_profiles
  │                        │                   │  SET nickname='John'
  │                        │                   │                  │
- │                        │                   │◄─ Success ──────┤
+ │                        │                   │◄─ Success  ──────┤
  │                        │                   │                  │
- │◄────── ✅ Success ────┤◄─ 200 OK ────────┤                  │
+ │◄────── ✅ Success ────┤◄─ 200 OK    ───────┤                  │
  │  Nickname saved!       │                   │                  │
  │                        │                   │                  │
 ```
