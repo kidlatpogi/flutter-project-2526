@@ -14,9 +14,32 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   int _currentIndex = 4; // Settings is selected
-  bool _microphoneAccess = false;
-  String _selectedMicrophone = 'Default - Built-in Microphone';
+  String? _selectedMicrophone;
+  List<String> _availableMicrophones = [];
   final _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMicrophones();
+  }
+
+  Future<void> _loadMicrophones() async {
+    // Fetch available microphones
+    // For now, using mock data - replace with actual API call to detect system microphones
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    setState(() {
+      _availableMicrophones = [
+        'Default - Built-in Microphone',
+        'External Microphone',
+        'Headset Microphone',
+      ];
+      
+      // Set first as default
+      _selectedMicrophone = _availableMicrophones.first;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,13 +81,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 8),
                 _buildDropdown(
                   value: _selectedMicrophone,
-                  items: [
-                    'Default - Built-in Microphone',
-                    'External Microphone',
-                  ],
+                  items: _availableMicrophones,
                   onChanged: (value) {
                     setState(() {
-                      _selectedMicrophone = value!;
+                      _selectedMicrophone = value;
                     });
                   },
                 ),
@@ -276,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildDropdown({
-    required String value,
+    required String? value,
     required List<String> items,
     required Function(String?) onChanged,
   }) {
@@ -490,7 +510,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) {
                   Navigator.pushNamedAndRemoveUntil(
                     context,
-                    RouteNames.splash1,
+                    RouteNames.login,
                     (route) => false,
                   );
                 }

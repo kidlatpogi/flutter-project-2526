@@ -385,7 +385,7 @@ class _MainDashboardState extends State<MainDashboard> {
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, RouteNames.progress);
+                        Navigator.pushNamed(context, RouteNames.sessions);
                       },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,

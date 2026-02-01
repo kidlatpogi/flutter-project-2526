@@ -11,14 +11,35 @@ class PracticeSetupScreen extends StatefulWidget {
 }
 
 class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
-  String _selectedScript = 'Talumpati ng Pagbati-Draft 1';
+  String? _selectedScript;
   String _selectedFocus = 'scripted';
+  List<String> _scripts = [];
 
-  final List<String> _scripts = [
-    'Talumpati ng Pagbati-Draft 1',
-    'Impromptu Speech',
-    'Prepared Oration',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadScripts();
+  }
+
+  Future<void> _loadScripts() async {
+    // TODO: In a real app, fetch from your backend/database
+    // For now, using mock data that would come from script storage
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    setState(() {
+      // Mock scripts - replace with actual API call
+      _scripts = [
+        'Talumpati ng Pagbati-Draft 1',
+        'Impromptu Speech',
+        'Prepared Oration',
+      ];
+      
+      // Set first script as default if available
+      if (_scripts.isNotEmpty) {
+        _selectedScript = _scripts.first;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,48 +84,92 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: _selectedFocus == 'free' 
+                    ? AppColors.inactive.withOpacity(0.1)
+                    : AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.inactive.withOpacity(0.3),
+                  color: _selectedFocus == 'free'
+                      ? AppColors.inactive.withOpacity(0.2)
+                      : AppColors.inactive.withOpacity(0.3),
                 ),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedScript,
                   isExpanded: true,
-                  icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                  disabledHint: Text(
+                    _scripts.isEmpty ? 'No scripts available' : _selectedScript ?? 'Select a script',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: AppColors.inactive,
+                    ),
+                  ),
+                  hint: Text(
+                    _scripts.isEmpty ? 'No scripts available' : 'Select a script',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: _selectedFocus == 'free' ? AppColors.inactive : AppColors.primary,
+                  ),
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     color: AppColors.primary,
                   ),
-                  items: _scripts.map((String script) {
-                    return DropdownMenuItem<String>(
-                      value: script,
-                      child: Text(script),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedScript = newValue;
-                      });
-                    }
-                  },
+                  items: _scripts.isEmpty
+                      ? []
+                      : _scripts.map((String script) {
+                          return DropdownMenuItem<String>(
+                            value: script,
+                            child: Text(script),
+                          );
+                        }).toList(),
+                  onChanged: _selectedFocus == 'free' || _scripts.isEmpty
+                      ? null
+                      : (String? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              _selectedScript = newValue;
+                            });
+                          }
+                        },
                 ),
               ),
             ),
 
             const SizedBox(height: 8),
 
-            // Selected from your library text
-            Text(
-              'Selected from your library',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            // Selected from your library text or No scripts message
+            if (_scripts.isEmpty)
+              Text(
+                'Create a script in the Scripts section to practice',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else if (_selectedFocus == 'free')
+              Text(
+                'Script selection is disabled for Free Speech mode',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else
+              Text(
+                'Selected from your library',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
 
             const SizedBox(height: 32),
 

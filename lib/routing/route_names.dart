@@ -10,6 +10,7 @@ class RouteNames {
   static const String verifyEmail = '/verify-email';
   static const String resetPassword = '/reset-password';
   static const String dashboard = '/dashboard';
+  static const String sessions = '/sessions';
   static const String profile = '/profile';
   static const String practice = '/practice';
   static const String practiceSetup = '/practice-setup';

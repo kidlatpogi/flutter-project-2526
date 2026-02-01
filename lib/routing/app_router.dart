@@ -10,6 +10,7 @@ import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
 import '../features/auth/screens/auth_wrapper.dart';
 import '../features/dashboard/screens/main_dashboard.dart';
+import '../features/dashboard/screens/sessions_screen.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
@@ -48,6 +49,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ResetPasswordScreen());
       case RouteNames.dashboard:
         return MaterialPageRoute(builder: (_) => const MainDashboard());
+      case RouteNames.sessions:
+        return MaterialPageRoute(builder: (_) => const SessionsScreen());
       case RouteNames.script:
         return MaterialPageRoute(builder: (_) => const ScriptScreen());
       case RouteNames.createScript:
