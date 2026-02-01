@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 
 class CreateScriptScreen extends StatefulWidget {
@@ -12,12 +13,66 @@ class CreateScriptScreen extends StatefulWidget {
 class _CreateScriptScreenState extends State<CreateScriptScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  bool _isSaving = false;
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSaveScript() async {
+    if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please fill in all fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
+      if (currentUser == null) throw Exception('Not authenticated');
+
+      // Insert script into database
+      await supabase.from('scripts').insert({
+        'user_id': currentUser.id,
+        'title': _titleController.text,
+        'content': _contentController.text,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Script saved successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      }
+    } catch (e) {
+      print('Error saving script: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save script: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -42,34 +97,24 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {
-              if (_titleController.text.isNotEmpty &&
-                  _contentController.text.isNotEmpty) {
-                // TODO: Save script to backend
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Script saved successfully'),
-                    backgroundColor: Colors.green,
+            onPressed: _isSaving ? null : _handleSaveScript,
+            child: _isSaving
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                    ),
+                  )
+                : Text(
+                    'Save',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
                   ),
-                );
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Please fill in all fields'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: Text(
-              'Save',
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
           ),
         ],
       ),
