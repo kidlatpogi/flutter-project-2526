@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -18,13 +18,14 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
   bool _audioDetected = false;
   final _audioRecorder = AudioRecorder();
   Timer? _amplitudeTimer;
-  List<double> _amplitudes = List.generate(60, (_) => 0.3);
-  final Random _random = Random();
+  final ValueNotifier<List<double>> _amplitudeNotifier =
+      ValueNotifier<List<double>>(List.generate(60, (_) => 0.3));
 
   @override
   void dispose() {
     _amplitudeTimer?.cancel();
     _audioRecorder.dispose();
+    _amplitudeNotifier.dispose();
     super.dispose();
   }
 
@@ -47,14 +48,14 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
           });
 
           // Simulate amplitude changes for waveform animation
-          _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-            if (mounted) {
-              setState(() {
-                // Shift amplitudes left and add new random value
-                _amplitudes.removeAt(0);
-                _amplitudes.add(0.3 + _random.nextDouble() * 0.7);
-              });
-            }
+          _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+            final amplitude = await _audioRecorder.getAmplitude();
+            final normalized = ((amplitude.current + 60) / 60).clamp(0.0, 1.0);
+            final current = _amplitudeNotifier.value;
+            final updated = List<double>.from(current)
+              ..removeAt(0)
+              ..add(0.2 + normalized * 0.8);
+            _amplitudeNotifier.value = updated;
           });
         }
       } catch (e) {
@@ -87,7 +88,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
       setState(() {
         _isTesting = false;
         _audioDetected = false;
-        _amplitudes = List.generate(60, (_) => 0.3);
+        _amplitudeNotifier.value = List.generate(60, (_) => 0.3);
       });
     }
   }
@@ -140,7 +141,7 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
                 ),
                 child: CustomPaint(
                   painter: WaveformPainter(
-                    amplitudes: _amplitudes,
+                    amplitudesListenable: _amplitudeNotifier,
                     isActive: _isTesting,
                   ),
                 ),
@@ -255,13 +256,13 @@ class _TestAudioVideoScreenState extends State<TestAudioVideoScreen> {
 
 // Waveform painter for audio visualization with musical bar lines
 class WaveformPainter extends CustomPainter {
-  final List<double> amplitudes;
+  final ValueListenable<List<double>> amplitudesListenable;
   final bool isActive;
 
   WaveformPainter({
-    required this.amplitudes,
+    required this.amplitudesListenable,
     required this.isActive,
-  });
+  }) : super(repaint: amplitudesListenable);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -273,6 +274,7 @@ class WaveformPainter extends CustomPainter {
 
     final barWidth = 3.0;
     final spacing = 3.0;
+    final amplitudes = amplitudesListenable.value;
     final totalBars = amplitudes.length;
 
     for (int i = 0; i < totalBars; i++) {
@@ -296,7 +298,6 @@ class WaveformPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(WaveformPainter oldDelegate) {
-    return oldDelegate.isActive != isActive || 
-           oldDelegate.amplitudes != amplitudes;
+    return oldDelegate.isActive != isActive;
   }
 }

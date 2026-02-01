@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import '../../../core/services/api_service.dart';
@@ -26,7 +27,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
   Timer? _timer;
   bool _showScript = true;
   String? _errorMessage;
-  double _amplitude = 0.0;
+  final ValueNotifier<double> _amplitudeNotifier = ValueNotifier<double>(0.0);
   Timer? _amplitudeTimer;
 
   @override
@@ -73,9 +74,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       if (_isRecording) {
         final amp = await _audioService.getAmplitude();
-        setState(() {
-          _amplitude = amp;
-        });
+        _amplitudeNotifier.value = amp;
       }
     });
   }
@@ -85,6 +84,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
     _timer?.cancel();
     _amplitudeTimer?.cancel();
     _audioService.dispose();
+    _amplitudeNotifier.dispose();
     super.dispose();
   }
 
@@ -255,7 +255,10 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
               child: SizedBox(
                 height: 60,
                 child: CustomPaint(
-                  painter: WaveformPainter(isActive: _isRecording),
+                  painter: WaveformPainter(
+                    isActive: _isRecording,
+                    amplitudeListenable: _amplitudeNotifier,
+                  ),
                   size: const Size(double.infinity, 60),
                 ),
               ),
@@ -483,11 +486,16 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> {
 // Waveform painter for audio visualization
 class WaveformPainter extends CustomPainter {
   final bool isActive;
+  final ValueListenable<double> amplitudeListenable;
 
-  WaveformPainter({required this.isActive});
+  WaveformPainter({
+    required this.isActive,
+    required this.amplitudeListenable,
+  }) : super(repaint: amplitudeListenable);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final amplitude = amplitudeListenable.value.clamp(0.0, 1.0);
     final paint = Paint()
       ..color = isActive ? AppColors.primary : AppColors.inactive.withOpacity(0.5)
       ..strokeWidth = 3
@@ -502,7 +510,7 @@ class WaveformPainter extends CustomPainter {
       final x = i * (barWidth + spacing);
 
       // Generate varying heights for waveform effect
-      final heightFactor = isActive
+        final heightFactor = isActive
           ? (i % 5 == 0
               ? 0.8
               : i % 3 == 0
@@ -511,8 +519,7 @@ class WaveformPainter extends CustomPainter {
                       ? 0.4
                       : 0.3)
           : 0.2;
-
-      final barHeight = size.height * heightFactor;
+        final barHeight = size.height * (heightFactor * (0.3 + amplitude * 0.7));
       final y = (size.height - barHeight) / 2;
 
       canvas.drawRRect(

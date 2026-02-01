@@ -181,12 +181,17 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
               const SizedBox(height: 24),
 
               // Character Count
-              Text(
-                '${_contentController.text.length} characters',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _contentController,
+                builder: (context, value, _) {
+                  return Text(
+                    '${value.text.length} characters',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  );
+                },
               ),
             ],
           ),
