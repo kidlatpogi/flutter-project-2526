@@ -547,34 +547,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () async {
+              // Close dialog first
               Navigator.pop(context);
+              
               try {
                 await _authService.signOut();
+                
+                // Navigate to root which will show AuthWrapper -> LoginScreen
                 if (mounted) {
-                  // Use scheduled navigation to avoid deactivated widget error
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        RouteNames.login,
-                        (route) => false,
-                      );
-                    }
-                  });
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/',
+                    (route) => false,
+                  );
                 }
               } catch (e) {
                 if (mounted) {
-                  // Use scheduled callback to show snackbar safely
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Logout failed: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Logout failed: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },

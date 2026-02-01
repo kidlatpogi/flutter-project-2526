@@ -62,8 +62,17 @@ class AuthService {
     final expiry = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
     final now = DateTime.now().toUtc();
 
+    // On web implicit flow, refresh token may be missing
+    final refreshToken = session.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) return;
+
     if (now.isAfter(expiry.subtract(const Duration(minutes: 1)))) {
-      await _supabase.auth.refreshSession();
+      try {
+        await _supabase.auth.refreshSession();
+      } catch (e) {
+        // Ignore refresh errors to avoid breaking flow on web implicit auth
+        print('Session refresh failed: $e');
+      }
     }
   }
 

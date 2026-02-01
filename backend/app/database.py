@@ -196,7 +196,7 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
         session_id: The UUID of the session to retrieve.
         
     Returns:
-        The analysis record if found, None otherwise.
+        The analysis record in API-compatible format if found, None otherwise.
     """
     client = get_supabase()
     
@@ -206,7 +206,42 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
         ).execute()
         
         if response.data:
-            return response.data[0]
+            row = response.data[0]
+            # Convert flat DB row to nested API format for AnalysisModel
+            return {
+                "session_id": row.get("session_id"),
+                "transcription": row.get("transcription", ""),
+                "audio_duration": row.get("audio_duration", 0),
+                "audio_metrics": {
+                    "pitch_mean": row.get("pitch_mean", 0),
+                    "pitch_std": row.get("pitch_std", 0),
+                    "jitter_local": row.get("jitter_local", 0),
+                    "shimmer_local": row.get("shimmer_local", 0),
+                    "harmonics_to_noise_ratio": row.get("harmonics_to_noise_ratio", 0),
+                },
+                "fluency_metrics": {
+                    "words_per_minute": row.get("wpm", 0),
+                    "filler_count": row.get("filler_count", 0),
+                    "filler_words_found": row.get("filler_words_found", []),
+                    "total_words": row.get("total_words", 0),
+                    "articulation_rate": row.get("articulation_rate", 0),
+                },
+                "pause_metrics": {
+                    "total_pause_duration": row.get("total_pause_duration", 0),
+                    "pause_count": row.get("pause_count", 0),
+                    "pause_ratio": row.get("pause_ratio", 0),
+                    "average_pause_duration": row.get("average_pause_duration", 0),
+                    "longest_pause": row.get("longest_pause", 0),
+                },
+                "confidence_score": {
+                    "overall_score": row.get("confidence_score", 0),
+                    "pitch_score": row.get("pitch_score", 0),
+                    "fluency_score": row.get("fluency_score", 0),
+                    "voice_quality_score": row.get("voice_quality_score", 0),
+                    "pace_score": row.get("pace_score", 0),
+                },
+                "analyzed_at": row.get("analyzed_at") or row.get("created_at"),
+            }
         return None
     except Exception as e:
         logger.error(f"Failed to retrieve analysis result: {e}")

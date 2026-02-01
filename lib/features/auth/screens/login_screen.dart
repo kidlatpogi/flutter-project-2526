@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -24,22 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
-  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Listen for auth state changes (for OAuth redirect on web)
-    _authSubscription = _authService.authStateChanges.listen((authState) {
-      if (authState.session != null && mounted) {
-        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
-      }
-    });
+    // Don't listen to auth state changes here - let AuthWrapper handle OAuth redirects
+    // OAuth will redirect and trigger auth state change which AuthWrapper will process
   }
 
   @override
   void dispose() {
-    _authSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

@@ -134,10 +134,40 @@ class AppRouter {
           fullscreenDialog: true,
         );
       default:
+        // Check if this is an OAuth callback route (contains token parameters)
+        final routeName = settings.name ?? '';
+        if (routeName.contains('access_token') ||
+            routeName.contains('provider_token') ||
+            routeName.contains('refresh_token') ||
+            routeName.contains('expires_at') ||
+            routeName.contains('expires_in') ||
+            routeName.contains('token_type') ||
+            routeName.startsWith('access_token=')) {
+          print('AppRouter: OAuth callback detected, routing to AuthWrapper');
+          return MaterialPageRoute(builder: (_) => const AuthWrapper());
+        }
+        
+        // Unknown route - show error
+        print('AppRouter: Unknown route: ${settings.name}');
         return MaterialPageRoute(
-          builder: (_) => Scaffold(
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.white,
             body: Center(
-              child: Text('No route defined for ${settings.name}'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('No route defined for ${settings.name}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    },
+                    child: const Text('Go Home'),
+                  ),
+                ],
+              ),
             ),
           ),
         );

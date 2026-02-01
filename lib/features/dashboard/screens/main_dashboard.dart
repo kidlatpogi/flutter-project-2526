@@ -580,6 +580,7 @@ class _MainDashboardState extends State<MainDashboard> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _buildSessionItem(
+                          sessionId: session['id'] as String,
                           icon: Icons.mic,
                           title: session['title'] as String,
                           date: session['date'] as String,
@@ -624,79 +625,100 @@ class _MainDashboardState extends State<MainDashboard> {
   }
 
   Widget _buildSessionItem({
+    required String sessionId,
     required IconData icon,
     required String title,
     required String date,
     required String duration,
     required String score,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () {
+        // Navigate to analysis result screen with session ID
+        Navigator.pushNamed(
+          context,
+          RouteNames.analysis,
+          arguments: {'sessionId': sessionId},
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-            child: Icon(
-              icon,
-              color: AppColors.primary,
-              size: 20,
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: AppColors.primary,
+                size: 20,
+              ),
             ),
-          ),
 
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // Title and details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Title and details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$date • $duration',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Score and arrow
+            Row(
               children: [
                 Text(
-                  title,
+                  '$score/100',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                     color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$date • $duration',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.primary,
+                  size: 20,
                 ),
               ],
             ),
-          ),
-
-          // Score
-          Text(
-            '$score/100',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

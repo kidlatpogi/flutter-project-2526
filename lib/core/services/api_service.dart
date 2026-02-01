@@ -43,8 +43,16 @@ class ApiService {
     final session = supabase.auth.currentSession;
     if (session == null) return;
 
+    // On web implicit flow, refresh token may be missing
+    final refreshToken = session.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) return;
+
     if (forceRefresh) {
-      await supabase.auth.refreshSession();
+      try {
+        await supabase.auth.refreshSession();
+      } catch (e) {
+        print('Session refresh failed: $e');
+      }
       return;
     }
 
@@ -54,7 +62,11 @@ class ApiService {
     final expiry = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
     final now = DateTime.now().toUtc();
     if (now.isAfter(expiry.subtract(const Duration(minutes: 1)))) {
-      await supabase.auth.refreshSession();
+      try {
+        await supabase.auth.refreshSession();
+      } catch (e) {
+        print('Session refresh failed: $e');
+      }
     }
   }
 
