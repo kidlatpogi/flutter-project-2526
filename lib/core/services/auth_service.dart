@@ -205,6 +205,59 @@ class AuthService {
     }
   }
 
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      final redirectTo = kIsWeb ? '${Uri.base.origin}/#/reset-password' : null;
+      await _supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: redirectTo,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to send reset email: ${e.toString()}');
+    }
+  }
+
+  /// Verify current password by re-authenticating
+  Future<void> verifyPassword(String password) async {
+    final email = currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw AuthException('Email not available for this account.');
+    }
+
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Password verification failed: ${e.toString()}');
+    }
+  }
+
+  /// Update password for current user (used for reset flow)
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to update password: ${e.toString()}');
+    }
+  }
+
+  /// Change password with old password verification
+  Future<void> changePassword({required String oldPassword, required String newPassword}) async {
+    await verifyPassword(oldPassword);
+    await updatePassword(newPassword);
+  }
+
   /// Sign out from both Supabase and Google
   Future<void> signOut() async {
     try {

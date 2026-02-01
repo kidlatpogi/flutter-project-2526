@@ -75,7 +75,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // Check if user has nickname
         bool hasNickname = false;
         try {
-          hasNickname = await _userProfileService.hasNickname();
+          final profile = await _userProfileService.getUserProfile();
+          if (profile != null && profile['is_active'] == false) {
+            print('AuthWrapper: Account deactivated, signing out');
+            await _authService.signOut();
+            if (!mounted) return;
+            _targetWidget = const LoginScreen();
+            return;
+          }
+          hasNickname = profile != null &&
+              profile['has_profile'] == true &&
+              profile['nickname'] != null &&
+              (profile['nickname'] as String).isNotEmpty;
           print('AuthWrapper: Has nickname: $hasNickname');
         } catch (e) {
           print('AuthWrapper: Error checking nickname (backend might be down): $e');

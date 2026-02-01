@@ -441,6 +441,7 @@ async def get_profile(
                 "id": user_id,
                 "nickname": None,
                 "full_name": None,
+                "is_active": True,
                 "has_profile": False
             }
         

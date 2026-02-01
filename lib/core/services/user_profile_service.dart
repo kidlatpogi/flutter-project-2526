@@ -74,12 +74,14 @@ class UserProfileService {
   Future<Map<String, dynamic>> updateUserProfile({
     String? nickname,
     String? fullName,
+    bool? isActive,
   }) async {
     final uri = Uri.parse('$baseUrl/profile');
     
     final body = <String, dynamic>{};
     if (nickname != null) body['nickname'] = nickname;
     if (fullName != null) body['full_name'] = fullName;
+    if (isActive != null) body['is_active'] = isActive;
 
     print('Updating profile with body: $body');
     print('Authorization header: ${_buildHeaders()['Authorization']}');

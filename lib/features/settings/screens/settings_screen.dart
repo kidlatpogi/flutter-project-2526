@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
@@ -17,11 +18,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _selectedMicrophone;
   List<String> _availableMicrophones = [];
   final _authService = AuthService();
+  final _userProfileService = UserProfileService();
+  final _deactivatePasswordController = TextEditingController();
+  final _confirmDeactivateController = TextEditingController();
+  bool _isDeactivating = false;
 
   @override
   void initState() {
     super.initState();
     _loadMicrophones();
+  }
+
+  @override
+  void dispose() {
+    _deactivatePasswordController.dispose();
+    _confirmDeactivateController.dispose();
+    _userProfileService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadMicrophones() async {
@@ -467,17 +480,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          'Delete Account',
+          'Deactivate Account',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
             color: AppColors.primary,
           ),
         ),
-        content: Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
-          style: GoogleFonts.inter(
-            color: AppColors.textSecondary,
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'To deactivate your account, confirm your password and type DELETE ACCOUNT.',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Type your password to Deactivate',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _deactivatePasswordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: 'Password',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.inactive,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.inactive),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.inactive),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Type DELETE ACCOUNT',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _confirmDeactivateController,
+              decoration: InputDecoration(
+                hintText: 'DELETE ACCOUNT',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.inactive,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.inactive),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.inactive),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -491,17 +575,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Delete account
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                RouteNames.login,
-                (route) => false,
-              );
-            },
+            onPressed: _isDeactivating
+                ? null
+                : () async {
+                    final password = _deactivatePasswordController.text;
+                    final confirmation = _confirmDeactivateController.text.trim();
+
+                    if (password.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter your password'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (confirmation != 'DELETE ACCOUNT') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please type DELETE ACCOUNT to confirm'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    setState(() => _isDeactivating = true);
+                    try {
+                      await _authService.verifyPassword(password);
+                      await _userProfileService.updateUserProfile(isActive: false);
+
+                      if (!mounted) return;
+                      Navigator.pop(context);
+                      await _authService.signOut();
+                      if (!mounted) return;
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        RouteNames.login,
+                        (route) => false,
+                      );
+                    } on AuthException catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.message),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to deactivate account: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isDeactivating = false);
+                    }
+                  },
             child: Text(
-              'Delete',
+              _isDeactivating ? 'Deactivating...' : 'Deactivate',
               style: GoogleFonts.inter(
                 color: Colors.red,
                 fontWeight: FontWeight.w600,

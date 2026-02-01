@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     -- User profile fields
     nickname VARCHAR(50),
     full_name VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
     
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),

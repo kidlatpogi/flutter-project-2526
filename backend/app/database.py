@@ -311,20 +311,6 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
         data = response.data or []
         logger.info(f"Features with user_id filter: {len(data)} results")
 
-        # If no results with user_id, get ALL features for debugging
-        if not data:
-            logger.info("No features with matching user_id, checking all features...")
-            all_response = client.table("features").select(
-                "session_id, analyzed_at, audio_duration, confidence_score, user_id"
-            ).order("analyzed_at", desc=True).limit(limit).execute()
-            all_data = all_response.data or []
-            logger.info(f"Total features in table: {len(all_data)}")
-            if all_data:
-                for row in all_data[:3]:  # Log first 3 for debugging
-                    logger.info(f"  Feature user_id: {row.get('user_id')}, session: {row.get('session_id')}")
-                # Return all features regardless of user_id for now
-                data = all_data
-
         return [
             {
                 "id": row.get("session_id"),
@@ -349,11 +335,6 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                 ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
 
                 data = response.data or []
-                if not data:
-                    all_response = client.table("features").select(
-                        "session_id, created_at, audio_duration, confidence_score, user_id"
-                    ).order("created_at", desc=True).limit(limit).execute()
-                    data = all_response.data or []
 
                 return [
                     {
@@ -431,6 +412,7 @@ async def create_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         "id": user_id,
         "nickname": profile_data.nickname,
         "full_name": profile_data.full_name,
+        "is_active": profile_data.is_active if profile_data.is_active is not None else True,
     }
     
     try:
@@ -461,6 +443,8 @@ async def update_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         update_data["nickname"] = profile_data.nickname
     if profile_data.full_name is not None:
         update_data["full_name"] = profile_data.full_name
+    if profile_data.is_active is not None:
+        update_data["is_active"] = profile_data.is_active
     
     try:
         response = client.table("user_profiles").update(update_data).eq(

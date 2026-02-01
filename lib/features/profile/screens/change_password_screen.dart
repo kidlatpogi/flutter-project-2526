@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/auth_service.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -13,12 +14,27 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
   bool _obscureOldPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   bool get _hasMinLength => _newPasswordController.text.length >= 8;
+  bool get _hasUppercase => _newPasswordController.text.contains(RegExp(r'[A-Z]'));
+  bool get _hasLowercase => _newPasswordController.text.contains(RegExp(r'[a-z]'));
   bool get _hasNumber => _newPasswordController.text.contains(RegExp(r'[0-9]'));
+  bool get _hasSpecial => _newPasswordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+
+  String? _validatePassword(String password) {
+    if (password.isEmpty) return 'Password is required';
+    if (!_hasMinLength) return 'Password must be at least 8 characters';
+    if (!_hasUppercase) return 'Password must contain at least one uppercase letter';
+    if (!_hasLowercase) return 'Password must contain at least one lowercase letter';
+    if (!_hasNumber) return 'Password must contain at least one number';
+    if (!_hasSpecial) return 'Password must contain at least one special character';
+    return null;
+  }
 
   @override
   void dispose() {
@@ -208,11 +224,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               const SizedBox(height: 12),
 
               // Password requirements
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   _buildRequirementChip('8+ chars', _hasMinLength),
-                  const SizedBox(width: 8),
+                  _buildRequirementChip('Uppercase', _hasUppercase),
+                  _buildRequirementChip('Lowercase', _hasLowercase),
                   _buildRequirementChip('1 Number', _hasNumber),
+                  _buildRequirementChip('Special', _hasSpecial),
                 ],
               ),
 
@@ -287,25 +307,74 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_newPasswordController.text == _confirmPasswordController.text &&
-                        _hasMinLength &&
-                        _hasNumber) {
-                      // TODO: Save new password
-                      Navigator.pop(context);
+                  onPressed: _isLoading ? null : () async {
+                    final oldPassword = _oldPasswordController.text;
+                    final newPassword = _newPasswordController.text;
+                    final confirmPassword = _confirmPasswordController.text;
+
+                    if (oldPassword.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter your old password'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    final passwordError = _validatePassword(newPassword);
+                    if (passwordError != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
+                          content: Text(passwordError),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (newPassword != confirmPassword) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Passwords do not match'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    setState(() => _isLoading = true);
+                    try {
+                      await _authService.changePassword(
+                        oldPassword: oldPassword,
+                        newPassword: newPassword,
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
                           content: Text('Password changed successfully'),
                           backgroundColor: Colors.green,
                         ),
                       );
-                    } else {
+                    } on AuthException catch (e) {
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Please check password requirements'),
+                          content: Text(e.message),
                           backgroundColor: Colors.red,
                         ),
                       );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to change password: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -316,13 +385,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    'Save new password',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Save new password',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ],

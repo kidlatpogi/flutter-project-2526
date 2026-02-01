@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/services/auth_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -14,11 +15,16 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   
   bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
   bool _hasNumber = false;
+  bool _hasSpecial = false;
 
   @override
   void initState() {
@@ -30,8 +36,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final password = _newPasswordController.text;
     setState(() {
       _hasMinLength = password.length >= 8;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
       _hasNumber = password.contains(RegExp(r'[0-9]'));
+      _hasSpecial = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
     });
+  }
+
+  String? _validateFullPassword(String password) {
+    if (password.isEmpty) return 'Password is required';
+    if (!_hasMinLength) return 'Password must be at least 8 characters';
+    if (!_hasUppercase) return 'Password must contain at least one uppercase letter';
+    if (!_hasLowercase) return 'Password must contain at least one lowercase letter';
+    if (!_hasNumber) return 'Password must contain at least one number';
+    if (!_hasSpecial) return 'Password must contain at least one special character';
+    return null;
   }
 
   @override
@@ -123,35 +142,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 const SizedBox(height: 16),
                 
                 // Password Requirements
-                Row(
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
                   children: [
-                    Icon(
-                      _hasMinLength ? Icons.check_circle : Icons.radio_button_unchecked,
-                      size: 16,
-                      color: _hasMinLength ? Colors.green : AppColors.inactive,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '8+ chars',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: _hasMinLength ? Colors.green : AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Icon(
-                      _hasNumber ? Icons.check_circle : Icons.radio_button_unchecked,
-                      size: 16,
-                      color: _hasNumber ? Colors.green : AppColors.inactive,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '1 Number',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: _hasNumber ? Colors.green : AppColors.textSecondary,
-                      ),
-                    ),
+                    _buildRequirement('8+ chars', _hasMinLength),
+                    _buildRequirement('Uppercase', _hasUppercase),
+                    _buildRequirement('Lowercase', _hasLowercase),
+                    _buildRequirement('1 Number', _hasNumber),
+                    _buildRequirement('Special', _hasSpecial),
                   ],
                 ),
                 
@@ -214,22 +213,72 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   width: double.infinity,
                   height: AppConstants.buttonHeight,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_newPasswordController.text == _confirmPasswordController.text &&
-                          _hasMinLength &&
-                          _hasNumber) {
-                        // TODO: Implement password reset logic
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password reset successful')),
-                        );
-                        Navigator.popUntil(context, (route) => route.isFirst);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please check your password requirements')),
-                        );
-                      }
-                    },
-                    child: const Text('Save new password'),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            final newPassword = _newPasswordController.text;
+                            final confirmPassword = _confirmPasswordController.text;
+                            final error = _validateFullPassword(newPassword);
+                            if (error != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(error),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+                            if (newPassword != confirmPassword) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Passwords do not match'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() => _isLoading = true);
+                            try {
+                              await _authService.updatePassword(newPassword);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Password updated successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              Navigator.pop(context);
+                            } on AuthException catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(e.message),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to reset password: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _isLoading = false);
+                            }
+                          },
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Reset Password'),
                   ),
                 ),
               ],
@@ -237,6 +286,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRequirement(String label, bool met) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          met ? Icons.check_circle : Icons.radio_button_unchecked,
+          size: 16,
+          color: met ? Colors.green : AppColors.inactive,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: met ? Colors.green : AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }

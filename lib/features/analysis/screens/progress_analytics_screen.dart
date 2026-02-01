@@ -50,12 +50,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           ? 0
           : (scores.reduce((a, b) => a + b) / scores.length).round();
 
-      final trendScores = sessions
-          .take(6)
-          .toList()
-          .reversed
-          .map((s) => (s['confidenceScore'] as int).toDouble())
-          .toList();
+        final trendScores = _buildTrendScores(sessions);
 
       if (mounted) {
         setState(() {
@@ -305,12 +300,12 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
 
                 const SizedBox(height: 24),
 
-                // Recent History Header
+                // Recent Session Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Recent History',
+                      'Recent Session',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -349,7 +344,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No history yet',
+                          'No sessions yet',
                           style: GoogleFonts.inter(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -358,7 +353,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Your practice history will\nappear here',
+                          'Your recent sessions will\nappear here',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                             fontSize: 13,
@@ -377,6 +372,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _buildHistoryItem(
+                          sessionId: session['id'] as String,
                           icon: Icons.mic,
                           title: session['title'] as String,
                           date: session['date'] as String,
@@ -423,6 +419,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   }
 
   Widget _buildHistoryItem({
+    required String sessionId,
     required IconData icon,
     required String title,
     required String date,
@@ -430,85 +427,128 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     required String score,
     required String rating,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: AppColors.primary,
-              size: 20,
-            ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          RouteNames.analysis,
+          arguments: {'sessionId': sessionId},
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.inactive.withOpacity(0.3),
+            width: 1,
           ),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
 
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          // Title and details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Title and details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$date  •  $subtitle',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Score and rating
+            Row(
               children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      score,
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Text(
+                      rating,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: _getRatingColor(rating),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$date  •  $subtitle',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.primary,
+                  size: 20,
                 ),
               ],
             ),
-          ),
-
-          // Score and rating
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                score,
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              Text(
-                rating,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: _getRatingColor(rating),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  List<double> _buildTrendScores(List<Map<String, dynamic>> sessions) {
+    if (sessions.isEmpty) return [];
+
+    final sorted = [...sessions]
+      ..sort((a, b) => (a['createdAt'] as DateTime)
+          .compareTo(b['createdAt'] as DateTime));
+
+    final scores = sorted.map((s) => (s['confidenceScore'] as int).toDouble()).toList();
+
+    // Use a rolling average to smooth the trend (window size 3)
+    const window = 3;
+    final smoothed = <double>[];
+    for (var i = 0; i < scores.length; i++) {
+      final start = (i - (window - 1)) < 0 ? 0 : i - (window - 1);
+      final slice = scores.sublist(start, i + 1);
+      final avg = slice.reduce((a, b) => a + b) / slice.length;
+      smoothed.add(avg);
+    }
+
+    // Keep last 6 points for chart
+    final lastPoints = smoothed.length > 6 ? smoothed.sublist(smoothed.length - 6) : smoothed;
+    return lastPoints;
   }
 
   Color _getRatingColor(String rating) {
