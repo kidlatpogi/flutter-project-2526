@@ -59,7 +59,6 @@ class _SessionsScreenState extends State<SessionsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading sessions: $e');
       if (mounted) {
         setState(() {
           _sessions = [];

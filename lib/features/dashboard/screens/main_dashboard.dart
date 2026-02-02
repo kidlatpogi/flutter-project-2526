@@ -71,9 +71,7 @@ class _MainDashboardState extends State<MainDashboard> {
 
   Future<void> _loadDashboardData() async {
     try {
-      print('Loading dashboard data...');
       if (_authService.currentUser == null) {
-        print('No current user, skipping stats load');
         if (mounted) {
           setState(() {
             _isStatsLoading = false;
@@ -82,9 +80,7 @@ class _MainDashboardState extends State<MainDashboard> {
         return;
       }
 
-      print('User ID: ${_authService.currentUser!.id}');
       final response = await _apiService.getSessions(limit: 6);
-      print('Got ${response.length} sessions from API');
 
       final sessions = response.map((session) {
         final createdAt = DateTime.parse(session['created_at']);
@@ -126,7 +122,6 @@ class _MainDashboardState extends State<MainDashboard> {
         );
       }
     } catch (e) {
-      print('Dashboard data load error: $e');
       if (mounted) {
         setState(() {
           _recentSessions = [];

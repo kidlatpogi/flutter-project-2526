@@ -18,6 +18,7 @@ class RouteNames {
   static const String analysis = '/analysis';
   static const String script = '/script';
   static const String createScript = '/create-script';
+  static const String editScript = '/edit-script';
   static const String progress = '/progress';
   static const String detailedFeedback = '/detailed-feedback';
   static const String settings = '/settings';

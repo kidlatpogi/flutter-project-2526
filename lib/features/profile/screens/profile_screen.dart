@@ -41,15 +41,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _fullNameController.text = _authService.displayName ?? '';
       _emailController.text = _authService.email ?? '';
       _avatarUrl = _authService.avatarUrl;
-      
+
       // Store original values
       _originalFullName = _authService.displayName ?? '';
       _originalAvatarUrl = _authService.avatarUrl;
-      
+
       // Load nickname from backend
       final profile = await _userProfileService.getUserProfile();
       _nickname = profile?['nickname'];
-      
+
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _hasUnsavedChanges() {
     return _fullNameController.text != _originalFullName ||
-           _avatarUrl != _originalAvatarUrl;
+        _avatarUrl != _originalAvatarUrl;
   }
 
   Future<void> _handleCancel() async {
@@ -83,9 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           content: Text(
             'You have unsaved changes. Are you sure you want to discard them?',
-            style: GoogleFonts.inter(
-              color: AppColors.textSecondary,
-            ),
+            style: GoogleFonts.inter(color: AppColors.textSecondary),
           ),
           actions: [
             TextButton(
@@ -136,9 +134,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (currentUser == null) throw Exception('Not authenticated');
 
       // Upload to Supabase Storage - store in user folder
-      final fileName = '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName =
+          '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
       final bytes = await image.readAsBytes();
-      
+
       await supabase.storage
           .from('avatars')
           .uploadBinary(
@@ -151,9 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
 
       // Get public URL
-      final publicUrl = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName);
+      final publicUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
 
       // Update user metadata
       await supabase.auth.updateUser(
@@ -173,7 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      print('Error uploading image: $e');
       if (mounted) {
         setState(() => _isUploadingImage = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -231,9 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -274,11 +268,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Image.network(
                                   _avatarUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Icon(
-                                    Icons.person,
-                                    size: 60,
-                                    color: AppColors.primary,
-                                  ),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                        Icons.person,
+                                        size: 60,
+                                        color: AppColors.primary,
+                                      ),
                                 ),
                               )
                             : Icon(
@@ -296,7 +291,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: _isUploadingImage ? AppColors.inactive : AppColors.primary,
+                              color: _isUploadingImage
+                                  ? AppColors.inactive
+                                  : AppColors.primary,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: AppColors.surface,
@@ -432,14 +429,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
                 InkWell(
                   onTap: () async {
-                    final result = await Navigator.pushNamed(context, RouteNames.editNickname);
+                    final result = await Navigator.pushNamed(
+                      context,
+                      RouteNames.editNickname,
+                    );
                     if (result == true) {
                       // Refresh user data if nickname was updated
                       _loadUserData();
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
@@ -455,15 +458,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _nickname ?? 'No nickname set',
                             style: GoogleFonts.inter(
                               fontSize: 15,
-                              color: _nickname != null ? AppColors.primary : AppColors.textSecondary,
+                              color: _nickname != null
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ),
-                        Icon(
-                          Icons.edit,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
+                        Icon(Icons.edit, color: AppColors.primary, size: 20),
                       ],
                     ),
                   ),
@@ -495,10 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: AppColors.primary,
                           ),
                         ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: AppColors.primary,
-                        ),
+                        Icon(Icons.chevron_right, color: AppColors.primary),
                       ],
                     ),
                   ),

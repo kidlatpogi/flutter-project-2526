@@ -38,16 +38,9 @@ class UserProfileService {
     final uri = Uri.parse('$baseUrl/profile');
 
     try {
-      print('Fetching profile from $uri');
-      print('Authorization header: ${_buildHeaders()['Authorization']}');
-
       final response = await _client
           .get(uri, headers: _buildHeaders())
           .timeout(_timeout);
-
-      print('Profile response status: ${response.statusCode}');
-      print('Profile response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return data;
@@ -60,7 +53,6 @@ class UserProfileService {
         throw Exception('Failed to get profile: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching profile: $e');
       if (e.toString().contains('TimeoutException') ||
           e.toString().contains('Connection timed out')) {
         throw Exception(
@@ -141,7 +133,6 @@ class UserProfileService {
           profile['nickname'] != null &&
           (profile['nickname'] as String).isNotEmpty;
     } catch (e) {
-      print('Error checking nickname: $e');
       return false;
     }
   }

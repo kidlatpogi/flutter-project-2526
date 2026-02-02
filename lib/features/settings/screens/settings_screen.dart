@@ -52,7 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     } catch (e) {
-      print('Error loading microphones: $e');
       if (mounted) {
         setState(() {
           _availableMicrophones = ['Default Microphone'];

@@ -13,6 +13,7 @@ import '../features/dashboard/screens/main_dashboard.dart';
 import '../features/dashboard/screens/sessions_screen.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
+import '../features/script/screens/edit_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
 import '../features/analysis/screens/detailed_feedback_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
@@ -61,6 +62,12 @@ class AppRouter {
       case RouteNames.createScript:
         return MaterialPageRoute(
           builder: (_) => const CreateScriptScreen(),
+          fullscreenDialog: true,
+        );
+      case RouteNames.editScript:
+        final script = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => EditScriptScreen(script: script),
           fullscreenDialog: true,
         );
       case RouteNames.progress:

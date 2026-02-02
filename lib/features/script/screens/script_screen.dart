@@ -350,6 +350,30 @@ class _ScriptScreenState extends State<ScriptScreen> {
                                     PopupMenuItem(
                                       child: Row(
                                         children: [
+                                          Icon(Icons.edit, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text('Edit'),
+                                        ],
+                                      ),
+                                      onTap: () async {
+                                        // Small delay to allow popup to close
+                                        await Future.delayed(
+                                            Duration(milliseconds: 100));
+                                        if (mounted) {
+                                          final result = await Navigator.pushNamed(
+                                            context,
+                                            RouteNames.editScript,
+                                            arguments: script,
+                                          );
+                                          if (result == true && mounted) {
+                                            _loadScripts();
+                                          }
+                                        }
+                                      },
+                                    ),
+                                    PopupMenuItem(
+                                      child: Row(
+                                        children: [
                                           Icon(Icons.delete, size: 18),
                                           const SizedBox(width: 8),
                                           Text('Delete'),
