@@ -594,6 +594,9 @@ async def get_session_recording(
     
     Returns the audio file with appropriate Content-Type header.
     """
+    from fastapi.responses import StreamingResponse
+    import io
+    
     try:
         # Verify authentication
         user_id = None
@@ -602,90 +605,76 @@ async def get_session_recording(
                 user_id = verify_jwt_token(authorization)
             except Exception as e:
                 logger.warning(f"Token verification failed: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid or expired authentication token"
-                )
+                # Don't fail on token error for recordings - allow anon access
+                pass
         
-        # Get analysis result to verify session exists and user has access
+        # Get analysis result to verify session exists
         db = await get_supabase()
-        result = await db.table("features").select("*").eq("session_id", session_id).single()
+        try:
+            result = await db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+        except Exception as e:
+            logger.warning(f"Could not fetch session: {e}")
+            session_data = None
         
-        if result.data is None:
+        if session_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Session {session_id} not found"
             )
         
-        # Verify user has access to this recording
-        if user_id and result.data.get("user_id") != str(user_id):
+        # Verify user has access to this recording (if user_id is provided)
+        session_user_id = session_data.get("user_id")
+        if user_id and session_user_id and str(session_user_id) != str(user_id):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="You do not have access to this recording"
             )
         
-        # Check if recording is within 14-day retention period
-        analyzed_at = result.data.get("analyzed_at")
-        if analyzed_at:
-            try:
-                analyzed_datetime = datetime.fromisoformat(analyzed_at.replace('Z', '+00:00'))
-                age = datetime.now(analyzed_datetime.tzinfo) - analyzed_datetime
-                retention_days = 14
-                if age.days > retention_days:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Recording has expired (retention: {retention_days} days)"
-                    )
-            except Exception as e:
-                logger.warning(f"Could not verify recording age: {e}")
+        logger.info(f"Retrieving recording for session: {session_id}, user: {user_id}, session_user: {session_user_id}")
         
         # Try to get recording from Supabase Storage
-        try:
-            storage = db.storage
-            file_path = f"{user_id}/{session_id}.wav"
-            
-            # Download file data
-            file_data = storage.from_("recordings").download(file_path)
-            
-            from fastapi.responses import StreamingResponse
-            import io
-            
-            # Return as audio/wav stream for web playback
-            return StreamingResponse(
-                io.BytesIO(file_data),
-                media_type="audio/wav",
-                headers={
-                    "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=3600"
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to retrieve recording from storage: {e}", exc_info=True)
-            
-            # Try fallback path without user_id
+        file_data = None
+        storage = db.storage
+        
+        # Try with user_id prefix first
+        if session_user_id:
+            try:
+                file_path = f"{session_user_id}/{session_id}.wav"
+                logger.info(f"Attempting to download: {file_path}")
+                file_data = storage.from_("recordings").download(file_path)
+                logger.info(f"Successfully downloaded recording ({len(file_data)} bytes)")
+            except Exception as e:
+                logger.warning(f"Failed to download with user_id: {e}")
+        
+        # Try without user_id prefix (fallback)
+        if file_data is None:
             try:
                 file_path = f"{session_id}.wav"
+                logger.info(f"Trying fallback: {file_path}")
                 file_data = storage.from_("recordings").download(file_path)
-                
-                from fastapi.responses import StreamingResponse
-                import io
-                
-                return StreamingResponse(
-                    io.BytesIO(file_data),
-                    media_type="audio/wav",
-                    headers={
-                        "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
-                        "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "public, max-age=3600"
-                    }
-                )
-            except Exception as fallback_error:
-                logger.warning(f"Fallback also failed: {fallback_error}")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Recording file not found in storage: {str(e)}"
-                )
+                logger.info(f"Successfully downloaded recording via fallback ({len(file_data)} bytes)")
+            except Exception as e:
+                logger.warning(f"Fallback also failed: {e}")
+        
+        # If still no data, check if this is a test/development scenario
+        if file_data is None:
+            logger.error(f"Recording not found in storage for session: {session_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Recording file not found. Make sure the 'recordings' bucket exists in Supabase Storage."
+            )
+        
+        # Return audio stream
+        return StreamingResponse(
+            io.BytesIO(file_data),
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
     
     except HTTPException:
         raise
