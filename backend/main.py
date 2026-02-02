@@ -856,6 +856,29 @@ async def get_session_recording(
             except Exception as e:
                 logger.warning(f"Fallback also failed: {e}")
         
+        # Try looking in subdirectories (legacy format: parent_dir/session_id.wav)
+        # This handles cases where files are stored in user_id or other parent folders
+        if file_data is None:
+            try:
+                # First, try to list all items in recordings bucket
+                all_items = storage.from_("recordings").list()
+                logger.info(f"Searching for {session_id}.wav in subdirectories. Found {len(all_items)} items at root")
+                
+                for item in all_items:
+                    if item.get("metadata") is None:  # It's a folder
+                        folder_name = item["name"]
+                        try:
+                            file_path = f"{folder_name}/{session_id}.wav"
+                            logger.info(f"Trying subfolder path: {file_path}")
+                            file_data = storage.from_("recordings").download(file_path)
+                            logger.info(f"Successfully found recording in subfolder ({len(file_data)} bytes)")
+                            break
+                        except Exception as e:
+                            logger.debug(f"Not in {folder_name}: {str(e)[:50]}")
+                            continue
+            except Exception as e:
+                logger.warning(f"Subfolder search failed: {e}")
+        
         # If still no data, check if this is a test/development scenario
         if file_data is None:
             logger.error(f"Recording not found in storage for session: {session_id}")
