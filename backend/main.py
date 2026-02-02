@@ -133,6 +133,217 @@ async def health_check():
     )
 
 
+@app.get("/debug/info", tags=["Debug"])
+async def debug_info():
+    """
+    Get debug information about the backend configuration.
+    """
+    import os
+    
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "environment": {
+            "SUPABASE_URL": "configured" if os.getenv("SUPABASE_URL") else "missing",
+            "SUPABASE_KEY": "configured" if os.getenv("SUPABASE_KEY") else "missing",
+        },
+        "whisper_loaded": WhisperTranscriber.is_loaded(),
+        "supabase_connected": await check_connection()
+    }
+
+
+@app.get("/debug/session/{session_id}", tags=["Debug"])
+async def debug_session(session_id: str):
+    """
+    Get debug info about a specific session.
+    """
+    try:
+        db = get_supabase()
+        
+        # Try to fetch the session (NO AWAIT - db is sync)
+        try:
+            result = db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+        except Exception as e:
+            session_data = None
+            fetch_error = str(e)
+        
+        # Try to list storage buckets
+        try:
+            buckets = db.storage.list_buckets()
+            bucket_list = [b.name if hasattr(b, 'name') else b.get('name', 'unknown') for b in buckets]
+        except Exception as e:
+            bucket_list = []
+            bucket_error = str(e)
+        
+        # Try to find the recording file
+        file_exists = False
+        file_error = None
+        if session_data and session_data.get("user_id"):
+            try:
+                file_path = f"{session_data['user_id']}/{session_id}.wav"
+                # Try to get file metadata (lightweight check)
+                db.storage.from_("recordings").download(file_path)
+                file_exists = True
+            except Exception as e:
+                file_error = str(e)
+        
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "session_found": session_data is not None,
+            "session_user_id": session_data.get("user_id") if session_data else None,
+            "storage_buckets": bucket_list,
+            "recordings_bucket_exists": "recordings" in bucket_list,
+            "file_exists": file_exists,
+            "file_error": file_error,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Debug session failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/debug/storage", tags=["Debug"])
+async def debug_storage():
+    """
+    Debug endpoint to verify storage bucket exists and is accessible.
+    """
+    try:
+        # Get the Supabase client (NOT async)
+        db = get_supabase()
+        
+        # Try to access the storage object
+        bucket_names = []
+        recordings_exists = False
+        files_in_bucket = []
+        
+        # Try to detect if recordings bucket exists by trying to list files
+        try:
+            files = db.storage.from_("recordings").list()
+            if files is not None:  # If this succeeds, the bucket exists
+                recordings_exists = True
+                files_in_bucket = [f.get('name', 'unknown') for f in files] if isinstance(files, list) else []
+                bucket_names = ["recordings"]
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # If we get "not found" error, bucket doesn't exist
+            if "not found" in error_msg or "404" in error_msg:
+                recordings_exists = False
+            else:
+                # Other error, might be permission or actual error
+                logger.warning(f"Could not check recordings bucket: {e}")
+        
+        return {
+            "status": "connected",
+            "buckets": bucket_names,
+            "recordings_bucket_exists": recordings_exists,
+            "files_in_recordings_bucket": files_in_bucket,
+            "file_count": len(files_in_bucket),
+            "timestamp": datetime.utcnow().isoformat(),
+            "note": "bucket detection via file listing"
+        }
+    except Exception as e:
+        logger.error(f"Storage debug failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/debug/test-recording/{session_id}", tags=["Debug"])
+async def debug_test_recording(session_id: str):
+    """
+    Test endpoint to verify a specific recording file exists and is readable.
+    """
+    try:
+        db = get_supabase()
+        
+        # Get session info first (NO AWAIT - db is sync)
+        try:
+            result = db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+        except:
+            session_data = None
+        
+        if not session_data:
+            return {
+                "status": "error",
+                "error": f"Session {session_id} not found in database",
+                "session_found": False
+            }
+        
+        user_id = session_data.get("user_id")
+        
+        # Try to access the file with different paths
+        attempts = []
+        
+        # Attempt 1: {user_id}/{session_id}.wav
+        if user_id:
+            file_path = f"{user_id}/{session_id}.wav"
+            try:
+                data = db.storage.from_("recordings").download(file_path)
+                attempts.append({
+                    "path": file_path,
+                    "status": "success",
+                    "size_bytes": len(data)
+                })
+            except Exception as e:
+                attempts.append({
+                    "path": file_path,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        # Attempt 2: {session_id}.wav
+        file_path = f"{session_id}.wav"
+        try:
+            data = db.storage.from_("recordings").download(file_path)
+            attempts.append({
+                "path": file_path,
+                "status": "success",
+                "size_bytes": len(data)
+            })
+        except Exception as e:
+            attempts.append({
+                "path": file_path,
+                "status": "failed",
+                "error": str(e)
+            })
+        
+        # List all files in recordings bucket
+        files_in_bucket = []
+        try:
+            files = db.storage.from_("recordings").list()
+            files_in_bucket = [f.get('name', 'unknown') for f in files] if files else []
+        except Exception as e:
+            logger.warning(f"Could not list files: {e}")
+        
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "session_found": True,
+            "user_id": user_id,
+            "file_access_attempts": attempts,
+            "files_in_bucket": files_in_bucket,
+            "total_files": len(files_in_bucket),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Test recording failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
 @app.post(
     "/analyze-audio",
     response_model=AnalysisResult,
@@ -149,7 +360,8 @@ async def analyze_audio(
     audio: Annotated[UploadFile, File(description="Audio file (WAV or MP3)")],
     save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
     authorization: Annotated[str, Header()] = "",
-    script_title: Annotated[str | None, Form()] = None
+    script_title: Annotated[str | None, Form()] = None,
+    recorded_duration: Annotated[int | None, Form(description="Recorded duration in seconds from the frontend")] = None
 ):
     """
     Analyze an audio recording for public speaking confidence metrics.
@@ -200,6 +412,20 @@ async def analyze_audio(
         # Run analysis pipeline
         result = await run_analysis_pipeline(temp_path)
         
+        # Override audio_duration with frontend recorded_duration if provided
+        if recorded_duration is not None and recorded_duration > 0:
+            logger.info(f"Using frontend recorded_duration ({recorded_duration}s) instead of librosa duration ({result.audio_duration:.1f}s)")
+            result = AnalysisResult(
+                session_id=result.session_id,
+                transcription=result.transcription,
+                audio_duration=float(recorded_duration),
+                audio_metrics=result.audio_metrics,
+                fluency_metrics=result.fluency_metrics,
+                pause_metrics=result.pause_metrics,
+                confidence_score=result.confidence_score,
+                analyzed_at=result.analyzed_at
+            )
+        
         # Validate duration
         if result.audio_duration > settings.max_audio_duration_seconds:
             raise HTTPException(
@@ -214,12 +440,48 @@ async def analyze_audio(
                 if authorization:
                     try:
                         user_id = verify_jwt_token(authorization)
-                    except Exception:
+                        logger.info(f"Successfully verified JWT token, user_id: {user_id}")
+                    except Exception as e:
+                        logger.warning(f"JWT token verification failed: {e}")
                         user_id = None
+                else:
+                    logger.warning("No authorization header provided")
 
                 await insert_analysis_result(result, user_id=user_id)
                 await insert_session_record(result, user_id=user_id, script_title=script_title)
                 logger.info(f"Analysis result saved to database: {result.session_id}")
+                
+                # Save recording to Supabase Storage for web playback
+                # This allows web clients to listen to their recordings
+                logger.info(f"Attempting to upload recording: user_id={user_id}, temp_path_exists={temp_path and temp_path.exists()}")
+                if temp_path and temp_path.exists():
+                    try:
+                        db = get_supabase()
+                        storage = db.storage
+                        
+                        # Use user_id if available, otherwise use session_id
+                        if user_id:
+                            file_path = f"{user_id}/{result.session_id}.wav"
+                        else:
+                            file_path = f"{result.session_id}.wav"
+                        
+                        with open(temp_path, 'rb') as f:
+                            file_data = f.read()
+                        
+                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes)")
+                        
+                        # Upload to storage
+                        response = storage.from_("recordings").upload(
+                            file_path,
+                            file_data,
+                            {"cacheControl": "3600", "upsert": "true"}
+                        )
+                        logger.info(f"Recording uploaded successfully: {file_path}")
+                    except Exception as e:
+                        # Don't fail the request if storage upload fails
+                        logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
+                else:
+                    logger.warning(f"Cannot upload recording: temp_path_exists={temp_path and temp_path.exists()}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
@@ -497,6 +759,152 @@ async def update_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update profile: {str(e)}"
+        )
+
+
+@app.get(
+    "/sessions/{session_id}/recording",
+    tags=["Recordings"],
+    responses={
+        404: {"model": ErrorResponse, "description": "Recording not found"},
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def get_session_recording(
+    session_id: str,
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Retrieve the audio recording for a completed analysis session.
+    
+    This endpoint allows users to listen to their recorded speech.
+    Recordings are available for 14 days after analysis.
+    
+    **Note:** For web clients, this endpoint streams the audio file directly.
+    For native clients, audio is stored locally in cache.
+    
+    Returns the audio file with appropriate Content-Type header.
+    """
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    try:
+        # Verify authentication
+        user_id = None
+        if authorization:
+            try:
+                user_id = verify_jwt_token(authorization)
+            except Exception as e:
+                logger.warning(f"Token verification failed: {e}")
+                # Don't fail on token error for recordings - allow anon access
+                pass
+        
+        # Get analysis result to verify session exists
+        db = get_supabase()
+        session_data = None
+        session_user_id = None
+        
+        try:
+            result = db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+            session_user_id = session_data.get("user_id") if session_data else None
+            logger.info(f"Found session in database: {session_id}, user_id: {session_user_id}")
+        except Exception as e:
+            logger.warning(f"Could not fetch session from database: {e}")
+            session_data = None
+            session_user_id = None
+        
+        # Note: We don't require session to be in database
+        # The file might exist even if session wasn't saved (e.g., from old API version)
+        logger.info(f"Retrieving recording for session: {session_id}, user: {user_id}, session_user: {session_user_id}")
+        
+        # Verify user has access to this recording (if user_id is provided)
+        if user_id and session_user_id and str(session_user_id) != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You do not have access to this recording"
+            )
+        if user_id and session_user_id and str(session_user_id) != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You do not have access to this recording"
+            )
+        
+        logger.info(f"Retrieving recording for session: {session_id}, user: {user_id}, session_user: {session_user_id}")
+        
+        # Try to get recording from Supabase Storage
+        file_data = None
+        storage = db.storage
+        
+        # Try with user_id prefix first
+        if session_user_id:
+            try:
+                file_path = f"{session_user_id}/{session_id}.wav"
+                logger.info(f"Attempting to download: {file_path}")
+                file_data = storage.from_("recordings").download(file_path)
+                logger.info(f"Successfully downloaded recording ({len(file_data)} bytes)")
+            except Exception as e:
+                logger.warning(f"Failed to download with user_id: {e}")
+        
+        # Try without user_id prefix (fallback)
+        if file_data is None:
+            try:
+                file_path = f"{session_id}.wav"
+                logger.info(f"Trying fallback: {file_path}")
+                file_data = storage.from_("recordings").download(file_path)
+                logger.info(f"Successfully downloaded recording via fallback ({len(file_data)} bytes)")
+            except Exception as e:
+                logger.warning(f"Fallback also failed: {e}")
+        
+        # Try looking in subdirectories (legacy format: parent_dir/session_id.wav)
+        # This handles cases where files are stored in user_id or other parent folders
+        if file_data is None:
+            try:
+                # First, try to list all items in recordings bucket
+                all_items = storage.from_("recordings").list()
+                logger.info(f"Searching for {session_id}.wav in subdirectories. Found {len(all_items)} items at root")
+                
+                for item in all_items:
+                    if item.get("metadata") is None:  # It's a folder
+                        folder_name = item["name"]
+                        try:
+                            file_path = f"{folder_name}/{session_id}.wav"
+                            logger.info(f"Trying subfolder path: {file_path}")
+                            file_data = storage.from_("recordings").download(file_path)
+                            logger.info(f"Successfully found recording in subfolder ({len(file_data)} bytes)")
+                            break
+                        except Exception as e:
+                            logger.debug(f"Not in {folder_name}: {str(e)[:50]}")
+                            continue
+            except Exception as e:
+                logger.warning(f"Subfolder search failed: {e}")
+        
+        # If still no data, check if this is a test/development scenario
+        if file_data is None:
+            logger.error(f"Recording not found in storage for session: {session_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Recording file not found. Make sure the 'recordings' bucket exists in Supabase Storage."
+            )
+        
+        # Return audio stream
+        return StreamingResponse(
+            io.BytesIO(file_data),
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve recording: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve recording: {str(e)}"
         )
 
 

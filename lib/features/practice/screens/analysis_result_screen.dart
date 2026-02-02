@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:audioplayers/audioplayers.dart';
+import '../../../core/services/audio_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/analysis_model.dart';
@@ -17,12 +19,27 @@ class AnalysisResultScreen extends StatefulWidget {
 
 class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   late final ApiService _apiService;
+  late final AudioService _audioService;
+  late final AudioPlayer _audioPlayer;
   Future<AnalysisModel>? _analysisFuture;
+  String? _recordingPath;
+  String? _recordingSessionId;
+  bool _isRecordingLoading = false;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _apiService = ApiService();
+    _audioService = AudioService();
+    _audioPlayer = AudioPlayer();
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = state == PlayerState.playing;
+      });
+    });
 
     if (widget.analysisResult == null && widget.sessionId != null) {
       _analysisFuture = _apiService.getAnalysis(widget.sessionId!);
@@ -32,18 +49,97 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   @override
   void dispose() {
     _apiService.dispose();
+    _audioService.dispose();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _ensureRecordingPath(String? sessionId) async {
+    if (sessionId == null) return;
+    
+    // Skip if we've already loaded this session
+    if (_recordingSessionId == sessionId && _recordingPath != null) return;
+    
+    // Skip if already loading
+    if (_isRecordingLoading && _recordingSessionId == sessionId) return;
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _isRecordingLoading = true;
+      _recordingSessionId = sessionId;
+    });
+    
+    try {
+      final path = await _audioService.getRecordingPathForSession(sessionId);
+      if (mounted && _recordingSessionId == sessionId) {
+        setState(() {
+          _recordingPath = path;
+          _isRecordingLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading recording path: $e');
+      if (mounted && _recordingSessionId == sessionId) {
+        setState(() {
+          _recordingPath = null;
+          _isRecordingLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_recordingPath == null) return;
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+    } else {
+      try {
+        // On web, _recordingPath is a URL path like /sessions/{id}/recording
+        // On native, it's a file path
+        if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
+          // Play from URL (web or network)
+          final fullUrl = _recordingPath!.startsWith('http') 
+              ? _recordingPath! 
+              : 'http://localhost:8000${_recordingPath!}';
+          await _audioPlayer.play(UrlSource(fullUrl));
+        } else {
+          // Play from file (native)
+          await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+        }
+      } catch (e) {
+        print('Error playing recording: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error playing recording: $e')),
+          );
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final routeArgs = ModalRoute.of(context)?.settings.arguments;
-    final AnalysisModel? directResult = widget.analysisResult ??
+    final AnalysisModel? directResult =
+        widget.analysisResult ??
         (routeArgs is AnalysisModel ? routeArgs : null);
-    final String? routeSessionId = widget.sessionId ??
-        (routeArgs is Map<String, dynamic> ? routeArgs['sessionId'] as String? : null);
+    final String? routeSessionId =
+        widget.sessionId ??
+        (routeArgs is Map<String, dynamic>
+            ? routeArgs['sessionId'] as String?
+            : null);
 
-    if (directResult == null && _analysisFuture == null && routeSessionId != null) {
+    final resolvedSessionId = directResult?.sessionId ?? routeSessionId;
+    if (resolvedSessionId != null && resolvedSessionId != _recordingSessionId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ensureRecordingPath(resolvedSessionId);
+      });
+    }
+
+    if (directResult == null &&
+        _analysisFuture == null &&
+        routeSessionId != null) {
       _analysisFuture = _apiService.getAnalysis(routeSessionId);
     }
 
@@ -131,7 +227,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Widget _buildContent(BuildContext context, AnalysisModel result) {
-
     // Helper to get score label and color
     String getScoreLabel(double score) {
       if (score >= 80) return 'EXCELLENT';
@@ -260,6 +355,79 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                         fontSize: 13,
                         color: AppColors.textSecondary,
                         height: 1.5,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Listen to Voice Button (all platforms)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.inactive.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Listen to Your Voice',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _recordingPath != null
+                                    ? 'Available for 14 days'
+                                    : 'Not available',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_isRecordingLoading)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          else
+                            ElevatedButton.icon(
+                              onPressed: _recordingPath != null
+                                  ? _togglePlayback
+                                  : null,
+                              icon: Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _isPlaying ? 'Pause' : 'Play',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
 
@@ -412,9 +580,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,17 +650,15 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     final feedback = isOptimal
         ? 'Great pace! Within optimal range (120-150 WPM)'
         : wpm < 120
-            ? 'Consider speaking a bit faster (optimal: 120-150 WPM)'
-            : 'Consider slowing down (optimal: 120-150 WPM)';
+        ? 'Consider speaking a bit faster (optimal: 120-150 WPM)'
+        : 'Consider slowing down (optimal: 120-150 WPM)';
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,17 +750,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     required String Function(double) getLabel,
     required Color Function(double) getColor,
   }) {
-    final fillerRatio =
-        totalWords > 0 ? (fillerCount / totalWords * 100) : 0.0;
+    final fillerRatio = totalWords > 0 ? (fillerCount / totalWords * 100) : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -729,9 +890,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class UserProfileService {
   // Base URL for the FastAPI backend
   static const String baseUrl = 'http://localhost:8000';
-  
+
   // For Android emulator, use: 'http://10.0.2.2:3000'
 
   final http.Client _client;
@@ -38,16 +38,9 @@ class UserProfileService {
     final uri = Uri.parse('$baseUrl/profile');
 
     try {
-      print('Fetching profile from $uri');
-      print('Authorization header: ${_buildHeaders()['Authorization']}');
-      
       final response = await _client
           .get(uri, headers: _buildHeaders())
           .timeout(_timeout);
-
-      print('Profile response status: ${response.statusCode}');
-      print('Profile response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return data;
@@ -60,11 +53,15 @@ class UserProfileService {
         throw Exception('Failed to get profile: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching profile: $e');
-      if (e.toString().contains('TimeoutException') || e.toString().contains('Connection timed out')) {
-        throw Exception('Connection timeout. Make sure the backend server is running on port 8000.');
+      if (e.toString().contains('TimeoutException') ||
+          e.toString().contains('Connection timed out')) {
+        throw Exception(
+          'Connection timeout. Make sure the backend server is running on port 8000.',
+        );
       } else if (e.toString().contains('Connection refused')) {
-        throw Exception('Cannot connect to backend server at $baseUrl. Make sure it is running.');
+        throw Exception(
+          'Cannot connect to backend server at $baseUrl. Make sure it is running.',
+        );
       }
       rethrow;
     }
@@ -75,13 +72,15 @@ class UserProfileService {
     String? nickname,
     String? fullName,
     bool? isActive,
+    String? accountStatus,
   }) async {
     final uri = Uri.parse('$baseUrl/profile');
-    
+
     final body = <String, dynamic>{};
     if (nickname != null) body['nickname'] = nickname;
     if (fullName != null) body['full_name'] = fullName;
     if (isActive != null) body['is_active'] = isActive;
+    if (accountStatus != null) body['account_status'] = accountStatus;
 
     print('Updating profile with body: $body');
     print('Authorization header: ${_buildHeaders()['Authorization']}');
@@ -89,11 +88,7 @@ class UserProfileService {
 
     try {
       final response = await _client
-          .put(
-            uri,
-            headers: _buildHeaders(),
-            body: json.encode(body),
-          )
+          .put(uri, headers: _buildHeaders(), body: json.encode(body))
           .timeout(_timeout);
 
       print('Profile update response status: ${response.statusCode}');
@@ -103,18 +98,27 @@ class UserProfileService {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return data;
       } else if (response.statusCode == 401) {
-        throw Exception('Unauthorized: Token may have expired. Please log in again.');
+        throw Exception(
+          'Unauthorized: Token may have expired. Please log in again.',
+        );
       } else if (response.statusCode == 422) {
         throw Exception('Invalid nickname format. Please check your input.');
       } else {
-        throw Exception('Failed to update profile: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to update profile: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error updating profile: $e');
-      if (e.toString().contains('TimeoutException') || e.toString().contains('Connection timed out')) {
-        throw Exception('Connection timeout. Make sure the backend server is running on port 8000. (http://localhost:8000)');
+      if (e.toString().contains('TimeoutException') ||
+          e.toString().contains('Connection timed out')) {
+        throw Exception(
+          'Connection timeout. Make sure the backend server is running on port 8000. (http://localhost:8000)',
+        );
       } else if (e.toString().contains('Connection refused')) {
-        throw Exception('Cannot connect to backend server. Make sure it is running on port 8000. Start it with: run_backend_8000.ps1');
+        throw Exception(
+          'Cannot connect to backend server. Make sure it is running on port 8000. Start it with: run_backend_8000.ps1',
+        );
       }
       rethrow;
     }
@@ -125,11 +129,10 @@ class UserProfileService {
     try {
       final profile = await getUserProfile();
       return profile != null &&
-             profile['has_profile'] == true &&
-             profile['nickname'] != null &&
-             (profile['nickname'] as String).isNotEmpty;
+          profile['has_profile'] == true &&
+          profile['nickname'] != null &&
+          (profile['nickname'] as String).isNotEmpty;
     } catch (e) {
-      print('Error checking nickname: $e');
       return false;
     }
   }
@@ -139,17 +142,19 @@ class UserProfileService {
     try {
       final profile = await getUserProfile();
       if (profile == null) return null;
-      
+
       // Prefer nickname if available
-      if (profile['nickname'] != null && (profile['nickname'] as String).isNotEmpty) {
+      if (profile['nickname'] != null &&
+          (profile['nickname'] as String).isNotEmpty) {
         return profile['nickname'] as String;
       }
-      
+
       // Fall back to first name from full_name
-      if (profile['full_name'] != null && (profile['full_name'] as String).isNotEmpty) {
+      if (profile['full_name'] != null &&
+          (profile['full_name'] as String).isNotEmpty) {
         return (profile['full_name'] as String).split(' ').first;
       }
-      
+
       return null;
     } catch (e) {
       print('Error getting nickname or display name: $e');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/audio_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
@@ -16,8 +17,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   int _currentIndex = 4; // Settings is selected
   String? _selectedMicrophone;
-  List<String> _availableMicrophones = [];
+  List<String> _availableMicrophones = ['Built-in Microphone']; // Initialize with default
   final _authService = AuthService();
+  final _audioService = AudioService();
   final _userProfileService = UserProfileService();
   final _deactivatePasswordController = TextEditingController();
   final _confirmDeactivateController = TextEditingController();
@@ -26,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedMicrophone = 'Built-in Microphone'; // Set initial value
     _loadMicrophones();
   }
 
@@ -33,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _deactivatePasswordController.dispose();
     _confirmDeactivateController.dispose();
+    _audioService.dispose();
     _userProfileService.dispose();
     super.dispose();
   }
@@ -40,19 +44,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadMicrophones() async {
     try {
       // Detect actual system microphones
-      final microphones = _getSystemMicrophones();
-      
+      final microphones = await _detectAvailableMicrophones();
+
       if (mounted) {
         setState(() {
-          _availableMicrophones = microphones.isNotEmpty 
-              ? microphones 
+          _availableMicrophones = microphones.isNotEmpty
+              ? microphones
               : ['Default Microphone'];
-          
+
           _selectedMicrophone = _availableMicrophones.first;
         });
       }
     } catch (e) {
-      print('Error loading microphones: $e');
       if (mounted) {
         setState(() {
           _availableMicrophones = ['Default Microphone'];
@@ -62,40 +65,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  List<String> _getSystemMicrophones() {
-    // Detect real microphone names from the device
-    try {
-      // These represent the actual microphone devices that can be detected
-      // on different platforms. In production, you'd use platform-specific
-      // APIs (platform channels) to get the actual connected microphone names.
-      final microphones = <String>{};
-      
-      // Add default/built-in microphones that are commonly available
-      microphones.add('Built-in Microphone');
-      
-      // Try to detect common external devices
-      // These names match actual hardware names like 'K18', 'USB Microphone', etc.
-      // In a full implementation, query from:
-      // - Android: AudioManager and MediaRecorder native APIs
-      // - iOS: AVAudioSession microphone input options
-      // - Web: MediaDevices.enumerateDevices()
-      
-      // For now, detect from common naming patterns
-      final detectedMicrophones = [
-        'Stereo Mix',  // Windows audio loopback
-        'Line In',     // Common external input
-        'Auxiliary',   // Aux input
-        'Bluetooth Headset Microphone',
-      ];
-      
-      microphones.addAll(detectedMicrophones);
-      
-      return microphones.toList();
-    } catch (e) {
-      print('Error detecting system microphones: $e');
-      return ['Default Microphone'];
-    }
+  Future<List<String>> _detectAvailableMicrophones() async {
+    // On most platforms, the record package handles device selection automatically
+    // We return common microphone options that users can understand
+    final microphones = <String>[];
+
+    // Default/Built-in microphone
+    microphones.add('Built-in Microphone');
+
+    // Common external devices
+    microphones.addAll([
+      'Wired Headset',
+      'Bluetooth Headset',
+      'USB Microphone',
+      'External Microphone',
+    ]);
+
+    return microphones;
   }
+
+  /// Note: Actual microphone enumeration requires platform-specific code:
+  /// - Android: Use AudioManager to query InputDevices
+  /// - iOS: Use AVAudioSession to check available inputs
+  /// - Web: Use MediaDevices.enumerateDevices()
+  /// - Windows/macOS: Use system audio APIs
+  ///
+  /// For now, we provide common options and let the OS handle actual device selection
+  /// The record package uses the system default microphone when initialized
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Hardware Section
                 _buildSectionTitle('HARDWARE'),
                 const SizedBox(height: 12),
-                
+
                 // Microphone Source
                 Text(
                   'MICROPHONE SOURCE',
@@ -157,10 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
-                      side: BorderSide(
-                        color: AppColors.primary,
-                        width: 1.5,
-                      ),
+                      side: BorderSide(color: AppColors.primary, width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -185,14 +178,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Clear cache
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Cache cleared successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                    onPressed: () async {
+                      await _audioService.clearRecordingCache();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Cache cleared successfully'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.inactive.withOpacity(0.5),
@@ -335,16 +330,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.inactive.withOpacity(0.3),
-            ),
+            border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
           ),
           child: Text(
             value,
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              color: AppColors.primary,
-            ),
+            style: GoogleFonts.inter(fontSize: 15, color: AppColors.primary),
           ),
         ),
       ],
@@ -356,31 +346,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required List<String> items,
     required Function(String?) onChanged,
   }) {
+    // Ensure we have at least one item and value is valid
+    final displayItems = items.isNotEmpty ? items : ['No options available'];
+    final displayValue = value != null && displayItems.contains(value) 
+        ? value 
+        : displayItems.first;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: displayValue,
           isExpanded: true,
           icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
-          style: GoogleFonts.inter(
-            fontSize: 15,
-            color: AppColors.primary,
-          ),
-          items: items.map((String item) {
+          style: GoogleFonts.inter(fontSize: 15, color: AppColors.primary),
+          items: displayItems.map((String item) {
             return DropdownMenuItem<String>(
-              value: item,
+              value: item, 
               child: Text(item),
             );
           }).toList(),
-          onChanged: onChanged,
+          onChanged: displayItems.length > 1 ? onChanged : null,
         ),
       ),
     );
@@ -397,9 +388,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -446,9 +435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.inactive.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -476,9 +463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Deactivate Account',
           style: GoogleFonts.inter(
@@ -492,9 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Text(
               'To deactivate your account, confirm your password and type DELETE ACCOUNT.',
-              style: GoogleFonts.inter(
-                color: AppColors.textSecondary,
-              ),
+              style: GoogleFonts.inter(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             Text(
@@ -579,7 +562,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ? null
                 : () async {
                     final password = _deactivatePasswordController.text;
-                    final confirmation = _confirmDeactivateController.text.trim();
+                    final confirmation = _confirmDeactivateController.text
+                        .trim();
 
                     if (password.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -594,7 +578,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (confirmation != 'DELETE ACCOUNT') {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Please type DELETE ACCOUNT to confirm'),
+                          content: Text(
+                            'Please type DELETE ACCOUNT to confirm',
+                          ),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -604,7 +590,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _isDeactivating = true);
                     try {
                       await _authService.verifyPassword(password);
-                      await _userProfileService.updateUserProfile(isActive: false);
+                      // Soft delete: mark account_status as 'Deleted' instead of actually deleting
+                      await _userProfileService.updateUserProfile(
+                        isActive: false,
+                        accountStatus: 'Deleted',
+                      );
 
                       if (!mounted) return;
                       Navigator.pop(context);
@@ -653,9 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Log Out',
           style: GoogleFonts.inter(
@@ -665,9 +653,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         content: Text(
           'Are you sure you want to log out?',
-          style: GoogleFonts.inter(
-            color: AppColors.textSecondary,
-          ),
+          style: GoogleFonts.inter(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -684,20 +670,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               // Close dialog first
               Navigator.pop(context);
-              
+
               // Capture the navigator and scaffold messenger before async operations
               final navigator = Navigator.of(context);
               final scaffoldMessenger = ScaffoldMessenger.of(context);
-              
+
               try {
                 await _authService.signOut();
-                
+
                 // Navigate to root which will show AuthWrapper -> LoginScreen
                 // Don't check mounted here - we already have the navigator reference
-                navigator.pushNamedAndRemoveUntil(
-                  '/',
-                  (route) => false,
-                );
+                navigator.pushNamedAndRemoveUntil('/', (route) => false);
               } catch (e) {
                 // Only show error if widget is still mounted
                 if (mounted) {

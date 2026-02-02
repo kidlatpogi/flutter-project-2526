@@ -9,7 +9,8 @@ class ProgressAnalyticsScreen extends StatefulWidget {
   const ProgressAnalyticsScreen({super.key});
 
   @override
-  State<ProgressAnalyticsScreen> createState() => _ProgressAnalyticsScreenState();
+  State<ProgressAnalyticsScreen> createState() =>
+      _ProgressAnalyticsScreenState();
 }
 
 class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
@@ -45,12 +46,14 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
         };
       }).toList();
 
-      final scores = sessions.map((s) => (s['confidenceScore'] as int)).toList();
+      final scores = sessions
+          .map((s) => (s['confidenceScore'] as int))
+          .toList();
       final avgScore = scores.isEmpty
           ? 0
           : (scores.reduce((a, b) => a + b) / scores.length).round();
 
-        final trendScores = _buildTrendScores(sessions);
+      final trendScores = _buildTrendScores(sessions);
 
       if (mounted) {
         setState(() {
@@ -77,22 +80,39 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+    // Convert to Philippine Time (UTC+8)
+    final phTime = date.toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final phDateStart = DateTime(phTime.year, phTime.month, phTime.day);
+    final dayDiff = todayStart.difference(phDateStart).inDays;
 
-    if (difference.inDays == 0) {
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return 'Today at $hour:${date.minute.toString().padLeft(2, '0')} $period';
-    } else if (difference.inDays == 1) {
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    final hour = phTime.hour == 0
+        ? 12
+        : (phTime.hour > 12 ? phTime.hour - 12 : phTime.hour);
+    final period = phTime.hour >= 12 ? 'PM' : 'AM';
+    final timeStr = '$hour:${phTime.minute.toString().padLeft(2, '0')} $period';
+
+    if (dayDiff == 0) {
+      return 'Today at $timeStr';
+    } else if (dayDiff == 1) {
+      return 'Yesterday at $timeStr';
     } else {
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return '${months[phTime.month - 1]} ${phTime.day}, ${phTime.year} at $timeStr';
     }
   }
 
@@ -186,7 +206,9 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
-                                  color: AppColors.textSecondary.withOpacity(0.7),
+                                  color: AppColors.textSecondary.withOpacity(
+                                    0.7,
+                                  ),
                                   height: 1.5,
                                 ),
                               ),
@@ -455,11 +477,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                 color: AppColors.background,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 20,
-              ),
+              child: Icon(icon, color: AppColors.primary, size: 20),
             ),
 
             const SizedBox(width: 12),
@@ -514,11 +532,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                   ],
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
+                Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
               ],
             ),
           ],
@@ -531,10 +545,14 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     if (sessions.isEmpty) return [];
 
     final sorted = [...sessions]
-      ..sort((a, b) => (a['createdAt'] as DateTime)
-          .compareTo(b['createdAt'] as DateTime));
+      ..sort(
+        (a, b) =>
+            (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime),
+      );
 
-    final scores = sorted.map((s) => (s['confidenceScore'] as int).toDouble()).toList();
+    final scores = sorted
+        .map((s) => (s['confidenceScore'] as int).toDouble())
+        .toList();
 
     // Use a rolling average to smooth the trend (window size 3)
     const window = 3;
@@ -547,7 +565,9 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     }
 
     // Keep last 6 points for chart
-    final lastPoints = smoothed.length > 6 ? smoothed.sublist(smoothed.length - 6) : smoothed;
+    final lastPoints = smoothed.length > 6
+        ? smoothed.sublist(smoothed.length - 6)
+        : smoothed;
     return lastPoints;
   }
 
@@ -573,7 +593,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   }
 }
 
-// Simple line chart painter
+// Simple line chart painter with score labels
 class LineChartPainter extends CustomPainter {
   final List<double> scores;
 
@@ -581,7 +601,9 @@ class LineChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    if (scores.isEmpty) return;
+
+    final linePaint = Paint()
       ..color = Colors.black
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
@@ -590,25 +612,54 @@ class LineChartPainter extends CustomPainter {
       ..color = Colors.black
       ..style = PaintingStyle.fill;
 
-    if (scores.isEmpty) return;
-
     final maxScore = 100.0;
     final minScore = 0.0;
     final count = scores.length;
-    final stepX = count == 1 ? 0.0 : size.width / (count - 1);
+
+    // Add padding for labels
+    const leftPadding = 30.0;
+    const topPadding = 20.0;
+    const bottomPadding = 25.0;
+    final chartWidth = size.width - leftPadding;
+    final chartHeight = size.height - topPadding - bottomPadding;
+
+    final stepX = count == 1 ? 0.0 : chartWidth / (count - 1);
 
     final points = List<Offset>.generate(count, (i) {
-      final x = stepX * i;
+      final x = leftPadding + stepX * i;
       final score = scores[i].clamp(minScore, maxScore);
       final normalized = (score - minScore) / (maxScore - minScore);
-      final y = size.height * (1 - normalized);
+      final y = topPadding + chartHeight * (1 - normalized);
       return Offset(x, y);
     });
+
+    // Draw Y-axis labels (0, 50, 100)
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    final labelStyle = TextStyle(
+      color: Colors.grey[600],
+      fontSize: 10,
+      fontWeight: FontWeight.w500,
+    );
+
+    for (final label in [100, 50, 0]) {
+      final normalized = (label - minScore) / (maxScore - minScore);
+      final y = topPadding + chartHeight * (1 - normalized);
+
+      textPainter.text = TextSpan(text: '$label', style: labelStyle);
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(0, y - textPainter.height / 2));
+
+      // Draw horizontal grid line
+      final gridPaint = Paint()
+        ..color = Colors.grey.withOpacity(0.2)
+        ..strokeWidth = 1;
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width, y), gridPaint);
+    }
 
     // Draw line
     final path = Path();
     path.moveTo(points[0].dx, points[0].dy);
-    
+
     for (int i = 1; i < points.length; i++) {
       final xc = (points[i - 1].dx + points[i].dx) / 2;
       final yc = (points[i - 1].dy + points[i].dy) / 2;
@@ -616,11 +667,41 @@ class LineChartPainter extends CustomPainter {
     }
     path.lineTo(points.last.dx, points.last.dy);
 
-    canvas.drawPath(path, paint);
+    canvas.drawPath(path, linePaint);
 
-    // Draw dots
-    for (final point in points) {
-      canvas.drawCircle(point, 4, dotPaint);
+    // Draw dots and score labels
+    for (int i = 0; i < points.length; i++) {
+      final point = points[i];
+      canvas.drawCircle(point, 5, dotPaint);
+
+      // Draw score label above each point
+      final scoreText = scores[i].round().toString();
+      textPainter.text = TextSpan(
+        text: scoreText,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(point.dx - textPainter.width / 2, point.dy - 18),
+      );
+    }
+
+    // Draw session number labels at bottom
+    for (int i = 0; i < points.length; i++) {
+      textPainter.text = TextSpan(text: '${i + 1}', style: labelStyle);
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          points[i].dx - textPainter.width / 2,
+          size.height - bottomPadding + 8,
+        ),
+      );
     }
   }
 

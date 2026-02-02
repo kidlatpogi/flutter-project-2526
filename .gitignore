@@ -12,6 +12,12 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment files with secrets - NEVER commit these
+.env
+*.env
+backend/.env
+**/.env
+
 # IntelliJ related
 *.iml
 *.ipr
@@ -43,3 +49,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python virtual environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Backend specific
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/analysis/__pycache__/
+
+# Whisper model cache
+whisper_models/

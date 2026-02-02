@@ -25,10 +25,11 @@ class RecordingSessionScreen extends StatefulWidget {
   State<RecordingSessionScreen> createState() => _RecordingSessionScreenState();
 }
 
-class _RecordingSessionScreenState extends State<RecordingSessionScreen> with SingleTickerProviderStateMixin {
+class _RecordingSessionScreenState extends State<RecordingSessionScreen>
+    with SingleTickerProviderStateMixin {
   final AudioService _audioService = AudioService();
   final ApiService _apiService = ApiService();
-  
+
   bool _isRecording = false;
   bool _isAnalyzing = false;
   bool _isPaused = false;
@@ -53,17 +54,17 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
     _showScript = widget.isScripted;
     _scriptTitle = widget.scriptTitle;
     _scriptContent = widget.scriptContent;
-    
+
     // Use Ticker for smooth, efficient updates
     _ticker = createTicker(_onTick);
     _ticker.start();
-    
+
     _initRecording();
   }
 
   void _onTick(Duration elapsed) {
     if (!mounted) return;
-    
+
     // Update timer display (only when seconds change)
     if (_stopwatch.isRunning) {
       final newSeconds = _stopwatch.elapsed.inSeconds;
@@ -73,19 +74,22 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
         });
       }
     }
-    
+
     // Update amplitude every 300ms (not every frame)
     final now = elapsed.inMilliseconds;
     if (_isRecording && !_isPaused && now - _lastAmplitudeCheck >= 300) {
       _lastAmplitudeCheck = now;
       _updateAmplitude();
     }
-    
+
     // Smooth teleprompter scrolling
     if (_isTeleprompterRunning && _teleprompterController.hasClients) {
       final max = _teleprompterController.position.maxScrollExtent;
       final pixelsPerFrame = _teleprompterSpeed / 60; // ~60 fps
-      final next = (_teleprompterController.offset + pixelsPerFrame).clamp(0.0, max);
+      final next = (_teleprompterController.offset + pixelsPerFrame).clamp(
+        0.0,
+        max,
+      );
       if (next < max) {
         _teleprompterController.jumpTo(next);
       } else {
@@ -240,17 +244,30 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
         throw Exception('No audio data available for upload');
       }
 
+      // Use the elapsed stopwatch time as the recorded duration
+      final recordedSeconds = _elapsedSeconds;
+
       final AnalysisModel result = kIsWeb
           ? await _apiService.uploadAudioBytes(
               recorded.bytes ?? Uint8List(0),
               fileName: recorded.fileName,
               contentType: _getWebContentType(recorded.fileName),
               scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
+              recordedDurationSeconds: recordedSeconds,
             )
           : await _apiService.uploadAudio(
               recorded.file!,
               scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
+              recordedDurationSeconds: recordedSeconds,
             );
+
+      // Cache recording locally for playback (non-web)
+      if (!kIsWeb && recorded.file != null) {
+        await _audioService.saveRecordingForSession(
+          recorded.file!,
+          result.sessionId,
+        );
+      }
 
       // Navigate to analysis result with the data
       if (mounted) {
@@ -344,7 +361,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                 ),
                 child: _isScripted && _showScript
                     ? SingleChildScrollView(
-                    controller: _teleprompterController,
+                        controller: _teleprompterController,
                         child: Text(
                           _scriptContent?.trim().isNotEmpty == true
                               ? _scriptContent!
@@ -381,7 +398,9 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
-                    value: ((_isRecording && !_isPaused) ? _currentAmplitude : 0.0).clamp(0.0, 1.0),
+                    value:
+                        ((_isRecording && !_isPaused) ? _currentAmplitude : 0.0)
+                            .clamp(0.0, 1.0),
                     backgroundColor: AppColors.inactive.withOpacity(0.2),
                     color: AppColors.primary,
                     minHeight: 12,
@@ -459,7 +478,11 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -488,12 +511,19 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: _showScript ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
+                          color: _showScript
+                              ? AppColors.primary.withOpacity(0.1)
+                              : AppColors.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: _showScript ? AppColors.primary : AppColors.inactive.withOpacity(0.3),
+                            color: _showScript
+                                ? AppColors.primary
+                                : AppColors.inactive.withOpacity(0.3),
                             width: 1.5,
                           ),
                         ),
@@ -512,17 +542,25 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                _showScript ? Icons.visibility : Icons.visibility_off,
-                                color: _showScript ? AppColors.primary : AppColors.inactive,
+                                _showScript
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: _showScript
+                                    ? AppColors.primary
+                                    : AppColors.inactive,
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                _showScript ? 'Teleprompter ON' : 'Teleprompter OFF',
+                                _showScript
+                                    ? 'Teleprompter ON'
+                                    : 'Teleprompter OFF',
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: _showScript ? AppColors.primary : AppColors.textSecondary,
+                                  color: _showScript
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -530,7 +568,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                         ),
                       ),
                     ),
-                  
+
                   // Main control buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -550,7 +588,9 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                         child: IconButton(
                           icon: Icon(
                             _isPaused ? Icons.play_arrow : Icons.pause,
-                            color: _isRecording ? AppColors.inactive : AppColors.inactive.withOpacity(0.4),
+                            color: _isRecording
+                                ? AppColors.inactive
+                                : AppColors.inactive.withOpacity(0.4),
                           ),
                           onPressed: _isRecording ? _togglePauseResume : null,
                         ),
@@ -587,10 +627,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
                           color: AppColors.surface,
                         ),
                         child: IconButton(
-                          icon: Icon(
-                            Icons.replay,
-                            color: AppColors.inactive,
-                          ),
+                          icon: Icon(Icons.replay, color: AppColors.inactive),
                           onPressed: () {
                             _restartRecording();
                           },
@@ -614,9 +651,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Exit Recording',
           style: GoogleFonts.inter(
@@ -626,9 +661,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
         ),
         content: Text(
           'Are you sure you want to stop recording? Your progress will be lost.',
-          style: GoogleFonts.inter(
-            color: AppColors.textSecondary,
-          ),
+          style: GoogleFonts.inter(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -659,4 +692,3 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen> with Si
     );
   }
 }
-

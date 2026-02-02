@@ -76,9 +76,7 @@ class ApiService {
 
   /// Build headers for API requests
   Map<String, String> _buildHeaders({bool includeAuth = true}) {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
+    final headers = <String, String>{'Accept': 'application/json'};
 
     // Add auth token if available and requested
     if (includeAuth && _accessToken != null) {
@@ -97,6 +95,7 @@ class ApiService {
   Future<AnalysisModel> uploadAudio(
     File audioFile, {
     String? scriptTitle,
+    int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
@@ -137,6 +136,11 @@ class ApiService {
         request.fields['script_title'] = scriptTitle.trim();
       }
 
+      if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {
+        request.fields['recorded_duration'] = recordedDurationSeconds
+            .toString();
+      }
+
       // Send request with timeout
       final streamedResponse = await request.send().timeout(_timeout);
 
@@ -170,7 +174,8 @@ class ApiService {
         String errorMessage = 'Analysis failed';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['detail'] ?? errorJson['error'] ?? errorMessage;
+          errorMessage =
+              errorJson['detail'] ?? errorJson['error'] ?? errorMessage;
         } catch (_) {}
 
         throw ApiException(
@@ -185,15 +190,9 @@ class ApiService {
         statusCode: 0,
       );
     } on http.ClientException catch (e) {
-      throw ApiException(
-        'Network error: ${e.message}',
-        statusCode: 0,
-      );
+      throw ApiException('Network error: ${e.message}', statusCode: 0);
     } on FormatException {
-      throw ApiException(
-        'Invalid response from server',
-        statusCode: 0,
-      );
+      throw ApiException('Invalid response from server', statusCode: 0);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -213,6 +212,7 @@ class ApiService {
     String fileName = 'recording.wav',
     String contentType = 'audio/wav',
     String? scriptTitle,
+    int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
@@ -231,6 +231,11 @@ class ApiService {
 
       if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
         request.fields['script_title'] = scriptTitle.trim();
+      }
+
+      if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {
+        request.fields['recorded_duration'] = recordedDurationSeconds
+            .toString();
       }
 
       final streamedResponse = await request.send().timeout(_timeout);
@@ -261,7 +266,8 @@ class ApiService {
         String errorMessage = 'Analysis failed';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['detail'] ?? errorJson['error'] ?? errorMessage;
+          errorMessage =
+              errorJson['detail'] ?? errorJson['error'] ?? errorMessage;
         } catch (_) {}
 
         throw ApiException(
@@ -276,15 +282,9 @@ class ApiService {
         statusCode: 0,
       );
     } on http.ClientException catch (e) {
-      throw ApiException(
-        'Network error: ${e.message}',
-        statusCode: 0,
-      );
+      throw ApiException('Network error: ${e.message}', statusCode: 0);
     } on FormatException {
-      throw ApiException(
-        'Invalid response from server',
-        statusCode: 0,
-      );
+      throw ApiException('Invalid response from server', statusCode: 0);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -336,7 +336,9 @@ class ApiService {
   Future<bool> healthCheck() async {
     try {
       final uri = Uri.parse('$baseUrl/health');
-      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
       return response.statusCode == 200;
     } catch (_) {
       return false;
@@ -347,24 +349,16 @@ class ApiService {
   Future<List<Map<String, dynamic>>> getSessions({int limit = 20}) async {
     final uri = Uri.parse('$baseUrl/sessions?limit=$limit');
 
-    print('Fetching sessions from $uri');
-    print('Auth token available: ${_accessToken != null}');
-
     try {
       await _ensureFreshSession();
       final headers = _buildHeaders();
-      print('Request headers: $headers');
-      
+
       final response = await _client
           .get(uri, headers: headers)
           .timeout(_timeout);
 
-      print('Sessions response status: ${response.statusCode}');
-      print('Sessions response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as List<dynamic>;
-        print('Parsed ${data.length} sessions');
         return data.cast<Map<String, dynamic>>();
       } else if (response.statusCode == 401) {
         await _ensureFreshSession(forceRefresh: true);
@@ -374,7 +368,6 @@ class ApiService {
             .timeout(_timeout);
         if (retryResponse.statusCode == 200) {
           final data = json.decode(retryResponse.body) as List<dynamic>;
-          print('Parsed ${data.length} sessions after refresh');
           return data.cast<Map<String, dynamic>>();
         }
         throw ApiException(
@@ -390,12 +383,10 @@ class ApiService {
         );
       }
     } on SocketException {
-      print('SocketException: Cannot connect to server');
       throw ApiException('Cannot connect to server', statusCode: 0);
     } on ApiException {
       rethrow;
     } catch (e) {
-      print('Sessions fetch error: $e');
       throw ApiException('Unexpected error: ${e.toString()}');
     }
   }

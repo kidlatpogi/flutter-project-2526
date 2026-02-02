@@ -13,6 +13,7 @@ import '../features/dashboard/screens/main_dashboard.dart';
 import '../features/dashboard/screens/sessions_screen.dart';
 import '../features/script/screens/script_screen.dart';
 import '../features/script/screens/create_script_screen.dart';
+import '../features/script/screens/edit_script_screen.dart';
 import '../features/analysis/screens/progress_analytics_screen.dart';
 import '../features/analysis/screens/detailed_feedback_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
@@ -47,7 +48,9 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
         final email = settings.arguments as String?;
-        return MaterialPageRoute(builder: (_) => VerifyEmailScreen(email: email));
+        return MaterialPageRoute(
+          builder: (_) => VerifyEmailScreen(email: email),
+        );
       case RouteNames.resetPassword:
         return MaterialPageRoute(builder: (_) => const ResetPasswordScreen());
       case RouteNames.dashboard:
@@ -61,8 +64,16 @@ class AppRouter {
           builder: (_) => const CreateScriptScreen(),
           fullscreenDialog: true,
         );
+      case RouteNames.editScript:
+        final script = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => EditScriptScreen(script: script),
+          fullscreenDialog: true,
+        );
       case RouteNames.progress:
-        return MaterialPageRoute(builder: (_) => const ProgressAnalyticsScreen());
+        return MaterialPageRoute(
+          builder: (_) => const ProgressAnalyticsScreen(),
+        );
       case RouteNames.detailedFeedback:
         final args = settings.arguments;
         if (args is AnalysisModel) {
@@ -74,9 +85,8 @@ class AppRouter {
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
             settings: settings,
-            builder: (_) => DetailedFeedbackScreen(
-              sessionId: args['sessionId'] as String?,
-            ),
+            builder: (_) =>
+                DetailedFeedbackScreen(sessionId: args['sessionId'] as String?),
           );
         }
         return MaterialPageRoute(
@@ -109,9 +119,8 @@ class AppRouter {
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
             settings: settings,
-            builder: (_) => AnalysisResultScreen(
-              sessionId: args['sessionId'] as String?,
-            ),
+            builder: (_) =>
+                AnalysisResultScreen(sessionId: args['sessionId'] as String?),
           );
         }
         return MaterialPageRoute(
@@ -146,7 +155,86 @@ class AppRouter {
           print('AppRouter: OAuth callback detected, routing to AuthWrapper');
           return MaterialPageRoute(builder: (_) => const AuthWrapper());
         }
-        
+
+        // Handle password reset error routes (expired OTP, etc.)
+        if (routeName.contains('error=') ||
+            routeName.contains('error_code=') ||
+            routeName.contains('error_description=')) {
+          print('AppRouter: Auth error detected: $routeName');
+          // Parse error details for user-friendly message
+          String errorMessage =
+              'The password reset link has expired or is invalid.';
+          if (routeName.contains('otp_expired')) {
+            errorMessage =
+                'The password reset link has expired. Please request a new one.';
+          } else if (routeName.contains('access_denied')) {
+            errorMessage = 'Access denied. The link may be invalid or expired.';
+          }
+
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              backgroundColor: Colors.white,
+              body: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.link_off,
+                          size: 64,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Link Expired',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          errorMessage,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              RouteNames.forgotPassword,
+                              (route) => false,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(200, 50),
+                          ),
+                          child: const Text('Request New Link'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              RouteNames.login,
+                              (route) => false,
+                            );
+                          },
+                          child: const Text('Back to Login'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
         // Unknown route - show error
         print('AppRouter: Unknown route: ${settings.name}');
         return MaterialPageRoute(
@@ -162,7 +250,9 @@ class AppRouter {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                      Navigator.of(
+                        context,
+                      ).pushNamedAndRemoveUntil('/', (route) => false);
                     },
                     child: const Text('Go Home'),
                   ),

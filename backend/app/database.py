@@ -173,6 +173,29 @@ async def insert_session_record(
         "script_title": script_title or "Practice Session",
         "duration_seconds": int(result.audio_duration),
         "confidence_score": result.confidence_score.overall_score,
+        # Audio metrics
+        "pitch_mean": result.audio_metrics.pitch_mean,
+        "pitch_std": result.audio_metrics.pitch_std,
+        "jitter_local": result.audio_metrics.jitter_local,
+        "shimmer_local": result.audio_metrics.shimmer_local,
+        "harmonics_to_noise_ratio": result.audio_metrics.harmonics_to_noise_ratio,
+        # Fluency metrics
+        "wpm": result.fluency_metrics.words_per_minute,
+        "filler_count": result.fluency_metrics.filler_count,
+        "filler_words_found": result.fluency_metrics.filler_words_found,
+        "total_words": result.fluency_metrics.total_words,
+        "articulation_rate": result.fluency_metrics.articulation_rate,
+        # Pause metrics
+        "total_pause_duration": result.pause_metrics.total_pause_duration,
+        "pause_count": result.pause_metrics.pause_count,
+        "pause_ratio": result.pause_metrics.pause_ratio,
+        "average_pause_duration": result.pause_metrics.average_pause_duration,
+        "longest_pause": result.pause_metrics.longest_pause,
+        "pitch_score": result.confidence_score.pitch_score,
+        "voice_quality_score": result.confidence_score.voice_quality_score,
+        "pace_score": result.confidence_score.pace_score,
+        "fluency_score": result.confidence_score.fluency_score,
+        "transcription": result.transcription,
         "created_at": result.analyzed_at.isoformat(),
     }
 
@@ -185,7 +208,50 @@ async def insert_session_record(
             logger.error(f"Supabase insert error (sessions): {response.error}")
         logger.info(f"Inserted session record {result.session_id}")
     except Exception as e:
+        error_message = str(e)
         logger.error(f"Failed to insert session record: {e}")
+        
+        # Retry without new columns if they don't exist yet
+        if any(
+            col in error_message
+            for col in [
+                "pitch_score",
+                "voice_quality_score",
+                "pace_score",
+                "fluency_score",
+                "transcription",
+                "pitch_mean",
+                "pitch_std",
+                "jitter_local",
+                "shimmer_local",
+                "harmonics_to_noise_ratio",
+                "wpm",
+                "filler_count",
+                "filler_words_found",
+                "total_words",
+                "articulation_rate",
+                "total_pause_duration",
+                "pause_count",
+                "pause_ratio",
+                "average_pause_duration",
+                "longest_pause",
+            ]
+        ):
+            fallback_record = {
+                "id": str(result.session_id),
+                "session_id": str(result.session_id),
+                "script_title": script_title or "Practice Session",
+                "duration_seconds": int(result.audio_duration),
+                "confidence_score": result.confidence_score.overall_score,
+                "created_at": result.analyzed_at.isoformat(),
+            }
+            if user_id:
+                fallback_record["user_id"] = user_id
+            try:
+                response = client.table("sessions").insert(fallback_record).execute()
+                logger.info(f"Inserted session record (fallback without metrics) {result.session_id}")
+            except Exception as retry_error:
+                logger.error(f"Fallback session insert also failed: {retry_error}")
 
 
 async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
@@ -200,6 +266,42 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
     """
     client = get_supabase()
     
+    def _row_to_analysis(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "session_id": row.get("session_id") or row.get("id"),
+            "transcription": row.get("transcription", ""),
+            "audio_duration": row.get("audio_duration", row.get("duration_seconds", 0)),
+            "audio_metrics": {
+                "pitch_mean": row.get("pitch_mean", 0),
+                "pitch_std": row.get("pitch_std", 0),
+                "jitter_local": row.get("jitter_local", 0),
+                "shimmer_local": row.get("shimmer_local", 0),
+                "harmonics_to_noise_ratio": row.get("harmonics_to_noise_ratio", 0),
+            },
+            "fluency_metrics": {
+                "words_per_minute": row.get("wpm", 0),
+                "filler_count": row.get("filler_count", 0),
+                "filler_words_found": row.get("filler_words_found", []),
+                "total_words": row.get("total_words", 0),
+                "articulation_rate": row.get("articulation_rate", 0),
+            },
+            "pause_metrics": {
+                "total_pause_duration": row.get("total_pause_duration", 0),
+                "pause_count": row.get("pause_count", 0),
+                "pause_ratio": row.get("pause_ratio", 0),
+                "average_pause_duration": row.get("average_pause_duration", 0),
+                "longest_pause": row.get("longest_pause", 0),
+            },
+            "confidence_score": {
+                "overall_score": row.get("confidence_score", 0),
+                "pitch_score": row.get("pitch_score", 0),
+                "fluency_score": row.get("fluency_score", 0),
+                "voice_quality_score": row.get("voice_quality_score", 0),
+                "pace_score": row.get("pace_score", 0),
+            },
+            "analyzed_at": row.get("analyzed_at") or row.get("created_at"),
+        }
+
     try:
         response = client.table("features").select("*").eq(
             "session_id", str(session_id)
@@ -207,41 +309,24 @@ async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
         
         if response.data:
             row = response.data[0]
-            # Convert flat DB row to nested API format for AnalysisModel
-            return {
-                "session_id": row.get("session_id"),
-                "transcription": row.get("transcription", ""),
-                "audio_duration": row.get("audio_duration", 0),
-                "audio_metrics": {
-                    "pitch_mean": row.get("pitch_mean", 0),
-                    "pitch_std": row.get("pitch_std", 0),
-                    "jitter_local": row.get("jitter_local", 0),
-                    "shimmer_local": row.get("shimmer_local", 0),
-                    "harmonics_to_noise_ratio": row.get("harmonics_to_noise_ratio", 0),
-                },
-                "fluency_metrics": {
-                    "words_per_minute": row.get("wpm", 0),
-                    "filler_count": row.get("filler_count", 0),
-                    "filler_words_found": row.get("filler_words_found", []),
-                    "total_words": row.get("total_words", 0),
-                    "articulation_rate": row.get("articulation_rate", 0),
-                },
-                "pause_metrics": {
-                    "total_pause_duration": row.get("total_pause_duration", 0),
-                    "pause_count": row.get("pause_count", 0),
-                    "pause_ratio": row.get("pause_ratio", 0),
-                    "average_pause_duration": row.get("average_pause_duration", 0),
-                    "longest_pause": row.get("longest_pause", 0),
-                },
-                "confidence_score": {
-                    "overall_score": row.get("confidence_score", 0),
-                    "pitch_score": row.get("pitch_score", 0),
-                    "fluency_score": row.get("fluency_score", 0),
-                    "voice_quality_score": row.get("voice_quality_score", 0),
-                    "pace_score": row.get("pace_score", 0),
-                },
-                "analyzed_at": row.get("analyzed_at") or row.get("created_at"),
-            }
+            metrics_keys = [
+                "pitch_mean",
+                "jitter_local",
+                "wpm",
+                "total_words",
+                "transcription",
+            ]
+            has_any_metrics = any(row.get(k) is not None for k in metrics_keys)
+            if has_any_metrics:
+                return _row_to_analysis(row)
+
+        # Fallback to sessions table if features is missing or empty
+        sessions_resp = client.table("sessions").select("*").eq(
+            "session_id", str(session_id)
+        ).execute()
+        if sessions_resp.data:
+            return _row_to_analysis(sessions_resp.data[0])
+
         return None
     except Exception as e:
         logger.error(f"Failed to retrieve analysis result: {e}")
@@ -288,24 +373,38 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
     
     logger.info(f"Getting sessions for user_id: {user_id}")
 
-    # First try sessions table
+    # First try sessions table with all metrics
     try:
         response = client.table("sessions").select(
-            "id, session_id, script_title, created_at, duration_seconds, confidence_score"
+            "id, session_id, script_title, created_at, duration_seconds, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
         if response.data:
             logger.info(f"Found {len(response.data)} sessions in sessions table")
             return response.data
         logger.info("No sessions in sessions table, trying features table")
     except Exception as e:
+        error_message = str(e)
+        logger.error(f"Sessions table error: {e}")
+        
+        # Retry without new columns if they don't exist
+        if any(col in error_message for col in ["pitch_score", "voice_quality_score", "pace_score", "fluency_score", "transcription"]):
+            try:
+                response = client.table("sessions").select(
+                    "id, session_id, script_title, created_at, duration_seconds, confidence_score"
+                ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+                if response.data:
+                    logger.info(f"Found {len(response.data)} sessions (without detailed metrics)")
+                    return response.data
+            except Exception as fallback_error:
+                logger.error(f"Sessions fallback also failed: {fallback_error}")
         logger.error(f"Sessions table error (may not exist): {e}")
 
     # Fallback: try features table
     try:
-        # First try with analyzed_at
+        # First try with analyzed_at and all metrics
         logger.info(f"Querying features table with user_id={user_id}")
         response = client.table("features").select(
-            "session_id, analyzed_at, audio_duration, confidence_score, user_id"
+            "session_id, analyzed_at, audio_duration, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription, user_id"
         ).eq("user_id", user_id).order("analyzed_at", desc=True).limit(limit).execute()
 
         data = response.data or []
@@ -319,6 +418,11 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                 "created_at": row.get("analyzed_at"),
                 "duration_seconds": int(row.get("audio_duration") or 0),
                 "confidence_score": row.get("confidence_score") or 0,
+                "pitch_score": row.get("pitch_score") or 0,
+                "voice_quality_score": row.get("voice_quality_score") or 0,
+                "pace_score": row.get("pace_score") or 0,
+                "fluency_score": row.get("fluency_score") or 0,
+                "transcription": row.get("transcription") or "",
             }
             for row in data
         ]
@@ -331,7 +435,7 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
             try:
                 logger.info("Retrying features query using created_at")
                 response = client.table("features").select(
-                    "session_id, created_at, audio_duration, confidence_score, user_id"
+                    "session_id, created_at, audio_duration, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription, user_id"
                 ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
 
                 data = response.data or []
@@ -344,6 +448,11 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                         "created_at": row.get("created_at"),
                         "duration_seconds": int(row.get("audio_duration") or 0),
                         "confidence_score": row.get("confidence_score") or 0,
+                        "pitch_score": row.get("pitch_score") or 0,
+                        "voice_quality_score": row.get("voice_quality_score") or 0,
+                        "pace_score": row.get("pace_score") or 0,
+                        "fluency_score": row.get("fluency_score") or 0,
+                        "transcription": row.get("transcription") or "",
                     }
                     for row in data
                 ]
@@ -445,6 +554,8 @@ async def update_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         update_data["full_name"] = profile_data.full_name
     if profile_data.is_active is not None:
         update_data["is_active"] = profile_data.is_active
+    if profile_data.account_status is not None:
+        update_data["account_status"] = profile_data.account_status
     
     try:
         response = client.table("user_profiles").update(update_data).eq(
