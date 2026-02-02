@@ -278,8 +278,6 @@ async def debug_test_recording(session_id: str):
                 "error": f"Session {session_id} not found in database",
                 "session_found": False
             }
-                "session_found": False
-            }
         
         user_id = session_data.get("user_id")
         
