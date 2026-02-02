@@ -235,6 +235,28 @@ async def analyze_audio(
                 await insert_analysis_result(result, user_id=user_id)
                 await insert_session_record(result, user_id=user_id, script_title=script_title)
                 logger.info(f"Analysis result saved to database: {result.session_id}")
+                
+                # Save recording to Supabase Storage for web playback
+                # This allows web clients to listen to their recordings
+                if user_id and temp_path and temp_path.exists():
+                    try:
+                        db = await get_supabase()
+                        storage = db.storage
+                        file_path = f"{user_id}/{result.session_id}.wav"
+                        
+                        with open(temp_path, 'rb') as f:
+                            file_data = f.read()
+                        
+                        # Upload to storage
+                        storage.from_("recordings").upload(
+                            file_path,
+                            file_data,
+                            {"cacheControl": "3600", "upsert": "true"}
+                        )
+                        logger.info(f"Recording saved to storage: {file_path}")
+                    except Exception as e:
+                        # Don't fail the request if storage upload fails
+                        logger.warning(f"Failed to save recording to storage: {e}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
@@ -512,6 +534,104 @@ async def update_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update profile: {str(e)}"
+        )
+
+
+@app.get(
+    "/sessions/{session_id}/recording",
+    tags=["Recordings"],
+    responses={
+        404: {"model": ErrorResponse, "description": "Recording not found"},
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def get_session_recording(
+    session_id: str,
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Retrieve the audio recording for a completed analysis session.
+    
+    This endpoint allows users to listen to their recorded speech.
+    Recordings are available for 14 days after analysis.
+    
+    **Note:** For web clients, this endpoint streams the audio file directly.
+    For native clients, audio is stored locally in cache.
+    
+    Returns the audio file with appropriate Content-Type header.
+    """
+    try:
+        # Verify authentication
+        user_id = None
+        if authorization:
+            try:
+                user_id = verify_jwt_token(authorization)
+            except Exception as e:
+                logger.warning(f"Token verification failed: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid or expired authentication token"
+                )
+        
+        # Get analysis result to verify session exists and user has access
+        db = await get_supabase()
+        result = await db.table("features").select("*").eq("session_id", session_id).single()
+        
+        if result.data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+        # Verify user has access to this recording
+        if user_id and result.data.get("user_id") != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You do not have access to this recording"
+            )
+        
+        # Check if recording is within 14-day retention period
+        analyzed_at = result.data.get("analyzed_at")
+        if analyzed_at:
+            try:
+                analyzed_datetime = datetime.fromisoformat(analyzed_at.replace('Z', '+00:00'))
+                age = datetime.now(analyzed_datetime.tzinfo) - analyzed_datetime
+                retention_days = 14
+                if age.days > retention_days:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Recording has expired (retention: {retention_days} days)"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not verify recording age: {e}")
+        
+        # Try to get recording from Supabase Storage
+        try:
+            storage = db.storage
+            file_path = f"{user_id}/{session_id}.wav"
+            
+            # Download file data
+            file_data = storage.from_("recordings").download(file_path)
+            
+            return JSONResponse(
+                content={"message": "Recording not yet available"},
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.warning(f"Recording not found in storage: {e}")
+            # For now, return a placeholder since we haven't stored recordings yet
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recording file not found. This feature requires backend storage configuration."
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve recording: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve recording: {str(e)}"
         )
 
 

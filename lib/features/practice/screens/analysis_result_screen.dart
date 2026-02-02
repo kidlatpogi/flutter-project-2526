@@ -94,7 +94,27 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     if (_isPlaying) {
       await _audioPlayer.pause();
     } else {
-      await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+      try {
+        // On web, _recordingPath is a URL path like /sessions/{id}/recording
+        // On native, it's a file path
+        if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
+          // Play from URL (web or network)
+          final fullUrl = _recordingPath!.startsWith('http') 
+              ? _recordingPath! 
+              : 'http://localhost:8000${_recordingPath!}';
+          await _audioPlayer.play(UrlSource(fullUrl));
+        } else {
+          // Play from file (native)
+          await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+        }
+      } catch (e) {
+        print('Error playing recording: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error playing recording: $e')),
+          );
+        }
+      }
     }
   }
 

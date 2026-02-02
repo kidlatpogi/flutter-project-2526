@@ -140,11 +140,16 @@ class AudioService {
     }
   }
 
-  /// Save recording locally by session ID (non-web only)
+  /// Save recording locally by session ID
+  /// 
+  /// On native platforms: Saves to local cache directory
+  /// On web: Recording is already on the backend from analysis, no local save needed
   Future<String?> saveRecordingForSession(
     File sourceFile,
     String sessionId,
   ) async {
+    // Web recordings are stored on backend during analysis
+    // No need to save locally
     if (kIsWeb) return null;
 
     try {
@@ -166,9 +171,21 @@ class AudioService {
     }
   }
 
-  /// Get local recording path for a session (non-web only)
+  /// Get recording path or URL for a session
+  /// 
+  /// For native platforms (iOS, Android, Windows, macOS, Linux):
+  /// Returns the local file path from cache directory
+  /// 
+  /// For web:
+  /// Returns a backend URL to stream the recording
+  /// The URL format is constructed from the API service base URL
   Future<String?> getRecordingPathForSession(String sessionId) async {
-    if (kIsWeb) return null;
+    // On web, return a streaming URL from the backend
+    if (kIsWeb) {
+      // Format: /sessions/{sessionId}/recording
+      // This assumes your backend provides a GET endpoint to serve recordings
+      return '/sessions/$sessionId/recording';
+    }
 
     final directory = await _getRecordingCacheDir();
     if (directory == null) return null;
