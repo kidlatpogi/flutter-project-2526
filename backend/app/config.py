@@ -3,7 +3,9 @@ Application Configuration
 Handles environment variables and settings using Pydantic Settings.
 """
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,4 +43,10 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
+    # Ensure .env is loaded from the backend directory
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        from dotenv import load_dotenv
+        load_dotenv(env_path, override=True)
+    
     return Settings()

@@ -6,17 +6,20 @@ Run this: python backend/diagnose_recording.py
 
 import requests
 import sys
+import os
 from pathlib import Path
 
-# Load .env
+# Load .env before any imports
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).parent / ".env"
     if env_path.exists():
-        import os
-        load_dotenv(env_path)
-except:
-    pass
+        load_dotenv(env_path, override=True)
+        print(f"[DEBUG] Loaded .env from: {env_path}")
+    else:
+        print(f"[DEBUG] .env not found at: {env_path}")
+except Exception as e:
+    print(f"[DEBUG] Error loading .env: {e}")
 
 print("=" * 70)
 print("RECORDING PLAYBACK DIAGNOSTIC TOOL")
