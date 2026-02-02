@@ -112,7 +112,6 @@ USER                    FRONTEND            BACKEND           SUPABASE
 │                             │
 │  Backend ◄──────► Supabase
 │  :8000    (HTTPS)
-│           krbcgixttxxdofdmevyj.supabase.co
 │
 │  ✅ Requires internet connection
 │  ✅ Uses Supabase credentials
