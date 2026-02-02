@@ -133,6 +133,38 @@ async def health_check():
     )
 
 
+@app.get("/debug/storage", tags=["Debug"])
+async def debug_storage():
+    """
+    Debug endpoint to verify storage bucket exists and is accessible.
+    """
+    try:
+        db = await get_supabase()
+        storage = db.storage
+        
+        # Try to list buckets
+        buckets = storage.list_buckets()
+        bucket_names = [b.get('name') for b in buckets]
+        logger.info(f"Available buckets: {bucket_names}")
+        
+        # Check if recordings bucket exists
+        recordings_exists = 'recordings' in bucket_names
+        
+        return {
+            "status": "connected",
+            "buckets": bucket_names,
+            "recordings_bucket_exists": recordings_exists,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Storage debug failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
 @app.post(
     "/analyze-audio",
     response_model=AnalysisResult,
@@ -247,16 +279,18 @@ async def analyze_audio(
                         with open(temp_path, 'rb') as f:
                             file_data = f.read()
                         
+                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes)")
+                        
                         # Upload to storage
-                        storage.from_("recordings").upload(
+                        response = storage.from_("recordings").upload(
                             file_path,
                             file_data,
                             {"cacheControl": "3600", "upsert": "true"}
                         )
-                        logger.info(f"Recording saved to storage: {file_path}")
+                        logger.info(f"Recording uploaded successfully: {file_path}")
                     except Exception as e:
                         # Don't fail the request if storage upload fails
-                        logger.warning(f"Failed to save recording to storage: {e}")
+                        logger.warning(f"Failed to save recording to storage: {e}", exc_info=True)
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
@@ -613,17 +647,45 @@ async def get_session_recording(
             # Download file data
             file_data = storage.from_("recordings").download(file_path)
             
-            return JSONResponse(
-                content={"message": "Recording not yet available"},
-                status_code=status.HTTP_404_NOT_FOUND
+            from fastapi.responses import StreamingResponse
+            import io
+            
+            # Return as audio/wav stream for web playback
+            return StreamingResponse(
+                io.BytesIO(file_data),
+                media_type="audio/wav",
+                headers={
+                    "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600"
+                }
             )
         except Exception as e:
-            logger.warning(f"Recording not found in storage: {e}")
-            # For now, return a placeholder since we haven't stored recordings yet
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Recording file not found. This feature requires backend storage configuration."
-            )
+            logger.error(f"Failed to retrieve recording from storage: {e}", exc_info=True)
+            
+            # Try fallback path without user_id
+            try:
+                file_path = f"{session_id}.wav"
+                file_data = storage.from_("recordings").download(file_path)
+                
+                from fastapi.responses import StreamingResponse
+                import io
+                
+                return StreamingResponse(
+                    io.BytesIO(file_data),
+                    media_type="audio/wav",
+                    headers={
+                        "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
+                        "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "public, max-age=3600"
+                    }
+                )
+            except Exception as fallback_error:
+                logger.warning(f"Fallback also failed: {fallback_error}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Recording file not found in storage: {str(e)}"
+                )
     
     except HTTPException:
         raise
