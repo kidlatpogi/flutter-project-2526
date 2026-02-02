@@ -133,6 +133,81 @@ async def health_check():
     )
 
 
+@app.get("/debug/info", tags=["Debug"])
+async def debug_info():
+    """
+    Get debug information about the backend configuration.
+    """
+    import os
+    
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "environment": {
+            "SUPABASE_URL": "configured" if os.getenv("SUPABASE_URL") else "missing",
+            "SUPABASE_KEY": "configured" if os.getenv("SUPABASE_KEY") else "missing",
+        },
+        "whisper_loaded": WhisperTranscriber.is_loaded(),
+        "supabase_connected": await check_connection()
+    }
+
+
+@app.get("/debug/session/{session_id}", tags=["Debug"])
+async def debug_session(session_id: str):
+    """
+    Get debug info about a specific session.
+    """
+    try:
+        db = await get_supabase()
+        
+        # Try to fetch the session
+        try:
+            result = await db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+        except Exception as e:
+            session_data = None
+            fetch_error = str(e)
+        
+        # Try to list storage buckets
+        try:
+            buckets = db.storage.list_buckets()
+            bucket_list = [b.name if hasattr(b, 'name') else b.get('name', 'unknown') for b in buckets]
+        except Exception as e:
+            bucket_list = []
+            bucket_error = str(e)
+        
+        # Try to find the recording file
+        file_exists = False
+        file_error = None
+        if session_data and session_data.get("user_id"):
+            try:
+                file_path = f"{session_data['user_id']}/{session_id}.wav"
+                # Try to get file metadata (lightweight check)
+                db.storage.from_("recordings").download(file_path)
+                file_exists = True
+            except Exception as e:
+                file_error = str(e)
+        
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "session_found": session_data is not None,
+            "session_user_id": session_data.get("user_id") if session_data else None,
+            "storage_buckets": bucket_list,
+            "recordings_bucket_exists": "recordings" in bucket_list,
+            "file_exists": file_exists,
+            "file_error": file_error,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Debug session failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
 @app.get("/debug/storage", tags=["Debug"])
 async def debug_storage():
     """
