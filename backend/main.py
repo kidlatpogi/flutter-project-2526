@@ -798,21 +798,29 @@ async def get_session_recording(
         
         # Get analysis result to verify session exists
         db = get_supabase()
+        session_data = None
+        session_user_id = None
+        
         try:
             result = await db.table("features").select("*").eq("session_id", session_id).single()
             session_data = result.data if result else None
+            session_user_id = session_data.get("user_id") if session_data else None
+            logger.info(f"Found session in database: {session_id}, user_id: {session_user_id}")
         except Exception as e:
-            logger.warning(f"Could not fetch session: {e}")
+            logger.warning(f"Could not fetch session from database: {e}")
             session_data = None
+            session_user_id = None
         
-        if session_data is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Session {session_id} not found"
-            )
+        # Note: We don't require session to be in database
+        # The file might exist even if session wasn't saved (e.g., from old API version)
+        logger.info(f"Retrieving recording for session: {session_id}, user: {user_id}, session_user: {session_user_id}")
         
         # Verify user has access to this recording (if user_id is provided)
-        session_user_id = session_data.get("user_id")
+        if user_id and session_user_id and str(session_user_id) != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You do not have access to this recording"
+            )
         if user_id and session_user_id and str(session_user_id) != str(user_id):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
