@@ -95,6 +95,7 @@ class ApiService {
   Future<AnalysisModel> uploadAudio(
     File audioFile, {
     String? scriptTitle,
+    int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
@@ -133,6 +134,11 @@ class ApiService {
 
       if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
         request.fields['script_title'] = scriptTitle.trim();
+      }
+
+      if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {
+        request.fields['recorded_duration'] = recordedDurationSeconds
+            .toString();
       }
 
       // Send request with timeout
@@ -206,6 +212,7 @@ class ApiService {
     String fileName = 'recording.wav',
     String contentType = 'audio/wav',
     String? scriptTitle,
+    int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
     final uri = Uri.parse('$baseUrl/analyze-audio');
@@ -224,6 +231,11 @@ class ApiService {
 
       if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
         request.fields['script_title'] = scriptTitle.trim();
+      }
+
+      if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {
+        request.fields['recorded_duration'] = recordedDurationSeconds
+            .toString();
       }
 
       final streamedResponse = await request.send().timeout(_timeout);

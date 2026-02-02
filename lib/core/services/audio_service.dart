@@ -22,11 +22,7 @@ class RecordedAudio {
   final Uint8List? bytes;
   final String fileName;
 
-  const RecordedAudio({
-    this.file,
-    this.bytes,
-    required this.fileName,
-  });
+  const RecordedAudio({this.file, this.bytes, required this.fileName});
 }
 
 /// Service for audio recording and file management
@@ -34,6 +30,7 @@ class AudioService {
   final AudioRecorder _recorder = AudioRecorder();
   String? _currentRecordingPath;
   bool _isRecording = false;
+  static const Duration _recordingRetention = Duration(days: 14);
 
   /// Check if currently recording
   bool get isRecording => _isRecording;
@@ -143,6 +140,95 @@ class AudioService {
     }
   }
 
+  /// Save recording locally by session ID (non-web only)
+  Future<String?> saveRecordingForSession(
+    File sourceFile,
+    String sessionId,
+  ) async {
+    if (kIsWeb) return null;
+
+    try {
+      final directory = await _getRecordingCacheDir();
+      if (directory == null) return null;
+
+      final fileName = 'session_$sessionId.wav';
+      final targetPath = '${directory.path}/$fileName';
+
+      // Copy to cache directory
+      final saved = await sourceFile.copy(targetPath);
+
+      // Clean old recordings after saving
+      await purgeOldRecordings();
+
+      return saved.path;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get local recording path for a session (non-web only)
+  Future<String?> getRecordingPathForSession(String sessionId) async {
+    if (kIsWeb) return null;
+
+    final directory = await _getRecordingCacheDir();
+    if (directory == null) return null;
+
+    final filePath = '${directory.path}/session_$sessionId.wav';
+    final file = File(filePath);
+    if (!await file.exists()) return null;
+
+    // Delete if expired
+    final modified = await file.lastModified();
+    final now = DateTime.now();
+    if (now.difference(modified) > _recordingRetention) {
+      await file.delete();
+      return null;
+    }
+
+    return filePath;
+  }
+
+  /// Delete cached recordings older than retention period
+  Future<void> purgeOldRecordings() async {
+    if (kIsWeb) return;
+    final directory = await _getRecordingCacheDir();
+    if (directory == null) return;
+
+    final now = DateTime.now();
+    final files = directory.listSync().whereType<File>();
+    for (final file in files) {
+      try {
+        final modified = await file.lastModified();
+        if (now.difference(modified) > _recordingRetention) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Clear all cached recordings
+  Future<void> clearRecordingCache() async {
+    if (kIsWeb) return;
+    final directory = await _getRecordingCacheDir();
+    if (directory == null) return;
+    final files = directory.listSync().whereType<File>();
+    for (final file in files) {
+      try {
+        await file.delete();
+      } catch (_) {}
+    }
+  }
+
+  Future<Directory?> _getRecordingCacheDir() async {
+    if (kIsWeb) return null;
+    final baseDir = await getApplicationSupportDirectory();
+    final recordingsDir = Directory('${baseDir.path}/recordings');
+    if (!await recordingsDir.exists()) {
+      await recordingsDir.create(recursive: true);
+    }
+    return recordingsDir;
+  }
+
   /// Cancel current recording and delete the file
   Future<void> cancelRecording() async {
     if (_isRecording) {
@@ -167,7 +253,8 @@ class AudioService {
       final amplitude = await _recorder.getAmplitude();
       // Normalize amplitude to 0-1 range
       // Amplitude is typically in dB, so we need to convert
-      final normalized = (amplitude.current + 60) / 60; // Assuming -60dB to 0dB range
+      final normalized =
+          (amplitude.current + 60) / 60; // Assuming -60dB to 0dB range
       return normalized.clamp(0.0, 1.0);
     } catch (e) {
       return 0.0;

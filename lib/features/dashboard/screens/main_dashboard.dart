@@ -112,7 +112,7 @@ class _MainDashboardState extends State<MainDashboard> {
 
       if (mounted) {
         setState(() {
-          _recentSessions = sessions.take(3).toList();
+          _recentSessions = sessions.take(5).toList();
           _avgScore = avgScore;
           _streakDays = streakDays;
           _isStatsLoading = false;
@@ -159,17 +159,23 @@ class _MainDashboardState extends State<MainDashboard> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+    // Convert to Philippine Time (UTC+8)
+    final phTime = date.toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final phDateStart = DateTime(phTime.year, phTime.month, phTime.day);
+    final dayDiff = todayStart.difference(phDateStart).inDays;
 
-    if (difference.inDays == 0) {
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return 'Today at $hour:${date.minute.toString().padLeft(2, '0')} $period';
-    } else if (difference.inDays == 1) {
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+    final hour = phTime.hour == 0
+        ? 12
+        : (phTime.hour > 12 ? phTime.hour - 12 : phTime.hour);
+    final period = phTime.hour >= 12 ? 'PM' : 'AM';
+    final timeStr = '$hour:${phTime.minute.toString().padLeft(2, '0')} $period';
+
+    if (dayDiff == 0) {
+      return 'Today at $timeStr';
+    } else if (dayDiff == 1) {
+      return 'Yesterday at $timeStr';
     } else {
       final months = [
         'Jan',
@@ -185,9 +191,7 @@ class _MainDashboardState extends State<MainDashboard> {
         'Nov',
         'Dec',
       ];
-      final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
+      return '${months[phTime.month - 1]} ${phTime.day}, ${phTime.year} at $timeStr';
     }
   }
 

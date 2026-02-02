@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/audio_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
@@ -18,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _selectedMicrophone;
   List<String> _availableMicrophones = [];
   final _authService = AuthService();
+  final _audioService = AudioService();
   final _userProfileService = UserProfileService();
   final _deactivatePasswordController = TextEditingController();
   final _confirmDeactivateController = TextEditingController();
@@ -33,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _deactivatePasswordController.dispose();
     _confirmDeactivateController.dispose();
+    _audioService.dispose();
     _userProfileService.dispose();
     super.dispose();
   }
@@ -181,14 +184,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Clear cache
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Cache cleared successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                    onPressed: () async {
+                      await _audioService.clearRecordingCache();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Cache cleared successfully'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.inactive.withOpacity(0.5),

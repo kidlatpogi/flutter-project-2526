@@ -149,7 +149,8 @@ async def analyze_audio(
     audio: Annotated[UploadFile, File(description="Audio file (WAV or MP3)")],
     save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
     authorization: Annotated[str, Header()] = "",
-    script_title: Annotated[str | None, Form()] = None
+    script_title: Annotated[str | None, Form()] = None,
+    recorded_duration: Annotated[int | None, Form(description="Recorded duration in seconds from the frontend")] = None
 ):
     """
     Analyze an audio recording for public speaking confidence metrics.
@@ -199,6 +200,20 @@ async def analyze_audio(
         
         # Run analysis pipeline
         result = await run_analysis_pipeline(temp_path)
+        
+        # Override audio_duration with frontend recorded_duration if provided
+        if recorded_duration is not None and recorded_duration > 0:
+            logger.info(f"Using frontend recorded_duration ({recorded_duration}s) instead of librosa duration ({result.audio_duration:.1f}s)")
+            result = AnalysisResult(
+                session_id=result.session_id,
+                transcription=result.transcription,
+                audio_duration=float(recorded_duration),
+                audio_metrics=result.audio_metrics,
+                fluency_metrics=result.fluency_metrics,
+                pause_metrics=result.pause_metrics,
+                confidence_score=result.confidence_score,
+                analyzed_at=result.analyzed_at
+            )
         
         # Validate duration
         if result.audio_duration > settings.max_audio_duration_seconds:

@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:audioplayers/audioplayers.dart';
+import '../../../core/services/audio_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/analysis_model.dart';
@@ -21,12 +24,27 @@ class DetailedFeedbackScreen extends StatefulWidget {
 
 class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   late final ApiService _apiService;
+  late final AudioService _audioService;
+  late final AudioPlayer _audioPlayer;
   Future<AnalysisModel>? _analysisFuture;
+  String? _recordingPath;
+  String? _recordingSessionId;
+  bool _isRecordingLoading = false;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _apiService = ApiService();
+    _audioService = AudioService();
+    _audioPlayer = AudioPlayer();
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = state == PlayerState.playing;
+      });
+    });
 
     if (widget.analysisResult == null && widget.sessionId != null) {
       _analysisFuture = _apiService.getAnalysis(widget.sessionId!);
@@ -36,7 +54,33 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   @override
   void dispose() {
     _apiService.dispose();
+    _audioService.dispose();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _ensureRecordingPath(String? sessionId) async {
+    if (kIsWeb || sessionId == null || sessionId == _recordingSessionId) return;
+    setState(() {
+      _isRecordingLoading = true;
+      _recordingSessionId = sessionId;
+    });
+    final path = await _audioService.getRecordingPathForSession(sessionId);
+    if (mounted) {
+      setState(() {
+        _recordingPath = path;
+        _isRecordingLoading = false;
+      });
+    }
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_recordingPath == null) return;
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+    } else {
+      await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+    }
   }
 
   @override
@@ -50,6 +94,16 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
         (routeArgs is Map<String, dynamic>
             ? routeArgs['sessionId'] as String?
             : null);
+
+    final resolvedSessionId = directResult?.sessionId ?? routeSessionId;
+    if (!kIsWeb &&
+        resolvedSessionId != null &&
+        resolvedSessionId != _recordingSessionId &&
+        !_isRecordingLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ensureRecordingPath(resolvedSessionId);
+      });
+    }
 
     if (directResult == null &&
         _analysisFuture == null &&
@@ -194,6 +248,78 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
                   children: [
                     // Overall Score Summary
                     _buildOverallSummaryCard(overallScore),
+
+                    const SizedBox(height: 16),
+
+                    if (!kIsWeb)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.inactive.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Session Recording',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _recordingPath != null
+                                      ? 'Available for 14 days'
+                                      : 'Not available',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_isRecordingLoading)
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                onPressed: _recordingPath != null
+                                    ? _togglePlayback
+                                    : null,
+                                icon: Icon(
+                                  _isPlaying ? Icons.pause : Icons.play_arrow,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _isPlaying ? 'Pause' : 'Play',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
 
