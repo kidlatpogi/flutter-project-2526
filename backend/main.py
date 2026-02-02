@@ -225,14 +225,109 @@ async def debug_storage():
         # Check if recordings bucket exists
         recordings_exists = 'recordings' in bucket_names
         
+        # Try to list files in recordings bucket if it exists
+        files_in_bucket = []
+        if recordings_exists:
+            try:
+                files = storage.from_("recordings").list()
+                files_in_bucket = [f.get('name', 'unknown') for f in files] if files else []
+            except Exception as e:
+                logger.warning(f"Could not list files in recordings bucket: {e}")
+        
         return {
             "status": "connected",
             "buckets": bucket_names,
             "recordings_bucket_exists": recordings_exists,
+            "files_in_recordings_bucket": files_in_bucket,
+            "file_count": len(files_in_bucket),
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         logger.error(f"Storage debug failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/debug/test-recording/{session_id}", tags=["Debug"])
+async def debug_test_recording(session_id: str):
+    """
+    Test endpoint to verify a specific recording file exists and is readable.
+    """
+    try:
+        db = await get_supabase()
+        
+        # Get session info first
+        result = await db.table("features").select("*").eq("session_id", session_id).single()
+        session_data = result.data if result else None
+        
+        if not session_data:
+            return {
+                "status": "error",
+                "error": f"Session {session_id} not found in database",
+                "session_found": False
+            }
+        
+        user_id = session_data.get("user_id")
+        
+        # Try to access the file with different paths
+        attempts = []
+        
+        # Attempt 1: {user_id}/{session_id}.wav
+        if user_id:
+            file_path = f"{user_id}/{session_id}.wav"
+            try:
+                data = db.storage.from_("recordings").download(file_path)
+                attempts.append({
+                    "path": file_path,
+                    "status": "success",
+                    "size_bytes": len(data)
+                })
+            except Exception as e:
+                attempts.append({
+                    "path": file_path,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        # Attempt 2: {session_id}.wav
+        file_path = f"{session_id}.wav"
+        try:
+            data = db.storage.from_("recordings").download(file_path)
+            attempts.append({
+                "path": file_path,
+                "status": "success",
+                "size_bytes": len(data)
+            })
+        except Exception as e:
+            attempts.append({
+                "path": file_path,
+                "status": "failed",
+                "error": str(e)
+            })
+        
+        # List all files in recordings bucket
+        files_in_bucket = []
+        try:
+            files = db.storage.from_("recordings").list()
+            files_in_bucket = [f.get('name', 'unknown') for f in files] if files else []
+        except Exception as e:
+            logger.warning(f"Could not list files: {e}")
+        
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "session_found": True,
+            "user_id": user_id,
+            "file_access_attempts": attempts,
+            "files_in_bucket": files_in_bucket,
+            "total_files": len(files_in_bucket),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Test recording failed: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e),
