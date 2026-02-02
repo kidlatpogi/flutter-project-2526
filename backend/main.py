@@ -437,8 +437,12 @@ async def analyze_audio(
                 if authorization:
                     try:
                         user_id = verify_jwt_token(authorization)
-                    except Exception:
+                        logger.info(f"Successfully verified JWT token, user_id: {user_id}")
+                    except Exception as e:
+                        logger.warning(f"JWT token verification failed: {e}")
                         user_id = None
+                else:
+                    logger.warning("No authorization header provided")
 
                 await insert_analysis_result(result, user_id=user_id)
                 await insert_session_record(result, user_id=user_id, script_title=script_title)
@@ -446,11 +450,17 @@ async def analyze_audio(
                 
                 # Save recording to Supabase Storage for web playback
                 # This allows web clients to listen to their recordings
-                if user_id and temp_path and temp_path.exists():
+                logger.info(f"Attempting to upload recording: user_id={user_id}, temp_path_exists={temp_path and temp_path.exists()}")
+                if temp_path and temp_path.exists():
                     try:
                         db = get_supabase()
                         storage = db.storage
-                        file_path = f"{user_id}/{result.session_id}.wav"
+                        
+                        # Use user_id if available, otherwise use session_id
+                        if user_id:
+                            file_path = f"{user_id}/{result.session_id}.wav"
+                        else:
+                            file_path = f"{result.session_id}.wav"
                         
                         with open(temp_path, 'rb') as f:
                             file_data = f.read()
@@ -466,7 +476,9 @@ async def analyze_audio(
                         logger.info(f"Recording uploaded successfully: {file_path}")
                     except Exception as e:
                         # Don't fail the request if storage upload fails
-                        logger.warning(f"Failed to save recording to storage: {e}", exc_info=True)
+                        logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
+                else:
+                    logger.warning(f"Cannot upload recording: temp_path_exists={temp_path and temp_path.exists()}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
