@@ -160,9 +160,9 @@ async def debug_session(session_id: str):
     try:
         db = get_supabase()
         
-        # Try to fetch the session
+        # Try to fetch the session (NO AWAIT - db is sync)
         try:
-            result = await db.table("features").select("*").eq("session_id", session_id).single()
+            result = db.table("features").select("*").eq("session_id", session_id).single()
             session_data = result.data if result else None
         except Exception as e:
             session_data = None
@@ -265,14 +265,19 @@ async def debug_test_recording(session_id: str):
     try:
         db = get_supabase()
         
-        # Get session info first
-        result = await db.table("features").select("*").eq("session_id", session_id).single()
-        session_data = result.data if result else None
+        # Get session info first (NO AWAIT - db is sync)
+        try:
+            result = db.table("features").select("*").eq("session_id", session_id).single()
+            session_data = result.data if result else None
+        except:
+            session_data = None
         
         if not session_data:
             return {
                 "status": "error",
                 "error": f"Session {session_id} not found in database",
+                "session_found": False
+            }
                 "session_found": False
             }
         
@@ -802,7 +807,7 @@ async def get_session_recording(
         session_user_id = None
         
         try:
-            result = await db.table("features").select("*").eq("session_id", session_id).single()
+            result = db.table("features").select("*").eq("session_id", session_id).single()
             session_data = result.data if result else None
             session_user_id = session_data.get("user_id") if session_data else None
             logger.info(f"Found session in database: {session_id}, user_id: {session_user_id}")
