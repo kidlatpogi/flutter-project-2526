@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -56,17 +55,37 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _ensureRecordingPath(String? sessionId) async {
-    if (kIsWeb || sessionId == null || sessionId == _recordingSessionId) return;
+    if (sessionId == null) return;
+    
+    // Skip if we've already loaded this session
+    if (_recordingSessionId == sessionId && _recordingPath != null) return;
+    
+    // Skip if already loading
+    if (_isRecordingLoading && _recordingSessionId == sessionId) return;
+    
+    if (!mounted) return;
+    
     setState(() {
       _isRecordingLoading = true;
       _recordingSessionId = sessionId;
     });
-    final path = await _audioService.getRecordingPathForSession(sessionId);
-    if (mounted) {
-      setState(() {
-        _recordingPath = path;
-        _isRecordingLoading = false;
-      });
+    
+    try {
+      final path = await _audioService.getRecordingPathForSession(sessionId);
+      if (mounted && _recordingSessionId == sessionId) {
+        setState(() {
+          _recordingPath = path;
+          _isRecordingLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading recording path: $e');
+      if (mounted && _recordingSessionId == sessionId) {
+        setState(() {
+          _recordingPath = null;
+          _isRecordingLoading = false;
+        });
+      }
     }
   }
 
@@ -92,10 +111,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             : null);
 
     final resolvedSessionId = directResult?.sessionId ?? routeSessionId;
-    if (!kIsWeb &&
-        resolvedSessionId != null &&
-        resolvedSessionId != _recordingSessionId &&
-        !_isRecordingLoading) {
+    if (resolvedSessionId != null && resolvedSessionId != _recordingSessionId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _ensureRecordingPath(resolvedSessionId);
       });
@@ -324,77 +340,76 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Listen to Voice Button (non-web only)
-                    if (!kIsWeb)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.inactive.withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Listen to Your Voice',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _recordingPath != null
-                                      ? 'Available for 14 days'
-                                      : 'Not available',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (_isRecordingLoading)
-                              const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            else
-                              ElevatedButton.icon(
-                                onPressed: _recordingPath != null
-                                    ? _togglePlayback
-                                    : null,
-                                icon: Icon(
-                                  _isPlaying ? Icons.pause : Icons.play_arrow,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  _isPlaying ? 'Pause' : 'Play',
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                          ],
+                    // Listen to Voice Button (all platforms)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.inactive.withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Listen to Your Voice',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _recordingPath != null
+                                    ? 'Available for 14 days'
+                                    : 'Not available',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_isRecordingLoading)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          else
+                            ElevatedButton.icon(
+                              onPressed: _recordingPath != null
+                                  ? _togglePlayback
+                                  : null,
+                              icon: Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _isPlaying ? 'Pause' : 'Play',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
 
                     const SizedBox(height: 32),
 
