@@ -158,7 +158,7 @@ async def debug_session(session_id: str):
     Get debug info about a specific session.
     """
     try:
-        db = await get_supabase()
+        db = get_supabase()
         
         # Try to fetch the session
         try:
@@ -214,25 +214,30 @@ async def debug_storage():
     Debug endpoint to verify storage bucket exists and is accessible.
     """
     try:
-        db = await get_supabase()
-        storage = db.storage
+        # Get the Supabase client (NOT async)
+        db = get_supabase()
         
-        # List buckets using the client directly (not async)
-        buckets = storage.list_buckets()
-        bucket_names = [b.get('name') for b in buckets] if buckets else []
-        logger.info(f"Available buckets: {bucket_names}")
-        
-        # Check if recordings bucket exists
-        recordings_exists = 'recordings' in bucket_names
-        
-        # Try to list files in recordings bucket if it exists
+        # Try to access the storage object
+        bucket_names = []
+        recordings_exists = False
         files_in_bucket = []
-        if recordings_exists:
-            try:
-                files = storage.from_("recordings").list()
-                files_in_bucket = [f.get('name', 'unknown') for f in files] if files else []
-            except Exception as e:
-                logger.warning(f"Could not list files in recordings bucket: {e}")
+        
+        # Try to detect if recordings bucket exists by trying to list files
+        try:
+            files = db.storage.from_("recordings").list()
+            if files is not None:  # If this succeeds, the bucket exists
+                recordings_exists = True
+                files_in_bucket = [f.get('name', 'unknown') for f in files] if isinstance(files, list) else []
+                bucket_names = ["recordings"]
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # If we get "not found" error, bucket doesn't exist
+            if "not found" in error_msg or "404" in error_msg:
+                recordings_exists = False
+            else:
+                # Other error, might be permission or actual error
+                logger.warning(f"Could not check recordings bucket: {e}")
         
         return {
             "status": "connected",
@@ -240,7 +245,8 @@ async def debug_storage():
             "recordings_bucket_exists": recordings_exists,
             "files_in_recordings_bucket": files_in_bucket,
             "file_count": len(files_in_bucket),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "note": "bucket detection via file listing"
         }
     except Exception as e:
         logger.error(f"Storage debug failed: {e}", exc_info=True)
@@ -257,7 +263,7 @@ async def debug_test_recording(session_id: str):
     Test endpoint to verify a specific recording file exists and is readable.
     """
     try:
-        db = await get_supabase()
+        db = get_supabase()
         
         # Get session info first
         result = await db.table("features").select("*").eq("session_id", session_id).single()
@@ -442,7 +448,7 @@ async def analyze_audio(
                 # This allows web clients to listen to their recordings
                 if user_id and temp_path and temp_path.exists():
                     try:
-                        db = await get_supabase()
+                        db = get_supabase()
                         storage = db.storage
                         file_path = f"{user_id}/{result.session_id}.wav"
                         
@@ -779,7 +785,7 @@ async def get_session_recording(
                 pass
         
         # Get analysis result to verify session exists
-        db = await get_supabase()
+        db = get_supabase()
         try:
             result = await db.table("features").select("*").eq("session_id", session_id).single()
             session_data = result.data if result else None
