@@ -142,9 +142,9 @@ async def debug_storage():
         db = await get_supabase()
         storage = db.storage
         
-        # Try to list buckets
+        # List buckets using the client directly (not async)
         buckets = storage.list_buckets()
-        bucket_names = [b.get('name') for b in buckets]
+        bucket_names = [b.get('name') for b in buckets] if buckets else []
         logger.info(f"Available buckets: {bucket_names}")
         
         # Check if recordings bucket exists

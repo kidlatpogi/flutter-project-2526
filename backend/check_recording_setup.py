@@ -8,9 +8,22 @@ import os
 import sys
 import asyncio
 from datetime import datetime
+from pathlib import Path
+
+# Load .env file
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"Loaded .env from: {env_path}")
+    else:
+        print(f"Note: .env file not found at {env_path}")
+except ImportError:
+    print("Note: python-dotenv not installed, trying to load from environment")
 
 # Check environment
-print("=" * 60)
+print("\n" + "=" * 60)
 print("RECORDING PLAYBACK SETUP DIAGNOSTIC")
 print("=" * 60)
 
