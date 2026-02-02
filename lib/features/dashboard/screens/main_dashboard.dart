@@ -41,10 +41,10 @@ class _MainDashboardState extends State<MainDashboard> {
       // Get Google account info first
       _displayName = _authService.displayName;
       _avatarUrl = _authService.avatarUrl;
-      
+
       // Try to get nickname or display name from service
       final nickname = await _userProfileService.getNicknameOrDisplayName();
-      
+
       if (mounted) {
         setState(() {
           _nickname = nickname ?? 'there';
@@ -94,11 +94,18 @@ class _MainDashboardState extends State<MainDashboard> {
           'date': _formatDate(createdAt),
           'duration': _formatDuration(session['duration_seconds'] ?? 0),
           'confidenceScore': (session['confidence_score'] ?? 0).round(),
+          'pitchScore': (session['pitch_score'] ?? 0).round(),
+          'voiceQualityScore': (session['voice_quality_score'] ?? 0).round(),
+          'paceScore': (session['pace_score'] ?? 0).round(),
+          'fluencyScore': (session['fluency_score'] ?? 0).round(),
+          'transcription': session['transcription'] ?? '',
           'createdAt': createdAt,
         };
       }).toList();
 
-      final scores = sessions.map((s) => (s['confidenceScore'] as int)).toList();
+      final scores = sessions
+          .map((s) => (s['confidenceScore'] as int))
+          .toList();
       final avgScore = scores.isEmpty
           ? 0
           : (scores.reduce((a, b) => a + b) / scores.length).round();
@@ -114,7 +121,9 @@ class _MainDashboardState extends State<MainDashboard> {
           _streakDays = streakDays;
           _isStatsLoading = false;
         });
-        print('Dashboard loaded: $streakDays day streak, $avgScore avg score, ${_recentSessions.length} recent sessions');
+        print(
+          'Dashboard loaded: $streakDays day streak, $avgScore avg score, ${_recentSessions.length} recent sessions',
+        );
       }
     } catch (e) {
       print('Dashboard data load error: $e');
@@ -131,11 +140,9 @@ class _MainDashboardState extends State<MainDashboard> {
 
   int _calculateStreakDays(List<DateTime> dates) {
     if (dates.isEmpty) return 0;
-    final uniqueDays = dates
-        .map((d) => DateTime(d.year, d.month, d.day))
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final uniqueDays =
+        dates.map((d) => DateTime(d.year, d.month, d.day)).toSet().toList()
+          ..sort((a, b) => b.compareTo(a));
 
     int streak = 0;
     DateTime currentDay = DateTime.now();
@@ -169,7 +176,20 @@ class _MainDashboardState extends State<MainDashboard> {
       final period = date.hour >= 12 ? 'PM' : 'AM';
       return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
     } else {
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       final hour = date.hour > 12 ? date.hour - 12 : date.hour;
       final period = date.hour >= 12 ? 'PM' : 'AM';
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
@@ -214,18 +234,22 @@ class _MainDashboardState extends State<MainDashboard> {
                         height: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.primary, width: 2),
+                          border: Border.all(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
                         ),
                         child: _avatarUrl != null
                             ? ClipOval(
                                 child: Image.network(
                                   _avatarUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Icon(
-                                    Icons.person_outline,
-                                    color: AppColors.primary,
-                                    size: 24,
-                                  ),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                        Icons.person_outline,
+                                        color: AppColors.primary,
+                                        size: 24,
+                                      ),
                                 ),
                               )
                             : Icon(
@@ -338,7 +362,10 @@ class _MainDashboardState extends State<MainDashboard> {
                         height: 48,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, RouteNames.practiceSetup);
+                            Navigator.pushNamed(
+                              context,
+                              RouteNames.practiceSetup,
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
@@ -664,11 +691,7 @@ class _MainDashboardState extends State<MainDashboard> {
                 color: AppColors.background,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 20,
-              ),
+              child: Icon(icon, color: AppColors.primary, size: 20),
             ),
 
             const SizedBox(width: 12),
@@ -710,11 +733,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
+                Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
               ],
             ),
           ],

@@ -47,6 +47,12 @@ class _SessionsScreenState extends State<SessionsScreen> {
               'date': formattedDate,
               'duration': duration,
               'confidenceScore': (session['confidence_score'] ?? 0).round(),
+              'pitchScore': (session['pitch_score'] ?? 0).round(),
+              'voiceQualityScore': (session['voice_quality_score'] ?? 0)
+                  .round(),
+              'paceScore': (session['pace_score'] ?? 0).round(),
+              'fluencyScore': (session['fluency_score'] ?? 0).round(),
+              'transcription': session['transcription'] ?? '',
             };
           }).toList();
           _isLoading = false;
@@ -76,7 +82,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
       final period = date.hour >= 12 ? 'PM' : 'AM';
       return 'Yesterday at $hour:${date.minute.toString().padLeft(2, '0')} $period';
     } else {
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       final hour = date.hour > 12 ? date.hour - 12 : date.hour;
       final period = date.hour >= 12 ? 'PM' : 'AM';
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $period';
@@ -106,10 +125,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                     children: [
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: Icon(
-                          Icons.arrow_back,
-                          color: AppColors.primary,
-                        ),
+                        icon: Icon(Icons.arrow_back, color: AppColors.primary),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -128,7 +144,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(left: 40),
                     child: Text(
-                      _isLoading ? 'Loading...' : '${_sessions.length} practice sessions',
+                      _isLoading
+                          ? 'Loading...'
+                          : '${_sessions.length} practice sessions',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -141,22 +159,14 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
             // Sessions List
             if (_isLoading)
-              const Expanded(
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (_sessions.isEmpty)
               Expanded(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.history,
-                        size: 64,
-                        color: AppColors.inactive,
-                      ),
+                      Icon(Icons.history, size: 64, color: AppColors.inactive),
                       const SizedBox(height: 16),
                       Text(
                         'No sessions yet',
@@ -226,9 +236,11 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return GestureDetector(
       onTap: () {
         // TODO: Navigate to session details
-        Navigator.pushNamed(context, RouteNames.analysis, arguments: {
-          'sessionId': session['id'],
-        });
+        Navigator.pushNamed(
+          context,
+          RouteNames.analysis,
+          arguments: {'sessionId': session['id']},
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -236,9 +248,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.inactive.withOpacity(0.3),
-          ),
+          border: Border.all(color: AppColors.inactive.withOpacity(0.3)),
         ),
         child: Row(
           children: [
@@ -304,7 +314,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _getScoreColor(session['confidenceScore']).withOpacity(0.1),
+                color: _getScoreColor(
+                  session['confidenceScore'],
+                ).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -320,11 +332,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
             const SizedBox(width: 8),
 
             // Arrow
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: AppColors.primary,
-            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
           ],
         ),
       ),

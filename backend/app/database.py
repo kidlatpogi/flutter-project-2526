@@ -173,6 +173,11 @@ async def insert_session_record(
         "script_title": script_title or "Practice Session",
         "duration_seconds": int(result.audio_duration),
         "confidence_score": result.confidence_score.overall_score,
+        "pitch_score": result.confidence_score.pitch_score,
+        "voice_quality_score": result.confidence_score.voice_quality_score,
+        "pace_score": result.confidence_score.pace_score,
+        "fluency_score": result.confidence_score.fluency_score,
+        "transcription": result.transcription,
         "created_at": result.analyzed_at.isoformat(),
     }
 
@@ -185,7 +190,26 @@ async def insert_session_record(
             logger.error(f"Supabase insert error (sessions): {response.error}")
         logger.info(f"Inserted session record {result.session_id}")
     except Exception as e:
+        error_message = str(e)
         logger.error(f"Failed to insert session record: {e}")
+        
+        # Retry without new columns if they don't exist yet
+        if any(col in error_message for col in ["pitch_score", "voice_quality_score", "pace_score", "fluency_score", "transcription"]):
+            fallback_record = {
+                "id": str(result.session_id),
+                "session_id": str(result.session_id),
+                "script_title": script_title or "Practice Session",
+                "duration_seconds": int(result.audio_duration),
+                "confidence_score": result.confidence_score.overall_score,
+                "created_at": result.analyzed_at.isoformat(),
+            }
+            if user_id:
+                fallback_record["user_id"] = user_id
+            try:
+                response = client.table("sessions").insert(fallback_record).execute()
+                logger.info(f"Inserted session record (fallback without metrics) {result.session_id}")
+            except Exception as retry_error:
+                logger.error(f"Fallback session insert also failed: {retry_error}")
 
 
 async def get_analysis_by_session(session_id: UUID) -> Optional[dict[str, Any]]:
@@ -288,24 +312,38 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
     
     logger.info(f"Getting sessions for user_id: {user_id}")
 
-    # First try sessions table
+    # First try sessions table with all metrics
     try:
         response = client.table("sessions").select(
-            "id, session_id, script_title, created_at, duration_seconds, confidence_score"
+            "id, session_id, script_title, created_at, duration_seconds, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
         if response.data:
             logger.info(f"Found {len(response.data)} sessions in sessions table")
             return response.data
         logger.info("No sessions in sessions table, trying features table")
     except Exception as e:
+        error_message = str(e)
+        logger.error(f"Sessions table error: {e}")
+        
+        # Retry without new columns if they don't exist
+        if any(col in error_message for col in ["pitch_score", "voice_quality_score", "pace_score", "fluency_score", "transcription"]):
+            try:
+                response = client.table("sessions").select(
+                    "id, session_id, script_title, created_at, duration_seconds, confidence_score"
+                ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+                if response.data:
+                    logger.info(f"Found {len(response.data)} sessions (without detailed metrics)")
+                    return response.data
+            except Exception as fallback_error:
+                logger.error(f"Sessions fallback also failed: {fallback_error}")
         logger.error(f"Sessions table error (may not exist): {e}")
 
     # Fallback: try features table
     try:
-        # First try with analyzed_at
+        # First try with analyzed_at and all metrics
         logger.info(f"Querying features table with user_id={user_id}")
         response = client.table("features").select(
-            "session_id, analyzed_at, audio_duration, confidence_score, user_id"
+            "session_id, analyzed_at, audio_duration, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription, user_id"
         ).eq("user_id", user_id).order("analyzed_at", desc=True).limit(limit).execute()
 
         data = response.data or []
@@ -319,6 +357,11 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                 "created_at": row.get("analyzed_at"),
                 "duration_seconds": int(row.get("audio_duration") or 0),
                 "confidence_score": row.get("confidence_score") or 0,
+                "pitch_score": row.get("pitch_score") or 0,
+                "voice_quality_score": row.get("voice_quality_score") or 0,
+                "pace_score": row.get("pace_score") or 0,
+                "fluency_score": row.get("fluency_score") or 0,
+                "transcription": row.get("transcription") or "",
             }
             for row in data
         ]
@@ -331,7 +374,7 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
             try:
                 logger.info("Retrying features query using created_at")
                 response = client.table("features").select(
-                    "session_id, created_at, audio_duration, confidence_score, user_id"
+                    "session_id, created_at, audio_duration, confidence_score, pitch_score, voice_quality_score, pace_score, fluency_score, transcription, user_id"
                 ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
 
                 data = response.data or []
@@ -344,6 +387,11 @@ async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                         "created_at": row.get("created_at"),
                         "duration_seconds": int(row.get("audio_duration") or 0),
                         "confidence_score": row.get("confidence_score") or 0,
+                        "pitch_score": row.get("pitch_score") or 0,
+                        "voice_quality_score": row.get("voice_quality_score") or 0,
+                        "pace_score": row.get("pace_score") or 0,
+                        "fluency_score": row.get("fluency_score") or 0,
+                        "transcription": row.get("transcription") or "",
                     }
                     for row in data
                 ]
@@ -445,6 +493,8 @@ async def update_user_profile(user_id: str, profile_data: UpdateUserProfile) -> 
         update_data["full_name"] = profile_data.full_name
     if profile_data.is_active is not None:
         update_data["is_active"] = profile_data.is_active
+    if profile_data.account_status is not None:
+        update_data["account_status"] = profile_data.account_status
     
     try:
         response = client.table("user_profiles").update(update_data).eq(

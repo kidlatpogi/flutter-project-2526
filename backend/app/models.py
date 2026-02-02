@@ -129,6 +129,7 @@ class UserProfile(BaseModel):
     nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
     full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
     is_active: bool = Field(default=True, description="Whether the account is active")
+    account_status: str = Field(default="Active", description="Account status: Active, Deleted, or Suspended")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -141,6 +142,7 @@ class UpdateUserProfile(BaseModel):
     nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
     full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
     is_active: Optional[bool] = Field(None, description="Whether the account is active")
+    account_status: Optional[str] = Field(None, description="Account status: Active, Deleted, or Suspended")
     
     @field_validator('nickname')
     @classmethod
