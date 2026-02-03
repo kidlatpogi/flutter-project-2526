@@ -288,23 +288,29 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
       print('RecordingSession: Recording stopped, fileName: ${recorded.fileName}');
 
-      // Validate recorded audio
+      // Validate recorded audio on web
+      if (kIsWeb) {
+        if (recorded.bytes == null) {
+          throw Exception('No audio data available for upload');
+        }
+        if (recorded.bytes!.isEmpty) {
+          throw Exception('Recorded audio data is empty - recording may not have captured audio');
+        }
+        print('RecordingSession: Web audio bytes size: ${recorded.bytes!.length} bytes');
+        
+        // If audio is very small, warn user
+        if (recorded.bytes!.length < 10000) {
+          print('RecordingSession: WARNING - Audio file is suspiciously small (${recorded.bytes!.length} bytes)');
+        }
+      }
+      
+      // Validate recorded audio on native
       if (!kIsWeb && recorded.file != null) {
         final fileSize = await recorded.file!.length();
         print('RecordingSession: File size: $fileSize bytes');
         if (fileSize < 1024) { // Less than 1KB is suspicious
           throw Exception('Recording file is too small ($fileSize bytes). Please check your microphone and try again.');
         }
-      }
-
-      // Upload to backend for analysis
-      if (kIsWeb && recorded.bytes == null) {
-        throw Exception('No audio data available for upload');
-      }
-
-      // Validate bytes on web
-      if (kIsWeb && recorded.bytes != null && recorded.bytes!.isEmpty) {
-        throw Exception('Recorded audio data is empty');
       }
 
       // Use the elapsed stopwatch time as the recorded duration

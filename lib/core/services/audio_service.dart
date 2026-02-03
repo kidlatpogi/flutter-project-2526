@@ -154,14 +154,38 @@ class AudioService {
           
           return RecordedAudio(file: file, fileName: fileName);
         } else {
-          // Web platform: Wait longer for audio encoding to complete
-          // The browser's audio context needs time to encode all frames
+          // Web platform: Wait for audio encoding to complete
+          // The browser's audio context and MediaRecorder need significant time to:
+          // 1. Finish encoding all recorded audio frames
+          // 2. Complete the ondataavailable callback
+          // 3. Finalize the blob
           print('AudioService: Web platform, waiting for audio encoding...');
-          await Future.delayed(const Duration(milliseconds: 500));
+          
+          // Increase delay to ensure complete encoding
+          // Start with 1 second for very complete encoding
+          await Future.delayed(const Duration(milliseconds: 1000));
           
           print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
           print('AudioService: Web audio data size: ${bytes.length} bytes');
+          
+          // If file is suspiciously small, wait longer and try again
+          if (bytes.length < 5000) {
+            print('AudioService: WARNING - Audio file is small (${bytes.length} bytes), waiting longer...');
+            await Future.delayed(const Duration(milliseconds: 500));
+            final retryBytes = await readWebFileBytes(path);
+            print('AudioService: Retry audio data size: ${retryBytes.length} bytes');
+            
+            if (retryBytes.length > bytes.length) {
+              print('AudioService: Using retried audio data (larger)');
+              if (retryBytes.isEmpty) {
+                print('AudioService: ERROR - No audio data recorded on web');
+                throw AudioException('No audio data recorded');
+              }
+              return RecordedAudio(bytes: retryBytes, fileName: fileName);
+            }
+          }
+          
           if (bytes.isEmpty) {
             print('AudioService: ERROR - No audio data recorded on web');
             throw AudioException('No audio data recorded');
