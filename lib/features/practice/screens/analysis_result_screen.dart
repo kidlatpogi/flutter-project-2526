@@ -345,8 +345,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Widget _buildContent(BuildContext context, AnalysisModel result) {
-    // Trigger confetti for high scores (>= 85) only once
-    if (result.overallScore >= 85 && !_confettiPlayed) {
+    // Trigger confetti for good scores (>= 65) only once
+    if (result.overallScore >= 65 && !_confettiPlayed) {
       _confettiPlayed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _confettiController.play();

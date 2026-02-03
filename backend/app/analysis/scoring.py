@@ -131,10 +131,11 @@ def calculate_pitch_score(audio_metrics: AudioMetrics) -> float:
     pitch_cv = (audio_metrics.pitch_std / audio_metrics.pitch_mean) * 100
     
     # Score based on optimal variation range
+    # Use larger sigma (15.0 instead of 10.0) to be more lenient with microphone variation
     score = _gaussian_score(
         pitch_cv,
         OPTIMAL_RANGES["pitch_cv_optimal"],
-        sigma=10.0
+        sigma=15.0  # More forgiving of hardware-based variations
     )
     
     return max(0.0, min(100.0, score))

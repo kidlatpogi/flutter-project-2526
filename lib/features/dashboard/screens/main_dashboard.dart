@@ -565,20 +565,71 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 24),
 
-                // Daily Speaking Tip
-                Text(
-                  'TIP OF THE DAY',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5,
-                  ),
+                // Motivational and Tips Section - 1 column 2 rows
+                Column(
+                  children: [
+                    // Motivation Quote
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.blue.withOpacity(0.1),
+                            Colors.indigo.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.blue.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.format_quote,
+                                color: Colors.blue,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'MOTIVATION',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _getMotivationalQuote(),
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.primary,
+                              fontStyle: FontStyle.italic,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Daily Tip of the Day
+                    _buildDailyTipCard(),
+                  ],
                 ),
-
-                const SizedBox(height: 16),
-
-                _buildDailyTipCard(),
 
                 const SizedBox(height: 80), // Space for bottom nav
               ],
@@ -692,26 +743,6 @@ class _MainDashboardState extends State<MainDashboard> {
     return _speakingTips[dayOfYear % _speakingTips.length];
   }
 
-  IconData _getTipIcon(String iconName) {
-    switch (iconName) {
-      case 'air': return Icons.air;
-      case 'pause_circle': return Icons.pause_circle_outline;
-      case 'visibility': return Icons.visibility;
-      case 'music_note': return Icons.music_note;
-      case 'accessibility_new': return Icons.accessibility_new;
-      case 'speed': return Icons.speed;
-      case 'pan_tool': return Icons.pan_tool;
-      case 'block': return Icons.block;
-      case 'bolt': return Icons.bolt;
-      case 'looks_3': return Icons.looks_3;
-      case 'campaign': return Icons.campaign;
-      case 'trending_up': return Icons.trending_up;
-      case 'sentiment_satisfied': return Icons.sentiment_satisfied;
-      case 'play_arrow': return Icons.play_arrow;
-      default: return Icons.lightbulb_outline;
-    }
-  }
-
   Widget _buildQuickStat({
     required IconData icon,
     required Color iconColor,
@@ -759,22 +790,22 @@ class _MainDashboardState extends State<MainDashboard> {
 
   Widget _buildDailyTipCard() {
     final tip = _getTodaysTip();
-    final icon = _getTipIcon(tip['icon'] ?? 'lightbulb');
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.accent.withOpacity(0.1),
-            AppColors.primary.withOpacity(0.05),
+            Colors.cyan.withOpacity(0.1),
+            Colors.blue.withOpacity(0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.accent.withOpacity(0.2),
+          color: Colors.cyan.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -783,33 +814,33 @@ class _MainDashboardState extends State<MainDashboard> {
         children: [
           Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.accent,
-                  size: 24,
-                ),
+              Icon(
+                Icons.lightbulb_outline,
+                color: Colors.cyan,
+                size: 24,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  tip['title'] ?? 'Speaking Tip',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                'TIP OF THE DAY',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.cyan,
+                  letterSpacing: 1,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          Text(
+            tip['title'] ?? 'Speaking Tip',
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
             tip['content'] ?? '',
             style: GoogleFonts.inter(
