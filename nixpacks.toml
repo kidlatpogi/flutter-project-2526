@@ -1,8 +1,17 @@
+[build]
+nixPkgs = ["python311", "ffmpeg"]
+
 [phases.setup]
 nixPkgs = ["python311", "ffmpeg"]
 
 [phases.install]
-cmds = ["cd backend && pip install -r requirements.txt"]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r backend/requirements-prod.txt"
+]
+
+[phases.build]
+cmds = ["echo 'Build complete'"]
 
 [start]
 cmd = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
