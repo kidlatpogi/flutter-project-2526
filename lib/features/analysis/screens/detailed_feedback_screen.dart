@@ -116,7 +116,7 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
           // Play from URL (web or network)
           final fullUrl = _recordingPath!.startsWith('http') 
               ? _recordingPath! 
-              : 'https://flutter-project-2526-production.up.railway.app${_recordingPath!}';
+              : 'https://kidlatpogi17-bigkas-backend.hf.space${_recordingPath!}';
           await _audioPlayer.play(UrlSource(fullUrl));
         } else {
           // Play from file (native)

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/models/analysis_model.dart';
+import 'supabase_service.dart';
 
 /// Exception thrown when API calls fail
 class ApiException implements Exception {
@@ -21,10 +22,12 @@ class ApiException implements Exception {
 }
 
 /// Service for communicating with the Python FastAPI backend
+/// OPTIMIZED: Now focuses only on AI operations (audio analysis with Whisper)
+/// For profile, sessions, and data management, use SupabaseService directly
 class ApiService {
   // Base URL for the FastAPI backend
-  // Production: Railway deployment
-  static const String baseUrl = 'https://flutter-project-2526-production.up.railway.app';
+  // Production: Hugging Face Spaces deployment
+  static const String baseUrl = 'https://kidlatpogi17-bigkas-backend.hf.space';
 
   // For local development, uncomment this instead:
   // static const String baseUrl = 'http://localhost:8000';
@@ -34,9 +37,10 @@ class ApiService {
 
   // HTTP client with timeout configuration
   final http.Client _client;
+  final SupabaseService _supabaseService = SupabaseService();
 
-  // Request timeout duration
-  static const Duration _timeout = Duration(seconds: 120);
+  // Request timeout duration (increased for Hugging Face Spaces cold starts + Whisper loading)
+  static const Duration _timeout = Duration(seconds: 300); // 5 minutes for cold starts
 
   ApiService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -358,127 +362,21 @@ class ApiService {
   }
 
   /// Fetch recent sessions for the current user
+  /// OPTIMIZED: Now uses direct Supabase queries to reduce backend load
   Future<List<Map<String, dynamic>>> getSessions({int limit = 20}) async {
-    final uri = Uri.parse('$baseUrl/sessions?limit=$limit');
-
-    try {
-      await _ensureFreshSession();
-      final headers = _buildHeaders();
-
-      final response = await _client
-          .get(uri, headers: headers)
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as List<dynamic>;
-        return data.cast<Map<String, dynamic>>();
-      } else if (response.statusCode == 401) {
-        await _ensureFreshSession(forceRefresh: true);
-        final retryHeaders = _buildHeaders();
-        final retryResponse = await _client
-            .get(uri, headers: retryHeaders)
-            .timeout(_timeout);
-        if (retryResponse.statusCode == 200) {
-          final data = json.decode(retryResponse.body) as List<dynamic>;
-          return data.cast<Map<String, dynamic>>();
-        }
-        throw ApiException(
-          'Unauthorized. Please sign in again.',
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      } else {
-        throw ApiException(
-          'Failed to fetch sessions',
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-    } on SocketException {
-      throw ApiException('Cannot connect to server', statusCode: 0);
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('Unexpected error: ${e.toString()}');
-    }
+    return await _supabaseService.getSessions(limit: limit);
   }
 
   /// Get total sessions count for the current user
+  /// OPTIMIZED: Now uses direct Supabase queries to reduce backend load
   Future<int> getTotalSessionsCount() async {
-    final uri = Uri.parse('$baseUrl/sessions/count');
-
-    try {
-      await _ensureFreshSession();
-      final headers = _buildHeaders();
-
-      final response = await _client
-          .get(uri, headers: headers)
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        return data['total'] as int? ?? 0;
-      } else if (response.statusCode == 401) {
-        await _ensureFreshSession(forceRefresh: true);
-        final retryHeaders = _buildHeaders();
-        final retryResponse = await _client
-            .get(uri, headers: retryHeaders)
-            .timeout(_timeout);
-        if (retryResponse.statusCode == 200) {
-          final data = json.decode(retryResponse.body) as Map<String, dynamic>;
-          return data['total'] as int? ?? 0;
-        }
-        return 0;
-      } else {
-        return 0;
-      }
-    } catch (e) {
-      return 0;
-    }
+    return await _supabaseService.getTotalSessionsCount();
   }
 
   /// Clear all recordings and session data for the current user
+  /// OPTIMIZED: Now uses direct Supabase queries to reduce backend load
   Future<Map<String, dynamic>> clearUserData() async {
-    final uri = Uri.parse('$baseUrl/user/clear-data');
-
-    try {
-      await _ensureFreshSession();
-      final headers = _buildHeaders();
-
-      final response = await _client
-          .delete(uri, headers: headers)
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else if (response.statusCode == 401) {
-        await _ensureFreshSession(forceRefresh: true);
-        final retryHeaders = _buildHeaders();
-        final retryResponse = await _client
-            .delete(uri, headers: retryHeaders)
-            .timeout(_timeout);
-        if (retryResponse.statusCode == 200) {
-          return json.decode(retryResponse.body) as Map<String, dynamic>;
-        }
-        throw ApiException(
-          'Unauthorized. Please sign in again.',
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      } else {
-        throw ApiException(
-          'Failed to clear user data',
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-    } on SocketException {
-      throw ApiException('Cannot connect to server', statusCode: 0);
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('Unexpected error: ${e.toString()}');
-    }
+    return await _supabaseService.clearUserData();
   }
 
   /// Dispose the HTTP client when no longer needed

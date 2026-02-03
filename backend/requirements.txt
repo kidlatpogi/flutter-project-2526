@@ -14,8 +14,9 @@ praat-parselmouth>=0.4.3
 pydub>=0.25.1
 audioread>=3.0.0
 
-# Speech-to-Text
-openai-whisper
+# Speech-to-Text (faster-whisper is 4x faster than openai-whisper)
+faster-whisper>=1.0.0
+ctranslate2>=4.0.0
 
 # Utilities
 python-dotenv>=1.0.0
@@ -23,4 +24,4 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 pyjwt>=2.8.0
 
-# REMOVED: torch and torchaudio (Installed via Dockerfile for CPU optimization)
+# NOTE: torch is not needed for faster-whisper (uses CTranslate2 instead)

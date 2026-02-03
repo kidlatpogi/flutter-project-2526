@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AudioMetrics(BaseModel):
@@ -139,44 +139,3 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-
-class UserProfile(BaseModel):
-    """User profile model."""
-    
-    id: UUID = Field(..., description="User ID from Supabase auth")
-    nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
-    full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
-    is_active: bool = Field(default=True, description="Whether the account is active")
-    account_status: str = Field(default="Active", description="Account status: Active, Deleted, or Suspended")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-class UpdateUserProfile(BaseModel):
-    """Request model for updating user profile."""
-    
-    nickname: Optional[str] = Field(None, max_length=50, description="User's preferred nickname")
-    full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
-    is_active: Optional[bool] = Field(None, description="Whether the account is active")
-    account_status: Optional[str] = Field(None, description="Account status: Active, Deleted, or Suspended")
-    
-    @field_validator('nickname')
-    @classmethod
-    def validate_nickname(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                raise ValueError('Nickname cannot be empty')
-            if len(v) > 50:
-                raise ValueError('Nickname must be 50 characters or less')
-        return v
-    
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "nickname": "Maria",
-            "full_name": "Maria Santos"
-        }
-    })

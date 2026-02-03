@@ -15,7 +15,7 @@ from datetime import datetime
 import librosa
 
 from app.models import AnalysisResult, AudioMetrics, FluencyMetrics, PauseMetrics, ConfidenceScore
-from app.analysis.transcription import transcribe_audio, TranscriptionResult
+from app.analysis.transcription import transcribe_audio_async, TranscriptionResult
 from app.analysis.acoustics import analyze_acoustics
 from app.analysis.fluency import analyze_fluency
 from app.analysis.pauses import analyze_pauses, calculate_speech_duration
@@ -273,9 +273,9 @@ class AnalysisPipeline:
             self.duration = self._get_audio_duration(wav_path)
             logger.info(f"Audio duration: {self.duration:.2f} seconds")
             
-            # Step 1: Transcription
-            logger.info("Step 1: Transcribing audio...")
-            self.transcription = transcribe_audio(wav_path)
+            # Step 1: Transcription (async for better concurrency)
+            logger.info("Step 1: Transcribing audio with Faster-Whisper...")
+            self.transcription = await transcribe_audio_async(wav_path)
             
             # Step 2: Acoustic Analysis
             logger.info("Step 2: Analyzing acoustics...")

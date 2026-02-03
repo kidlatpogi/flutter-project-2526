@@ -22,7 +22,6 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
   @override
   void dispose() {
     _nicknameController.dispose();
-    _userProfileService.dispose();
     super.dispose();
   }
 

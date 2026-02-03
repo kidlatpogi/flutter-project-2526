@@ -91,7 +91,6 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
   @override
   void dispose() {
     _nicknameController.dispose();
-    _userProfileService.dispose();
     super.dispose();
   }
 
