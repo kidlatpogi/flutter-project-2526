@@ -32,16 +32,18 @@ class AnalysisPipeline:
     pause detection, and confidence scoring.
     """
     
-    def __init__(self, session_id: UUID | None = None):
-        """
+    def __init__(self, session_id: UUID | None = None, expected_script: str | None = None):
+        \"\"\"
         Initialize the analysis pipeline.
         
         Args:
             session_id: Optional pre-generated session ID.
-        """
+            expected_script: Optional expected script for accuracy comparison.
+        \"\"\"
         self.session_id = session_id or uuid4()
         self.audio_path: Path | None = None
         self.duration: float = 0.0
+        self.expected_script = expected_script
         
         # Analysis results
         self.transcription: TranscriptionResult | None = None
@@ -303,7 +305,9 @@ class AnalysisPipeline:
             self.confidence_score = calculate_confidence_score(
                 self.audio_metrics,
                 self.fluency_metrics,
-                self.pause_metrics
+                self.pause_metrics,
+                transcript=self.transcription.text,
+                expected_script=self.expected_script
             )
             
             # Build result
@@ -337,20 +341,22 @@ class AnalysisPipeline:
 
 async def run_analysis_pipeline(
     audio_path: Path,
-    session_id: UUID | None = None
+    session_id: UUID | None = None,
+    script_content: str | None = None
 ) -> tuple[AnalysisResult, Path | None]:
-    """
+    \"\"\"
     Convenience function to run the analysis pipeline.
     
     Args:
         audio_path: Path to audio file.
         session_id: Optional session ID.
+        script_content: Optional expected script for accuracy comparison.
         
     Returns:
         Tuple of (analysis result, path to WAV file for playback).
         The WAV path may be different from audio_path if conversion was needed.
         Caller is responsible for cleaning up the WAV file.
-    """
-    pipeline = AnalysisPipeline(session_id)
+    \"\"\"
+    pipeline = AnalysisPipeline(session_id, expected_script=script_content)
     result = await pipeline.analyze(audio_path)
     return result, getattr(pipeline, 'wav_path', None)

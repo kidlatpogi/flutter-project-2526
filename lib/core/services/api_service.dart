@@ -95,6 +95,7 @@ class ApiService {
   Future<AnalysisModel> uploadAudio(
     File audioFile, {
     String? scriptTitle,
+    String? scriptContent,
     int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
@@ -134,6 +135,10 @@ class ApiService {
 
       if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
         request.fields['script_title'] = scriptTitle.trim();
+      }
+
+      if (scriptContent != null && scriptContent.trim().isNotEmpty) {
+        request.fields['script_content'] = scriptContent.trim();
       }
 
       if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {
@@ -212,6 +217,7 @@ class ApiService {
     String fileName = 'recording.wav',
     String contentType = 'audio/wav',
     String? scriptTitle,
+    String? scriptContent,
     int? recordedDurationSeconds,
   }) async {
     await _ensureFreshSession();
@@ -231,6 +237,10 @@ class ApiService {
 
       if (scriptTitle != null && scriptTitle.trim().isNotEmpty) {
         request.fields['script_title'] = scriptTitle.trim();
+      }
+
+      if (scriptContent != null && scriptContent.trim().isNotEmpty) {
+        request.fields['script_content'] = scriptContent.trim();
       }
 
       if (recordedDurationSeconds != null && recordedDurationSeconds > 0) {

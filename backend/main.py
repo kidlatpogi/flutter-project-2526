@@ -361,6 +361,7 @@ async def analyze_audio(
     save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
     authorization: Annotated[str, Header()] = "",
     script_title: Annotated[str | None, Form()] = None,
+    script_content: Annotated[str | None, Form(description="Expected script content for accuracy comparison")] = None,
     recorded_duration: Annotated[int | None, Form(description="Recorded duration in seconds from the frontend")] = None
 ):
     """
@@ -414,7 +415,7 @@ async def analyze_audio(
             logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
         
         # Run analysis pipeline - returns result and path to converted WAV
-        result, wav_path = await run_analysis_pipeline(temp_path)
+        result, wav_path = await run_analysis_pipeline(temp_path, script_content=script_content)
         
         # Override audio_duration with frontend recorded_duration if provided
         if recorded_duration is not None and recorded_duration > 0:

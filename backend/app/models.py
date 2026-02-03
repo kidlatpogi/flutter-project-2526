@@ -78,6 +78,7 @@ class ConfidenceScore(BaseModel):
     fluency_score: float = Field(..., ge=0, le=100, description="Fluency score")
     voice_quality_score: float = Field(..., ge=0, le=100, description="Voice quality score (jitter/shimmer)")
     pace_score: float = Field(..., ge=0, le=100, description="Speaking pace score")
+    accuracy_score: float | None = Field(None, ge=0, le=100, description="Script accuracy score (only for scripted speeches)")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -85,7 +86,8 @@ class ConfidenceScore(BaseModel):
             "pitch_score": 82.0,
             "fluency_score": 75.0,
             "voice_quality_score": 80.0,
-            "pace_score": 77.0
+            "pace_score": 77.0,
+            "accuracy_score": 85.0
         }
     })
 

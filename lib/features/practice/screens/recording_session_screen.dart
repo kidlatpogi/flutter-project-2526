@@ -358,11 +358,13 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
               fileName: recorded.fileName,
               contentType: _getWebContentType(recorded.fileName),
               scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
+              scriptContent: _isScripted ? _scriptContent : null,
               recordedDurationSeconds: recordedSeconds,
             )
           : await _apiService.uploadAudio(
               recorded.file!,
               scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
+              scriptContent: _isScripted ? _scriptContent : null,
               recordedDurationSeconds: recordedSeconds,
             );
 

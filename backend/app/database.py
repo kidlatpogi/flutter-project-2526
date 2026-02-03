@@ -95,6 +95,10 @@ async def insert_analysis_result(result: AnalysisResult, user_id: str | None = N
         # Timestamp
         "analyzed_at": result.analyzed_at.isoformat()
     }
+    
+    # Add accuracy_score if available (only for scripted speeches)
+    if result.confidence_score.accuracy_score is not None:
+        record["accuracy_score"] = result.confidence_score.accuracy_score
 
     if user_id:
         record["user_id"] = user_id

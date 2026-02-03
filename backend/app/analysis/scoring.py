@@ -4,6 +4,7 @@ Generates speaking confidence scores based on analyzed metrics.
 """
 
 import logging
+import difflib
 from typing import NamedTuple
 
 from app.models import AudioMetrics, FluencyMetrics, PauseMetrics, ConfidenceScore
@@ -254,11 +255,57 @@ def calculate_pace_score(
     return (wpm_score * 0.6) + (pause_score * 0.4)
 
 
+def calculate_accuracy_score(transcript: str, expected_script: str) -> float:
+    """
+    Calculate script accuracy score by comparing transcript with expected script.
+    
+    Uses sequence matching to determine similarity between what was said
+    and what was expected to be said.
+    
+    Args:
+        transcript: The actual transcribed text.
+        expected_script: The expected script text.
+        
+    Returns:
+        Accuracy score (0-100).
+    """
+    # Normalize both texts: lowercase, remove extra whitespace, remove punctuation
+    def normalize_text(text: str) -> str:
+        import re
+        # Convert to lowercase
+        text = text.lower()
+        # Remove punctuation except apostrophes
+        text = re.sub(r"[^\w\s']", '', text)
+        # Collapse multiple spaces
+        text = ' '.join(text.split())
+        return text
+    
+    transcript_normalized = normalize_text(transcript)
+    script_normalized = normalize_text(expected_script)
+    
+    if not script_normalized or not transcript_normalized:
+        logger.warning("Empty script or transcript for accuracy calculation")
+        return 50.0  # Neutral score
+    
+    # Use SequenceMatcher for similarity ratio
+    matcher = difflib.SequenceMatcher(None, script_normalized, transcript_normalized)
+    similarity_ratio = matcher.ratio()
+    
+    # Convert to 0-100 scale
+    accuracy_score = similarity_ratio * 100.0
+    
+    logger.info(f"Script accuracy: {accuracy_score:.2f}% (transcript length: {len(transcript_normalized)}, script length: {len(script_normalized)})")
+    
+    return round(accuracy_score, 2)
+
+
 def calculate_confidence_score(
     audio_metrics: AudioMetrics,
     fluency_metrics: FluencyMetrics,
     pause_metrics: PauseMetrics,
-    weights: ScoringWeights | None = None
+    weights: ScoringWeights | None = None,
+    transcript: str | None = None,
+    expected_script: str | None = None
 ) -> ConfidenceScore:
     """
     Calculate overall speaking confidence score.
@@ -268,6 +315,8 @@ def calculate_confidence_score(
         fluency_metrics: Analyzed fluency metrics.
         pause_metrics: Analyzed pause metrics.
         weights: Optional custom weights for score components.
+        transcript: The transcribed text (for script comparison).
+        expected_script: The expected script text (for scripted speeches).
         
     Returns:
         ConfidenceScore with overall and component scores.
@@ -283,13 +332,31 @@ def calculate_confidence_score(
     fluency_score = calculate_fluency_score(fluency_metrics)
     pace_score = calculate_pace_score(fluency_metrics, pause_metrics)
     
+    # Calculate accuracy score if script is provided
+    accuracy_score = None
+    if transcript and expected_script:
+        accuracy_score = calculate_accuracy_score(transcript, expected_script)
+        logger.info(f"Script accuracy score: {accuracy_score}")
+    
     # Calculate weighted overall score
-    overall_score = (
-        pitch_score * weights.pitch_stability +
-        voice_quality_score * weights.voice_quality +
-        fluency_score * weights.fluency +
-        pace_score * weights.pace
-    )
+    # If script accuracy is available, include it with 20% weight and adjust others
+    if accuracy_score is not None:
+        # With accuracy: pitch 15%, voice 20%, fluency 25%, pace 20%, accuracy 20%
+        overall_score = (
+            pitch_score * 0.15 +
+            voice_quality_score * 0.20 +
+            fluency_score * 0.25 +
+            pace_score * 0.20 +
+            accuracy_score * 0.20
+        )
+    else:
+        # Without accuracy: use original weights
+        overall_score = (
+            pitch_score * weights.pitch_stability +
+            voice_quality_score * weights.voice_quality +
+            fluency_score * weights.fluency +
+            pace_score * weights.pace
+        )
     
     # Round all scores
     confidence = ConfidenceScore(
@@ -297,7 +364,8 @@ def calculate_confidence_score(
         pitch_score=round(pitch_score, 2),
         fluency_score=round(fluency_score, 2),
         voice_quality_score=round(voice_quality_score, 2),
-        pace_score=round(pace_score, 2)
+        pace_score=round(pace_score, 2),
+        accuracy_score=round(accuracy_score, 2) if accuracy_score is not None else None
     )
     
     logger.info(f"Confidence score calculated: {confidence.overall_score}")
