@@ -23,9 +23,11 @@ class ApiException implements Exception {
 /// Service for communicating with the Python FastAPI backend
 class ApiService {
   // Base URL for the FastAPI backend
-  // Web: use localhost directly
-  // Android Emulator: use 10.0.2.2 (alias for host machine's localhost)
-  static const String baseUrl = 'http://flutter-project-2526-production.up.railway.app';
+  // Production: Railway deployment
+  static const String baseUrl = 'https://flutter-project-2526-production.up.railway.app';
+
+  // For local development, uncomment this instead:
+  // static const String baseUrl = 'http://localhost:8000';
 
   // For Android emulator, uncomment this instead:
   // static const String baseUrl = 'http://10.0.2.2:8000';
