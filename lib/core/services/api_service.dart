@@ -401,6 +401,40 @@ class ApiService {
     }
   }
 
+  /// Get total sessions count for the current user
+  Future<int> getTotalSessionsCount() async {
+    final uri = Uri.parse('$baseUrl/sessions/count');
+
+    try {
+      await _ensureFreshSession();
+      final headers = _buildHeaders();
+
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return data['total'] as int? ?? 0;
+      } else if (response.statusCode == 401) {
+        await _ensureFreshSession(forceRefresh: true);
+        final retryHeaders = _buildHeaders();
+        final retryResponse = await _client
+            .get(uri, headers: retryHeaders)
+            .timeout(_timeout);
+        if (retryResponse.statusCode == 200) {
+          final data = json.decode(retryResponse.body) as Map<String, dynamic>;
+          return data['total'] as int? ?? 0;
+        }
+        return 0;
+      } else {
+        return 0;
+      }
+    } catch (e) {
+      return 0;
+    }
+  }
+
   /// Clear all recordings and session data for the current user
   Future<Map<String, dynamic>> clearUserData() async {
     final uri = Uri.parse('$baseUrl/user/clear-data');

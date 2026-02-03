@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:confetti/confetti.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -21,11 +22,13 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   late final ApiService _apiService;
   late final AudioService _audioService;
   late final AudioPlayer _audioPlayer;
+  late final ConfettiController _confettiController;
   Future<AnalysisModel>? _analysisFuture;
   String? _recordingPath;
   String? _recordingSessionId;
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
+  bool _confettiPlayed = false;
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
 
@@ -35,6 +38,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _apiService = ApiService();
     _audioService = AudioService();
     _audioPlayer = AudioPlayer();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
 
     // Listen to player state changes
     _audioPlayer.onPlayerStateChanged.listen((state) {
@@ -79,6 +83,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _apiService.dispose();
     _audioService.dispose();
     _audioPlayer.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -340,6 +345,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Widget _buildContent(BuildContext context, AnalysisModel result) {
+    // Trigger confetti for high scores (>= 85) only once
+    if (result.overallScore >= 85 && !_confettiPlayed) {
+      _confettiPlayed = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _confettiController.play();
+      });
+    }
+    
     // Helper to get score label and color
     String getScoreLabel(double score) {
       if (score >= 80) return 'EXCELLENT';
@@ -355,29 +368,31 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       return Colors.red;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.close, color: AppColors.primary),
-                    onPressed: () {
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        RouteNames.dashboard,
-                        (route) => false,
-                      );
-                    },
-                  ),
-                  Text(
-                    'ANALYSIS RESULT',
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.close, color: AppColors.primary),
+                        onPressed: () {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            RouteNames.dashboard,
+                            (route) => false,
+                          );
+                        },
+                      ),
+                      Text(
+                        'ANALYSIS RESULT',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -665,6 +680,28 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           ],
         ),
       ),
+        ),
+        // Confetti Widget - centered at top
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: const [
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+              Colors.orange,
+              Colors.purple,
+              Colors.amber,
+            ],
+            emissionFrequency: 0.05,
+            numberOfParticles: 30,
+            gravity: 0.2,
+          ),
+        ),
+      ],
     );
   }
 

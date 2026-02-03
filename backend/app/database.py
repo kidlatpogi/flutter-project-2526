@@ -368,6 +368,33 @@ async def get_db_debug_info() -> dict[str, Any]:
     return info
 
 
+async def get_total_sessions_count(user_id: str) -> int:
+    """
+    Get the total count of sessions for a user.
+    """
+    client = get_supabase()
+    
+    try:
+        # Try sessions table first
+        response = client.table("sessions").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).execute()
+        if response.count is not None:
+            return response.count
+    except Exception as e:
+        logger.warning(f"Sessions table count failed: {e}")
+    
+    # Fallback to features table
+    try:
+        response = client.table("features").select(
+            "session_id", count="exact"
+        ).eq("user_id", user_id).execute()
+        return response.count or 0
+    except Exception as e:
+        logger.error(f"Features table count also failed: {e}")
+        return 0
+
+
 async def get_sessions(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
     """
     Retrieve session summaries for a user.

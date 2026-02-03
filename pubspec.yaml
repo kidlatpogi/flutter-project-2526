@@ -56,6 +56,12 @@ dependencies:
   # State Management & Utilities
   flutter_riverpod: ^2.4.9
   path: ^1.9.0
+  
+  # Celebrations
+  confetti: ^0.7.0
+  
+  # Image caching
+  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:

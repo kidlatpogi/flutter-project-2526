@@ -32,8 +32,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _selectedMicrophone = 'Built-in Microphone'; // Set initial value
-    _loadMicrophones();
-    _loadSavedMicrophoneSetting();
+    _initializeMicrophoneSettings();
+  }
+
+  Future<void> _initializeMicrophoneSettings() async {
+    // First load available microphones
+    await _loadMicrophones();
+    // Then apply saved setting (after microphones are loaded)
+    await _loadSavedMicrophoneSetting();
   }
 
   @override

@@ -254,13 +254,31 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_selectedFocus == 'scripted' && _selectedScriptId == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Please select a script for Scripted Accuracy'),
                         backgroundColor: Colors.red,
                       ),
+                    );
+                    return;
+                  }
+
+                  // For Free Speech, show modal to ask for speech topic
+                  if (_selectedFocus == 'free') {
+                    final topic = await _showFreeSpeechTopicDialog();
+                    if (topic == null) return; // User cancelled
+                    
+                    Navigator.pushNamed(
+                      context,
+                      RouteNames.recording,
+                      arguments: {
+                        'isScripted': false,
+                        'scriptTitle': topic.isNotEmpty ? topic : 'Free Speech',
+                        'scriptContent': null,
+                        'freeSpeechTopic': topic,
+                      },
                     );
                     return;
                   }
@@ -307,6 +325,97 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<String?> _showFreeSpeechTopicDialog() async {
+    final topicController = TextEditingController();
+    
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'What is your speech about?',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter a topic to help the AI better evaluate your speech.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: topicController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'e.g., Climate Change, My Vacation...',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.textSecondary.withOpacity(0.6),
+                ),
+                filled: true,
+                fillColor: AppColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: AppColors.text,
+              ),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, topicController.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Start',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

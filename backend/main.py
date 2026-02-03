@@ -34,6 +34,7 @@ from app.database import (
     insert_analysis_result,
     insert_session_record,
     get_sessions,
+    get_total_sessions_count,
     get_analysis_by_session,
     check_connection,
     get_user_profile,
@@ -544,6 +545,33 @@ async def list_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve sessions: {str(e)}"
+        )
+
+
+@app.get(
+    "/sessions/count",
+    response_model=dict,
+    tags=["Sessions"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def get_sessions_count(
+    authorization: Annotated[str, Header()] = "",
+):
+    """
+    Return total session count for the authenticated user.
+    """
+    user_id = verify_jwt_token(authorization)
+
+    try:
+        count = await get_total_sessions_count(user_id=user_id)
+        return {"total": count}
+    except Exception as e:
+        logger.error(f"Failed to retrieve sessions count: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve sessions count: {str(e)}"
         )
 
 

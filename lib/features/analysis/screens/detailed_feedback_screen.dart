@@ -460,6 +460,18 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
                     const SizedBox(height: 12),
                     _buildTranscriptionCard(result),
 
+                    // Mispronunciations Section (if any)
+                    if (result.mispronunciations.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildSectionTitle(
+                        'MISPRONUNCIATIONS',
+                        Icons.record_voice_over,
+                        Colors.red,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildMispronunciationsCard(result),
+                    ],
+
                     const SizedBox(height: 24),
 
                     // Personalized Action Plan
@@ -995,6 +1007,147 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
               }).toList(),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  String _formatTimestamp(double seconds) {
+    final minutes = (seconds ~/ 60).toString();
+    final secs = (seconds % 60).toInt().toString().padLeft(2, '0');
+    return '$minutes:$secs';
+  }
+
+  Widget _buildMispronunciationsCard(AnalysisModel result) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '${result.mispronunciations.length} word${result.mispronunciations.length > 1 ? 's' : ''} need attention',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...result.mispronunciations.map((mispronunciation) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    // Timestamp
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _formatTimestamp(mispronunciation.timestamp),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Words comparison
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Expected: ',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                '"${mispronunciation.expectedWord}"',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                'You said: ',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                mispronunciation.spokenWord.isEmpty 
+                                    ? '(omitted)'
+                                    : '"${mispronunciation.spokenWord}"',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: mispronunciation.spokenWord.isEmpty 
+                                      ? AppColors.textSecondary
+                                      : Colors.red.shade700,
+                                  fontStyle: mispronunciation.spokenWord.isEmpty 
+                                      ? FontStyle.italic 
+                                      : FontStyle.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          Text(
+            'Tip: Practice saying these words slowly and clearly before your next session.',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
         ],
       ),
     );
