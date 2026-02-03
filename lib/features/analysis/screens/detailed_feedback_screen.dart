@@ -31,6 +31,8 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   String? _recordingSessionId;
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
 
   @override
   void initState() {
@@ -43,6 +45,31 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
       if (!mounted) return;
       setState(() {
         _isPlaying = state == PlayerState.playing;
+      });
+    });
+
+    // Listen to player completion
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+      });
+    });
+
+    // Listen to duration changes
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() {
+        _totalDuration = duration;
+      });
+    });
+
+    // Listen to position changes
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = position;
       });
     });
 
@@ -79,7 +106,30 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
     if (_isPlaying) {
       await _audioPlayer.pause();
     } else {
-      await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+      try {
+        // Stop any existing playback first
+        await _audioPlayer.stop();
+        
+        // On web, _recordingPath is a URL path like /sessions/{id}/recording
+        // On native, it's a file path
+        if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
+          // Play from URL (web or network)
+          final fullUrl = _recordingPath!.startsWith('http') 
+              ? _recordingPath! 
+              : 'http://localhost:8000${_recordingPath!}';
+          await _audioPlayer.play(UrlSource(fullUrl));
+        } else {
+          // Play from file (native)
+          await _audioPlayer.play(DeviceFileSource(_recordingPath!));
+        }
+      } catch (e) {
+        print('Error playing recording: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error playing recording: $e')),
+          );
+        }
+      }
     }
   }
 

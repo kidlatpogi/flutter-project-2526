@@ -5,8 +5,10 @@ import 'dart:typed_data';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/services/teleprompter_settings_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/analysis_model.dart';
+import '../../../data/models/teleprompter_settings_model.dart';
 import '../../../routing/route_names.dart';
 
 class RecordingSessionScreen extends StatefulWidget {
@@ -29,6 +31,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     with SingleTickerProviderStateMixin {
   final AudioService _audioService = AudioService();
   final ApiService _apiService = ApiService();
+  final TeleprompterSettingsService _settingsService = TeleprompterSettingsService();
 
   bool _isRecording = false;
   bool _isAnalyzing = false;
@@ -42,11 +45,18 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
   String? _scriptContent;
   final ScrollController _teleprompterController = ScrollController();
   bool _isTeleprompterRunning = false;
-  double _teleprompterSpeed = 40.0; // pixels per second
   String? _errorMessage;
   double _currentAmplitude = 0.0;
   int _lastAmplitudeCheck = 0;
-
+  
+  // Teleprompter settings
+  TeleprompterSettings _settings = const TeleprompterSettings();
+  bool _showSettingsPanel = false;
+  
+  // For speech highlighting
+  int _currentWordIndex = -1;
+  List<String> _words = [];
+  
   @override
   void initState() {
     super.initState();
@@ -54,6 +64,14 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     _showScript = widget.isScripted;
     _scriptTitle = widget.scriptTitle;
     _scriptContent = widget.scriptContent;
+    
+    // Split script into words for highlighting
+    if (_scriptContent != null) {
+      _words = _scriptContent!.split(RegExp(r'\s+'));
+    }
+
+    // Load teleprompter settings
+    _loadSettings();
 
     // Use Ticker for smooth, efficient updates
     _ticker = createTicker(_onTick);
@@ -85,7 +103,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     // Smooth teleprompter scrolling
     if (_isTeleprompterRunning && _teleprompterController.hasClients) {
       final max = _teleprompterController.position.maxScrollExtent;
-      final pixelsPerFrame = _teleprompterSpeed / 60; // ~60 fps
+      final pixelsPerFrame = _settings.pixelsPerSecond / 60; // ~60 fps
       final next = (_teleprompterController.offset + pixelsPerFrame).clamp(
         0.0,
         max,
@@ -96,6 +114,31 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
         _isTeleprompterRunning = false;
       }
     }
+    
+    // Update current word index based on audio amplitude (simple approach)
+    if (_isRecording && !_isPaused && _settings.enableHighlighting && _words.isNotEmpty) {
+      // Estimate reading progress based on time and WPM
+      final wordsRead = (_elapsedSeconds / 60.0) * _settings.scrollSpeedWPM;
+      final newIndex = wordsRead.floor().clamp(0, _words.length - 1);
+      if (newIndex != _currentWordIndex) {
+        setState(() {
+          _currentWordIndex = newIndex;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await _settingsService.loadSettings();
+    if (mounted) {
+      setState(() {
+        _settings = settings;
+      });
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    await _settingsService.saveSettings(_settings);
   }
 
   Future<void> _updateAmplitude() async {
@@ -345,46 +388,75 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), // Balance the close button
+                  // Settings button for teleprompter
+                  if (_isScripted)
+                    IconButton(
+                      icon: Icon(
+                        _showSettingsPanel ? Icons.settings : Icons.settings_outlined,
+                        color: AppColors.primary,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showSettingsPanel = !_showSettingsPanel;
+                        });
+                      },
+                    )
+                  else
+                    const SizedBox(width: 48), // Balance the close button
                 ],
               ),
             ),
 
             // Content Area
             Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: _isScripted && _showScript
-                    ? SingleChildScrollView(
-                        controller: _teleprompterController,
-                        child: Text(
-                          _scriptContent?.trim().isNotEmpty == true
-                              ? _scriptContent!
-                              : 'No script content available.',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            height: 1.8,
-                            color: AppColors.primary,
+              child: Stack(
+                children: [
+                  // Main teleprompter
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: _isScripted && _showScript
+                        ? SingleChildScrollView(
+                            controller: _teleprompterController,
+                            child: _settings.enableHighlighting && _words.isNotEmpty
+                                ? _buildHighlightedText()
+                                : Text(
+                                    _scriptContent?.trim().isNotEmpty == true
+                                        ? _scriptContent!
+                                        : 'No script content available.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _settings.fontSize,
+                                      height: 1.8,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                          )
+                        : Center(
+                            child: Text(
+                              _isScripted
+                                  ? 'Teleprompter hidden'
+                                  : 'Teleprompter disabled for Free Speech',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          _isScripted
-                              ? 'Teleprompter hidden'
-                              : 'Teleprompter disabled for Free Speech',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                  ),
+                  
+                  // Settings Panel (overlay)
+                  if (_isScripted && _showSettingsPanel)
+                    Positioned(
+                      top: 0,
+                      right: 24,
+                      child: _buildSettingsPanel(),
+                    ),
+                ],
               ),
             ),
 
@@ -688,6 +760,195 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build highlighted text with current word emphasis
+  Widget _buildHighlightedText() {
+    return RichText(
+      text: TextSpan(
+        style: GoogleFonts.inter(
+          fontSize: _settings.fontSize,
+          height: 1.8,
+          color: AppColors.primary,
+        ),
+        children: _words.asMap().entries.map((entry) {
+          final index = entry.key;
+          final word = entry.value;
+          final isCurrentWord = _settings.enableHighlighting && index == _currentWordIndex;
+          
+          return TextSpan(
+            text: '$word ',
+            style: isCurrentWord
+                ? TextStyle(
+                    backgroundColor: AppColors.primary.withOpacity(0.2),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  )
+                : null,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Build settings panel for teleprompter
+  Widget _buildSettingsPanel() {
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      color: AppColors.surface,
+      child: Container(
+        width: 300,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Teleprompter Settings',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, size: 20, color: AppColors.textSecondary),
+                  onPressed: () {
+                    setState(() {
+                      _showSettingsPanel = false;
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Scrolling Speed
+            Text(
+              'Scrolling Speed (WPM)',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: _settings.scrollSpeedWPM,
+                    min: 60,
+                    max: 240,
+                    divisions: 18,
+                    label: '${_settings.scrollSpeedWPM.round()} WPM',
+                    activeColor: AppColors.primary,
+                    onChanged: (value) {
+                      setState(() {
+                        _settings = _settings.copyWith(scrollSpeedWPM: value);
+                      });
+                      _saveSettings();
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 50,
+                  child: Text(
+                    '${_settings.scrollSpeedWPM.round()}',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Font Size
+            Text(
+              'Font Size',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: _settings.fontSize,
+                    min: 12,
+                    max: 32,
+                    divisions: 20,
+                    label: '${_settings.fontSize.round()}',
+                    activeColor: AppColors.primary,
+                    onChanged: (value) {
+                      setState(() {
+                        _settings = _settings.copyWith(fontSize: value);
+                      });
+                      _saveSettings();
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 50,
+                  child: Text(
+                    '${_settings.fontSize.round()}',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Word Highlighting Toggle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Word Highlighting',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Switch(
+                  value: _settings.enableHighlighting,
+                  activeColor: AppColors.primary,
+                  onChanged: (value) {
+                    setState(() {
+                      _settings = _settings.copyWith(enableHighlighting: value);
+                      if (!value) {
+                        _currentWordIndex = -1; // Reset highlighting
+                      }
+                    });
+                    _saveSettings();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -26,6 +26,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   String? _recordingSessionId;
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
 
   @override
   void initState() {
@@ -34,10 +36,36 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _audioService = AudioService();
     _audioPlayer = AudioPlayer();
 
+    // Listen to player state changes
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (!mounted) return;
       setState(() {
         _isPlaying = state == PlayerState.playing;
+      });
+    });
+
+    // Listen to player completion to reset UI
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+      });
+    });
+
+    // Listen to duration changes
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() {
+        _totalDuration = duration;
+      });
+    });
+
+    // Listen to position changes
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = position;
       });
     });
 
@@ -95,6 +123,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       await _audioPlayer.pause();
     } else {
       try {
+        // Stop any existing playback first
+        await _audioPlayer.stop();
+        
         // On web, _recordingPath is a URL path like /sessions/{id}/recording
         // On native, it's a file path
         if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
@@ -115,6 +146,16 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _stopPlayback() async {
+    await _audioPlayer.stop();
+    if (mounted) {
+      setState(() {
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+      });
     }
   }
 
