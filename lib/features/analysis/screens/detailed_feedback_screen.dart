@@ -1019,6 +1019,9 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   }
 
   Widget _buildMispronunciationsCard(AnalysisModel result) {
+    // Check if this is a scripted speech (has accuracy score)
+    final isScriptedSpeech = result.confidenceScore.overallScore > 0;
+    
     // Show empty state if no mispronunciations
     if (result.mispronunciations.isEmpty) {
       return Container(
@@ -1053,7 +1056,9 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'No mispronunciations detected in this session.\nGreat job on your speech clarity!',
+              isScriptedSpeech
+                  ? 'No mispronunciations detected.\nYour pronunciation matched the script perfectly!'
+                  : 'Free speech analysis complete.\nYour speech is clear and well-articulated!',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,

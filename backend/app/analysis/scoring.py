@@ -270,6 +270,8 @@ def normalize_word(word: str) -> str:
     word = word.lower()
     # Remove punctuation except apostrophes (for contractions like "don't")
     word = re.sub(r"[^\w']", '', word)
+    # Remove leading/trailing whitespace
+    word = word.strip()
     return word
 
 
@@ -282,6 +284,7 @@ def calculate_word_accuracy(
     Calculate word-by-word accuracy and detect mispronunciations.
     
     Uses word-level alignment to find mismatches between transcript and script.
+    Only reports true mispronunciations (words that are replaced, not omitted or inserted).
     
     Args:
         transcript_words: Words from the transcription.
@@ -315,9 +318,13 @@ def calculate_word_accuracy(
             
         elif tag == 'replace':
             # Words were replaced (mispronunciation or substitution)
-            for k in range(max(i2 - i1, j2 - j1)):
-                script_idx = i1 + k if i1 + k < i2 else i2 - 1
-                trans_idx = j1 + k if j1 + k < j2 else j2 - 1
+            # Only record if word counts match (true replacement, not omission+insertion)
+            replaced_count = i2 - i1
+            added_count = j2 - j1
+            
+            for k in range(max(replaced_count, added_count)):
+                script_idx = i1 + k if k < replaced_count else i2 - 1
+                trans_idx = j1 + k if k < added_count else j2 - 1
                 
                 expected = script_words[script_idx] if script_idx < len(script_words) else ""
                 spoken = transcript_words[trans_idx] if trans_idx < len(transcript_words) else ""
@@ -338,7 +345,8 @@ def calculate_word_accuracy(
             transcript_index = j2
             
         elif tag == 'delete':
-            # Words were omitted
+            # Words were omitted from transcript
+            # Report omitted words as mispronunciations
             for k in range(i1, i2):
                 if k < len(script_words):
                     # Get approximate timestamp based on position
@@ -349,19 +357,19 @@ def calculate_word_accuracy(
                     mispronunciations.append(Mispronunciation(
                         timestamp=round(timestamp, 2),
                         expected_word=script_words[k],
-                        spoken_word="[omitted]"
+                        spoken_word=""  # Empty string indicates omitted word
                     ))
             script_index = i2
             
         elif tag == 'insert':
             # Extra words were added (not in script)
-            # We don't penalize additions as heavily
+            # We don't report these as mispronunciations, only track transcript position
             transcript_index = j2
     
     # Calculate accuracy as percentage of correct words
     accuracy_score = (correct_words / total_script_words) * 100.0 if total_script_words > 0 else 0.0
     
-    logger.info(f"Word-by-word accuracy: {accuracy_score:.2f}% ({correct_words}/{total_script_words} correct words, {len(mispronunciations)} mispronunciations)")
+    logger.info(f"Word-by-word accuracy: {accuracy_score:.2f}% ({correct_words}/{total_script_words} correct words, {len(mispronunciations)} mispronunciations detected)")
     
     return round(accuracy_score, 2), mispronunciations
 

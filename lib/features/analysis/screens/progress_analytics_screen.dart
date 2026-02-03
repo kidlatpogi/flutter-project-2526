@@ -204,9 +204,9 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                                   onTap: () {
                                     setState(() {
                                       _selectedPeriod = period;
+                                      // Update trend scores immediately from stored sessions
+                                      _trendScores = _buildTrendScores(_allSessions, period);
                                     });
-                                    // Reload data with appropriate limit for the period
-                                    _loadProgressData();
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
