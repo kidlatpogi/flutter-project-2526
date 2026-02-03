@@ -116,7 +116,7 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
           // Play from URL (web or network)
           final fullUrl = _recordingPath!.startsWith('http') 
               ? _recordingPath! 
-              : 'http://localhost:8000${_recordingPath!}';
+              : 'https://kidlatpogi17-bigkas-backend.hf.space${_recordingPath!}';
           await _audioPlayer.play(UrlSource(fullUrl));
         } else {
           // Play from file (native)

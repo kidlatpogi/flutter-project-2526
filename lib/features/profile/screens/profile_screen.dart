@@ -236,7 +236,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
-    _userProfileService.dispose();
     super.dispose();
   }
 

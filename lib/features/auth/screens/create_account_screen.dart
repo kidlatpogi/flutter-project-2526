@@ -33,7 +33,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _authService;
-    _userProfileService.dispose();
     super.dispose();
   }
 

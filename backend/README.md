@@ -1,3 +1,12 @@
+---
+title: Bigkas Backend
+emoji: "🧠"
+colorFrom: indigo
+colorTo: pink
+sdk: docker
+pinned: false
+---
+
 # Bigkas Backend API
 
 A FastAPI backend for public speaking assessment. This API analyzes audio recordings to provide confidence metrics and feedback on speaking performance.
@@ -70,6 +79,29 @@ python main.py
 GET /health
 ```
 Returns API and dependency status.
+
+### Warmup Model (HF Spaces Only)
+```
+POST /warmup
+```
+Pre-loads the Whisper model on demand. Use this after deploying to HF Spaces to avoid timeout on first request.
+
+**Why**: The Whisper model (~140MB) takes 1-3 minutes to download and initialize on first use. On HF Spaces, call this endpoint after startup to pre-load the model before users make requests.
+
+**Usage on HF Spaces**:
+1. Deploy to HF Spaces
+2. Wait for "Backend started successfully" message in logs
+3. Call `POST /warmup` (takes 1-3 minutes)
+4. Once complete, audio analysis endpoints will respond immediately
+
+**Response**:
+```json
+{
+  "status": "loaded",
+  "message": "Whisper model loaded successfully",
+  "timestamp": "2024-01-15T10:30:45.123456"
+}
+```
 
 ### Analyze Audio
 ```

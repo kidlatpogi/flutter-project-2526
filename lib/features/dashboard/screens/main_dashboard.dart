@@ -65,7 +65,6 @@ class _MainDashboardState extends State<MainDashboard> {
 
   @override
   void dispose() {
-    _userProfileService.dispose();
     _apiService.dispose();
     super.dispose();
   }

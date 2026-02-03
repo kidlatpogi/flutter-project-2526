@@ -1,36 +1,56 @@
 """
-Speech-to-Text Transcription using OpenAI Whisper
-Handles audio transcription with timing information.
+Speech-to-Text Transcription using Faster-Whisper
+Optimized for CPU with async support and better memory efficiency.
+
+faster-whisper is 4x faster than openai-whisper and uses less memory
+by utilizing CTranslate2 instead of PyTorch.
 """
 
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
-import whisper
 import numpy as np
+from faster_whisper import WhisperModel
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Thread pool for CPU-bound transcription tasks
+_executor = ThreadPoolExecutor(max_workers=2)
+
 
 class WhisperTranscriber:
-    """Singleton wrapper for Whisper model."""
+    """Singleton wrapper for Faster-Whisper model."""
     
-    _model: Optional[whisper.Whisper] = None
+    _model: Optional[WhisperModel] = None
     _model_size: Optional[str] = None
     
     @classmethod
-    def get_model(cls) -> whisper.Whisper:
-        """Get or load Whisper model."""
+    def get_model(cls) -> WhisperModel:
+        """Get or load Faster-Whisper model."""
         settings = get_settings()
+        model_size = settings.whisper_model_size
         
-        if cls._model is None or cls._model_size != settings.whisper_model_size:
-            logger.info(f"Loading Whisper model: {settings.whisper_model_size}")
-            cls._model = whisper.load_model(settings.whisper_model_size)
-            cls._model_size = settings.whisper_model_size
-            logger.info("Whisper model loaded successfully")
+        if cls._model is None or cls._model_size != model_size:
+            logger.info(f"Loading Faster-Whisper model: {model_size}")
+            
+            # Faster-whisper model configuration:
+            # - device="cpu": Use CPU (no GPU required)
+            # - compute_type="int8": Quantized for faster CPU inference
+            # - cpu_threads=4: Parallel processing
+            cls._model = WhisperModel(
+                model_size,
+                device="cpu",
+                compute_type="int8",  # int8 quantization for speed
+                cpu_threads=4,
+                num_workers=2,
+            )
+            cls._model_size = model_size
+            logger.info("Faster-Whisper model loaded successfully")
         
         return cls._model
     
@@ -65,9 +85,91 @@ class TranscriptionResult:
         return words
 
 
-def transcribe_audio(audio_path: Path) -> TranscriptionResult:
+def _transcribe_sync(audio_path: Path) -> TranscriptionResult:
     """
-    Transcribe audio file using Whisper.
+    Synchronous transcription (runs in thread pool).
+    
+    Args:
+        audio_path: Path to the audio file (WAV format, 16kHz).
+        
+    Returns:
+        TranscriptionResult containing text and timing information.
+    """
+    import librosa
+    
+    model = WhisperTranscriber.get_model()
+    
+    logger.info(f"Transcribing audio: {audio_path}")
+    
+    # Load audio using librosa (16kHz mono for Whisper)
+    audio, sr = librosa.load(str(audio_path), sr=16000, mono=True)
+    audio = audio.astype(np.float32)
+    
+    logger.info(f"Audio loaded: {len(audio)} samples at {sr}Hz, duration: {len(audio)/sr:.2f}s")
+    
+    # Transcribe with faster-whisper
+    # Returns a generator of segments
+    segments_gen, info = model.transcribe(
+        audio,
+        language="en",
+        task="transcribe",
+        beam_size=5,
+        best_of=5,
+        patience=1.0,
+        temperature=0.0,
+        condition_on_previous_text=True,
+        initial_prompt="This is a speech practice session with clear pronunciation.",
+        vad_filter=True,  # Voice Activity Detection for better accuracy
+        vad_parameters=dict(
+            min_silence_duration_ms=500,
+            speech_pad_ms=200,
+        ),
+        word_timestamps=True,
+    )
+    
+    # Convert generator to list and build result
+    segments_list = []
+    full_text_parts = []
+    
+    for segment in segments_gen:
+        seg_dict = {
+            "start": segment.start,
+            "end": segment.end,
+            "text": segment.text.strip(),
+        }
+        
+        # Add word-level timestamps if available
+        if segment.words:
+            seg_dict["words"] = [
+                {
+                    "word": word.word,
+                    "start": word.start,
+                    "end": word.end,
+                    "probability": word.probability,
+                }
+                for word in segment.words
+            ]
+        
+        segments_list.append(seg_dict)
+        full_text_parts.append(segment.text.strip())
+    
+    full_text = " ".join(full_text_parts)
+    duration = segments_list[-1]["end"] if segments_list else 0.0
+    
+    result = TranscriptionResult(
+        text=full_text,
+        segments=segments_list,
+        language=info.language,
+        duration=duration
+    )
+    
+    logger.info(f"Transcription complete: {len(result.text)} characters, {len(segments_list)} segments")
+    return result
+
+
+async def transcribe_audio_async(audio_path: Path) -> TranscriptionResult:
+    """
+    Async transcription - runs CPU-bound work in thread pool.
     
     Args:
         audio_path: Path to the audio file.
@@ -78,55 +180,27 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
     Raises:
         Exception: If transcription fails.
     """
-    import librosa
-    
-    model = WhisperTranscriber.get_model()
-    
-    logger.info(f"Transcribing audio: {audio_path}")
+    loop = asyncio.get_event_loop()
     
     try:
-        # Load audio using librosa (doesn't require FFmpeg)
-        # Whisper expects 16kHz mono audio
-        audio, sr = librosa.load(str(audio_path), sr=16000, mono=True)
-        
-        # Ensure audio is float32 numpy array (Whisper requirement)
-        audio = audio.astype(np.float32)
-        
-        logger.info(f"Audio loaded: {len(audio)} samples at {sr}Hz, duration: {len(audio)/sr:.2f}s")
-        
-        # Transcribe with word-level timestamps
-        # Pass numpy array directly instead of file path
-        # Using enhanced settings for better accuracy
-        result = model.transcribe(
-            audio,
-            word_timestamps=True,
-            verbose=False,
-            language="en",  # Force English for better accuracy
-            task="transcribe",
-            temperature=0.0,  # Use greedy decoding for consistency
-            best_of=5,  # Consider top 5 beams
-            beam_size=5,  # Beam search for better quality
-            patience=1.0,  # Standard patience
-            condition_on_previous_text=True,  # Use context for better accuracy
-            initial_prompt="This is a speech practice session with clear pronunciation.",  # Guide the model
-            compression_ratio_threshold=2.4,
-            logprob_threshold=-1.0,
-            no_speech_threshold=0.6,
+        result = await loop.run_in_executor(
+            _executor,
+            _transcribe_sync,
+            audio_path
         )
-        
-        transcription = TranscriptionResult(
-            text=result["text"].strip(),
-            segments=result["segments"],
-            language=result["language"],
-            duration=result["segments"][-1]["end"] if result["segments"] else 0.0
-        )
-        
-        logger.info(f"Transcription complete: {len(transcription.text)} characters")
-        return transcription
-        
+        return result
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
         raise
+
+
+def transcribe_audio(audio_path: Path) -> TranscriptionResult:
+    """
+    Synchronous wrapper for backward compatibility.
+    
+    For new code, prefer transcribe_audio_async().
+    """
+    return _transcribe_sync(audio_path)
 
 
 def get_speech_segments(segments: list[dict]) -> list[tuple[float, float]]:

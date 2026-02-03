@@ -83,15 +83,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
             _targetWidget = const LoginScreen();
             return;
           }
+          // Profile exists if it's not null and has a non-empty nickname
           hasNickname = profile != null &&
-              profile['has_profile'] == true &&
               profile['nickname'] != null &&
               (profile['nickname'] as String).isNotEmpty;
           print('AuthWrapper: Has nickname: $hasNickname');
         } catch (e) {
-          print('AuthWrapper: Error checking nickname (backend might be down): $e');
-          // If backend is down, skip nickname check and go to dashboard
-          hasNickname = true;
+          print('AuthWrapper: Error checking nickname: $e');
+          // If there's an error, assume no profile exists yet
+          hasNickname = false;
         }
 
         if (!mounted) return;
@@ -121,7 +121,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void dispose() {
     _authSubscription?.cancel();
-    _userProfileService.dispose();
     super.dispose();
   }
 

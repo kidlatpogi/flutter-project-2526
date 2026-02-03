@@ -6,6 +6,7 @@ This API receives audio files, analyzes them using signal processing
 and machine learning, and stores the results in Supabase.
 """
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -26,21 +27,13 @@ from app.models import (
     AnalysisResult,
     HealthResponse,
     ErrorResponse,
-    UserProfile,
-    UpdateUserProfile,
 )
 from app.database import (
     get_supabase,
     insert_analysis_result,
     insert_session_record,
-    get_sessions,
-    get_total_sessions_count,
     get_analysis_by_session,
     check_connection,
-    get_user_profile,
-    create_user_profile,
-    update_user_profile,
-    get_db_debug_info,
 )
 from app.analysis.pipeline import run_analysis_pipeline
 from app.analysis.transcription import WhisperTranscriber
@@ -57,17 +50,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Application lifespan handler.
-    Pre-loads Whisper model on startup.
+    Defer Whisper model loading to first request to prevent startup timeout on HF Spaces.
     """
     logger.info("Starting Bigkas Backend...")
-    
-    # Pre-load Whisper model
-    try:
-        logger.info("Pre-loading Whisper model...")
-        WhisperTranscriber.get_model()
-        logger.info("Whisper model loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load Whisper model: {e}")
+    logger.info("Whisper model will be loaded on first request (deferred loading)")
     
     # Check Supabase connection
     try:
@@ -79,10 +65,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Supabase connection error: {e}")
     
+    logger.info("✓ Backend started successfully")
+    
     yield
     
     logger.info("Shutting down Bigkas Backend...")
 
+
+# Global lock to prevent concurrent audio processing (prevents CPU overload)
+# Only one user's audio will be analyzed at a time
+processing_lock = asyncio.Lock()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -134,10 +126,44 @@ async def health_check():
     )
 
 
+@app.post("/warmup", tags=["Health"])
+async def warmup_model():
+    """
+    Warmup endpoint to pre-load Whisper model.
+    
+    Call this endpoint after the backend starts to pre-load the model.
+    Takes 1-3 minutes on first call but only needs to be done once.
+    """
+    if WhisperTranscriber.is_loaded():
+        return {
+            "status": "already_loaded",
+            "message": "Whisper model is already loaded",
+            "timestamp": datetime.utcnow()
+        }
+    
+    try:
+        logger.info("Starting warmup: Loading Whisper model...")
+        WhisperTranscriber.get_model()
+        logger.info("✓ Warmup complete: Whisper model loaded successfully")
+        return {
+            "status": "loaded",
+            "message": "Whisper model loaded successfully",
+            "timestamp": datetime.utcnow()
+        }
+    except Exception as e:
+        logger.error(f"Warmup failed: {e}")
+        return {
+            "status": "failed",
+            "message": str(e),
+            "timestamp": datetime.utcnow()
+        }
+
+
 @app.get("/debug/info", tags=["Debug"])
 async def debug_info():
     """
     Get debug information about the backend configuration.
+    Lightweight endpoint that doesn't add significant CPU load.
     """
     import os
     
@@ -149,201 +175,14 @@ async def debug_info():
             "SUPABASE_KEY": "configured" if os.getenv("SUPABASE_KEY") else "missing",
         },
         "whisper_loaded": WhisperTranscriber.is_loaded(),
-        "supabase_connected": await check_connection()
+        "whisper_backend": "faster-whisper (CTranslate2)",
     }
 
 
-@app.get("/debug/session/{session_id}", tags=["Debug"])
-async def debug_session(session_id: str):
-    """
-    Get debug info about a specific session.
-    """
-    try:
-        db = get_supabase()
-        
-        # Try to fetch the session (NO AWAIT - db is sync)
-        try:
-            result = db.table("features").select("*").eq("session_id", session_id).single()
-            session_data = result.data if result else None
-        except Exception as e:
-            session_data = None
-            fetch_error = str(e)
-        
-        # Try to list storage buckets
-        try:
-            buckets = db.storage.list_buckets()
-            bucket_list = [b.name if hasattr(b, 'name') else b.get('name', 'unknown') for b in buckets]
-        except Exception as e:
-            bucket_list = []
-            bucket_error = str(e)
-        
-        # Try to find the recording file
-        file_exists = False
-        file_error = None
-        if session_data and session_data.get("user_id"):
-            try:
-                file_path = f"{session_data['user_id']}/{session_id}.wav"
-                # Try to get file metadata (lightweight check)
-                db.storage.from_("recordings").download(file_path)
-                file_exists = True
-            except Exception as e:
-                file_error = str(e)
-        
-        return {
-            "status": "ok",
-            "session_id": session_id,
-            "session_found": session_data is not None,
-            "session_user_id": session_data.get("user_id") if session_data else None,
-            "storage_buckets": bucket_list,
-            "recordings_bucket_exists": "recordings" in bucket_list,
-            "file_exists": file_exists,
-            "file_error": file_error,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Debug session failed: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-
-@app.get("/debug/storage", tags=["Debug"])
-async def debug_storage():
-    """
-    Debug endpoint to verify storage bucket exists and is accessible.
-    """
-    try:
-        # Get the Supabase client (NOT async)
-        db = get_supabase()
-        
-        # Try to access the storage object
-        bucket_names = []
-        recordings_exists = False
-        files_in_bucket = []
-        
-        # Try to detect if recordings bucket exists by trying to list files
-        try:
-            files = db.storage.from_("recordings").list()
-            if files is not None:  # If this succeeds, the bucket exists
-                recordings_exists = True
-                files_in_bucket = [f.get('name', 'unknown') for f in files] if isinstance(files, list) else []
-                bucket_names = ["recordings"]
-        except Exception as e:
-            error_msg = str(e).lower()
-            
-            # If we get "not found" error, bucket doesn't exist
-            if "not found" in error_msg or "404" in error_msg:
-                recordings_exists = False
-            else:
-                # Other error, might be permission or actual error
-                logger.warning(f"Could not check recordings bucket: {e}")
-        
-        return {
-            "status": "connected",
-            "buckets": bucket_names,
-            "recordings_bucket_exists": recordings_exists,
-            "files_in_recordings_bucket": files_in_bucket,
-            "file_count": len(files_in_bucket),
-            "timestamp": datetime.utcnow().isoformat(),
-            "note": "bucket detection via file listing"
-        }
-    except Exception as e:
-        logger.error(f"Storage debug failed: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-
-@app.get("/debug/test-recording/{session_id}", tags=["Debug"])
-async def debug_test_recording(session_id: str):
-    """
-    Test endpoint to verify a specific recording file exists and is readable.
-    """
-    try:
-        db = get_supabase()
-        
-        # Get session info first (NO AWAIT - db is sync)
-        try:
-            result = db.table("features").select("*").eq("session_id", session_id).single()
-            session_data = result.data if result else None
-        except:
-            session_data = None
-        
-        if not session_data:
-            return {
-                "status": "error",
-                "error": f"Session {session_id} not found in database",
-                "session_found": False
-            }
-        
-        user_id = session_data.get("user_id")
-        
-        # Try to access the file with different paths
-        attempts = []
-        
-        # Attempt 1: {user_id}/{session_id}.wav
-        if user_id:
-            file_path = f"{user_id}/{session_id}.wav"
-            try:
-                data = db.storage.from_("recordings").download(file_path)
-                attempts.append({
-                    "path": file_path,
-                    "status": "success",
-                    "size_bytes": len(data)
-                })
-            except Exception as e:
-                attempts.append({
-                    "path": file_path,
-                    "status": "failed",
-                    "error": str(e)
-                })
-        
-        # Attempt 2: {session_id}.wav
-        file_path = f"{session_id}.wav"
-        try:
-            data = db.storage.from_("recordings").download(file_path)
-            attempts.append({
-                "path": file_path,
-                "status": "success",
-                "size_bytes": len(data)
-            })
-        except Exception as e:
-            attempts.append({
-                "path": file_path,
-                "status": "failed",
-                "error": str(e)
-            })
-        
-        # List all files in recordings bucket
-        files_in_bucket = []
-        try:
-            files = db.storage.from_("recordings").list()
-            files_in_bucket = [f.get('name', 'unknown') for f in files] if files else []
-        except Exception as e:
-            logger.warning(f"Could not list files: {e}")
-        
-        return {
-            "status": "ok",
-            "session_id": session_id,
-            "session_found": True,
-            "user_id": user_id,
-            "file_access_attempts": attempts,
-            "files_in_bucket": files_in_bucket,
-            "total_files": len(files_in_bucket),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Test recording failed: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
+# ============================================================================
+# CORE AI ENDPOINT: AUDIO ANALYSIS (Whisper + Analysis Pipeline)
+# This is the only CPU-intensive endpoint - everything else is in Flutter/Supabase
+# ============================================================================
 
 @app.post(
     "/analyze-audio",
@@ -382,198 +221,151 @@ async def analyze_audio(
     
     Returns a complete analysis with all metrics and a confidence score (0-100).
     """
-    settings = get_settings()
-    
-    # Validate content type (strip codecs like "audio/webm;codecs=opus")
-    content_type = (audio.content_type or "").split(";")[0].strip()
-    if content_type not in settings.allowed_audio_types:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Unsupported audio format: {audio.content_type}. Allowed: {settings.allowed_audio_types}"
-        )
-    
-    # Determine file extension
-    if content_type in ["audio/mpeg", "audio/mp3"]:
-        suffix = ".mp3"
-    elif content_type in ["audio/webm", "audio/ogg"]:
-        suffix = ".webm"
-    else:
-        suffix = ".wav"
-    
-    temp_path: Path | None = None
-    wav_path: Path | None = None
-    
-    try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            content = await audio.read()
-            temp_file.write(content)
-            temp_path = Path(temp_file.name)
+    # Use lock to prevent concurrent processing (prevents CPU overload when multiple users submit audio simultaneously)
+    async with processing_lock:
+        logger.info("🔒 Audio processing lock acquired - starting analysis...")
+        settings = get_settings()
         
-        logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes, content_type: {content_type}")
-        
-        if len(content) < 1024:
-            logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
-        
-        # Run analysis pipeline - returns result and path to converted WAV
-        result, wav_path = await run_analysis_pipeline(temp_path, script_content=script_content)
-        
-        # Override audio_duration with frontend recorded_duration if provided
-        if recorded_duration is not None and recorded_duration > 0:
-            logger.info(f"Using frontend recorded_duration ({recorded_duration}s) instead of librosa duration ({result.audio_duration:.1f}s)")
-            result = AnalysisResult(
-                session_id=result.session_id,
-                transcription=result.transcription,
-                audio_duration=float(recorded_duration),
-                audio_metrics=result.audio_metrics,
-                fluency_metrics=result.fluency_metrics,
-                pause_metrics=result.pause_metrics,
-                confidence_score=result.confidence_score,
-                analyzed_at=result.analyzed_at
-            )
-        
-        # Validate duration
-        if result.audio_duration > settings.max_audio_duration_seconds:
+        # Validate content type (strip codecs like "audio/webm;codecs=opus")
+        content_type = (audio.content_type or "").split(";")[0].strip()
+        if content_type not in settings.allowed_audio_types:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"Audio duration ({result.audio_duration:.1f}s) exceeds maximum allowed ({settings.max_audio_duration_seconds}s)"
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unsupported audio format: {audio.content_type}. Allowed: {settings.allowed_audio_types}"
             )
         
-        # Save to database if requested
-        if save_to_db:
-            try:
-                user_id = None
-                if authorization:
-                    try:
-                        user_id = verify_jwt_token(authorization)
-                        logger.info(f"Successfully verified JWT token, user_id: {user_id}")
-                    except Exception as e:
-                        logger.warning(f"JWT token verification failed: {e}")
-                        user_id = None
-                else:
-                    logger.warning("No authorization header provided")
-
-                await insert_analysis_result(result, user_id=user_id)
-                await insert_session_record(result, user_id=user_id, script_title=script_title)
-                logger.info(f"Analysis result saved to database: {result.session_id}")
-                
-                # Save recording to Supabase Storage for web playback
-                # This allows web clients to listen to their recordings
-                # Use the converted WAV file (not the original webm) for proper playback
-                upload_path = wav_path if wav_path and wav_path.exists() else temp_path
-                logger.info(f"Attempting to upload recording: user_id={user_id}, upload_path={upload_path}, exists={upload_path and upload_path.exists()}")
-                if upload_path and upload_path.exists():
-                    try:
-                        db = get_supabase()
-                        storage = db.storage
-                        
-                        # Use user_id if available, otherwise use session_id
-                        if user_id:
-                            file_path = f"{user_id}/{result.session_id}.wav"
-                        else:
-                            file_path = f"{result.session_id}.wav"
-                        
-                        with open(upload_path, 'rb') as f:
-                            file_data = f.read()
-                        
-                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes, from: {upload_path.name})")
-                        
-                        # Upload to storage
-                        response = storage.from_("recordings").upload(
-                            file_path,
-                            file_data,
-                            {"cacheControl": "3600", "upsert": "true"}
-                        )
-                        logger.info(f"Recording uploaded successfully: {file_path}")
-                    except Exception as e:
-                        # Don't fail the request if storage upload fails
-                        logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
-                else:
-                    logger.warning(f"Cannot upload recording: upload_path={upload_path}, exists={upload_path and upload_path.exists() if upload_path else False}")
-            except Exception as e:
-                logger.error(f"Failed to save to database: {e}")
-                # Don't fail the request, just log the error
+        # Determine file extension
+        if content_type in ["audio/mpeg", "audio/mp3"]:
+            suffix = ".mp3"
+        elif content_type in ["audio/webm", "audio/ogg"]:
+            suffix = ".webm"
+        else:
+            suffix = ".wav"
         
-        return result
+        temp_path: Path | None = None
+        wav_path: Path | None = None
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Analysis failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis failed: {str(e)}"
-        )
-    finally:
-        # Clean up temporary files
-        if temp_path and temp_path.exists():
-            try:
-                os.remove(temp_path)
-            except Exception as e:
-                logger.warning(f"Failed to clean up temp file: {e}")
-        
-        # Clean up WAV file if it was created (different from original)
-        if wav_path and wav_path != temp_path and wav_path.exists():
-            try:
-                os.remove(wav_path)
-            except Exception as e:
-                logger.warning(f"Failed to clean up WAV file: {e}")
+        try:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                content = await audio.read()
+                temp_file.write(content)
+                temp_path = Path(temp_file.name)
+            
+            logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes, content_type: {content_type}")
+            
+            if len(content) < 1024:
+                logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
+            
+            # Run analysis pipeline - returns result and path to converted WAV
+            result, wav_path = await run_analysis_pipeline(temp_path, script_content=script_content)
+            
+            # Override audio_duration with frontend recorded_duration if provided
+            if recorded_duration is not None and recorded_duration > 0:
+                logger.info(f"Using frontend recorded_duration ({recorded_duration}s) instead of librosa duration ({result.audio_duration:.1f}s)")
+                result = AnalysisResult(
+                    session_id=result.session_id,
+                    transcription=result.transcription,
+                    audio_duration=float(recorded_duration),
+                    audio_metrics=result.audio_metrics,
+                    fluency_metrics=result.fluency_metrics,
+                    pause_metrics=result.pause_metrics,
+                    confidence_score=result.confidence_score,
+                    analyzed_at=result.analyzed_at
+                )
+            
+            # Validate duration
+            if result.audio_duration > settings.max_audio_duration_seconds:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Audio duration ({result.audio_duration:.1f}s) exceeds maximum allowed ({settings.max_audio_duration_seconds}s)"
+                )
+            
+            # Save to database if requested
+            if save_to_db:
+                try:
+                    user_id = None
+                    if authorization:
+                        try:
+                            user_id = verify_jwt_token(authorization)
+                            logger.info(f"Successfully verified JWT token, user_id: {user_id}")
+                        except Exception as e:
+                            logger.warning(f"JWT token verification failed: {e}")
+                            user_id = None
+                    else:
+                        logger.warning("No authorization header provided")
+
+                    await insert_analysis_result(result, user_id=user_id)
+                    await insert_session_record(result, user_id=user_id, script_title=script_title)
+                    logger.info(f"Analysis result saved to database: {result.session_id}")
+                    
+                    # Save recording to Supabase Storage for web playback
+                    # This allows web clients to listen to their recordings
+                    # Use the converted WAV file (not the original webm) for proper playback
+                    upload_path = wav_path if wav_path and wav_path.exists() else temp_path
+                    logger.info(f"Attempting to upload recording: user_id={user_id}, upload_path={upload_path}, exists={upload_path and upload_path.exists()}")
+                    if upload_path and upload_path.exists():
+                        try:
+                            db = get_supabase()
+                            storage = db.storage
+                            
+                            # Use user_id if available, otherwise use session_id
+                            if user_id:
+                                file_path = f"{user_id}/{result.session_id}.wav"
+                            else:
+                                file_path = f"{result.session_id}.wav"
+                            
+                            with open(upload_path, 'rb') as f:
+                                file_data = f.read()
+                            
+                            logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes, from: {upload_path.name})")
+                            
+                            # Upload to storage
+                            response = storage.from_("recordings").upload(
+                                file_path,
+                                file_data,
+                                {"cacheControl": "3600", "upsert": "true"}
+                            )
+                            logger.info(f"Recording uploaded successfully: {file_path}")
+                        except Exception as e:
+                            # Don't fail the request if storage upload fails
+                            logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
+                    else:
+                        logger.warning(f"Cannot upload recording: upload_path={upload_path}, exists={upload_path and upload_path.exists() if upload_path else False}")
+                except Exception as e:
+                    logger.error(f"Failed to save to database: {e}")
+                    # Don't fail the request, just log the error
+            
+            logger.info("🔓 Audio processing lock released")
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Analysis failed: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Analysis failed: {str(e)}"
+            )
+        finally:
+            # Clean up temporary files
+            if temp_path and temp_path.exists():
+                try:
+                    os.remove(temp_path)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temp file: {e}")
+            
+            # Clean up WAV file if it was created (different from original)
+            if wav_path and wav_path != temp_path and wav_path.exists():
+                try:
+                    os.remove(wav_path)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up WAV file: {e}")
 
 
-@app.get(
-    "/sessions",
-    response_model=list,
-    tags=["Sessions"],
-    responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"}
-    }
-)
-async def list_sessions(
-    authorization: Annotated[str, Header()] = "",
-    limit: Annotated[int, Query(description="Max number of sessions")] = 20
-):
-    """
-    Return recent session summaries for the authenticated user.
-    """
-    user_id = verify_jwt_token(authorization)
-
-    try:
-        sessions = await get_sessions(user_id=user_id, limit=limit)
-        return sessions
-    except Exception as e:
-        logger.error(f"Failed to retrieve sessions: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve sessions: {str(e)}"
-        )
-
-
-@app.get(
-    "/sessions/count",
-    response_model=dict,
-    tags=["Sessions"],
-    responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"}
-    }
-)
-async def get_sessions_count(
-    authorization: Annotated[str, Header()] = "",
-):
-    """
-    Return total session count for the authenticated user.
-    """
-    user_id = verify_jwt_token(authorization)
-
-    try:
-        count = await get_total_sessions_count(user_id=user_id)
-        return {"total": count}
-    except Exception as e:
-        logger.error(f"Failed to retrieve sessions count: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve sessions count: {str(e)}"
-        )
-
+# ============================================================================
+# ANALYSIS RETRIEVAL ENDPOINT
+# ============================================================================
 
 @app.get(
     "/analysis/{session_id}",
@@ -614,51 +406,9 @@ async def get_analysis(session_id: UUID):
         )
 
 
-@app.get(
-    "/debug/db-stats",
-    response_model=dict,
-    tags=["Debug"],
-)
-async def debug_db_stats():
-    """
-    Return basic DB stats for features and sessions.
-    """
-    try:
-        return await get_db_debug_info()
-    except Exception as e:
-        logger.error(f"Failed to retrieve debug stats: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve debug stats: {str(e)}",
-        )
-
-
-@app.post(
-    "/debug/insert-test",
-    response_model=dict,
-    tags=["Debug"],
-)
-async def debug_insert_test():
-    """
-    Try inserting a minimal feature row to validate DB writes.
-    """
-    client = get_supabase()
-    test_id = str(uuid4())
-    record = {
-        "session_id": test_id,
-        "confidence_score": 50,
-        "audio_duration": 10,
-    }
-    try:
-        response = client.table("features").insert(record).execute()
-        return {
-            "ok": True,
-            "record": record,
-            "data": response.data,
-            "error": str(getattr(response, "error", None)),
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e), "record": record}
+# ============================================================================
+# EXCEPTION HANDLER
+# ============================================================================
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
@@ -673,6 +423,10 @@ async def global_exception_handler(request, exc):
         }
     )
 
+
+# ============================================================================
+# JWT VERIFICATION (for analyze-audio endpoint)
+# ============================================================================
 
 def verify_jwt_token(authorization: str) -> str:
     """
@@ -717,92 +471,9 @@ def verify_jwt_token(authorization: str) -> str:
         )
 
 
-@app.get(
-    "/profile",
-    response_model=dict,
-    tags=["User Profile"],
-    responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
-        404: {"model": ErrorResponse, "description": "Profile not found"}
-    }
-)
-async def get_profile(
-    authorization: Annotated[str, Header()] = ""
-):
-    """
-    Get the current user's profile.
-    
-    Requires authentication via Bearer token in Authorization header.
-    """
-    user_id = verify_jwt_token(authorization)
-    
-    try:
-        profile = await get_user_profile(user_id)
-        
-        if profile is None:
-            # Profile doesn't exist yet, return empty profile
-            return {
-                "id": user_id,
-                "nickname": None,
-                "full_name": None,
-                "is_active": True,
-                "has_profile": False
-            }
-        
-        return {
-            **profile,
-            "has_profile": True
-        }
-    except Exception as e:
-        logger.error(f"Failed to retrieve profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve profile: {str(e)}"
-        )
-
-
-@app.put(
-    "/profile",
-    response_model=dict,
-    tags=["User Profile"],
-    responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
-        400: {"model": ErrorResponse, "description": "Invalid profile data"}
-    }
-)
-async def update_profile(
-    profile_data: UpdateUserProfile,
-    authorization: Annotated[str, Header()] = ""
-):
-    """
-    Create or update the current user's profile.
-    
-    Requires authentication via Bearer token in Authorization header.
-    """
-    user_id = verify_jwt_token(authorization)
-    
-    try:
-        # Check if profile exists
-        existing_profile = await get_user_profile(user_id)
-        
-        if existing_profile is None:
-            # Create new profile
-            profile = await create_user_profile(user_id, profile_data)
-        else:
-            # Update existing profile
-            profile = await update_user_profile(user_id, profile_data)
-        
-        return {
-            **profile,
-            "has_profile": True
-        }
-    except Exception as e:
-        logger.error(f"Failed to update profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update profile: {str(e)}"
-        )
-
+# ============================================================================
+# RECORDING STREAMING ENDPOINT (needed for web audio playback)
+# ============================================================================
 
 @app.get(
     "/sessions/{session_id}/recording",
@@ -950,77 +621,9 @@ async def get_session_recording(
         )
 
 
-@app.delete(
-    "/user/clear-data",
-    tags=["User"],
-    responses={
-        200: {"description": "User data cleared successfully"},
-        401: {"model": ErrorResponse, "description": "Unauthorized"}
-    }
-)
-async def clear_user_data(
-    authorization: Annotated[str, Header()] = ""
-):
-    """
-    Clear all recordings for the authenticated user.
-    
-    This will:
-    - Delete all recordings from storage
-    
-    NOTE: Session records in the database are preserved to maintain
-    the user's streak and progress history. Only the audio files
-    are removed to free up storage space.
-    """
-    user_id = verify_jwt_token(authorization)
-    
-    db = get_supabase()
-    storage = db.storage
-    
-    deleted_files = 0
-    errors = []
-    
-    try:
-        # Delete recordings from storage only
-        # Session records are preserved for streak calculation
-        try:
-            # List files in user's folder
-            files = storage.from_("recordings").list(user_id)
-            logger.info(f"Found {len(files)} files in user folder: {user_id}")
-            
-            for file_info in files:
-                file_name = file_info.get("name")
-                if file_name:
-                    try:
-                        file_path = f"{user_id}/{file_name}"
-                        storage.from_("recordings").remove([file_path])
-                        deleted_files += 1
-                        logger.info(f"Deleted recording: {file_path}")
-                    except Exception as e:
-                        errors.append(f"Failed to delete {file_name}: {str(e)}")
-                        logger.warning(f"Failed to delete recording {file_name}: {e}")
-        except Exception as e:
-            errors.append(f"Failed to list recordings: {str(e)}")
-            logger.warning(f"Failed to list recordings for user {user_id}: {e}")
-        
-        # Session records are NOT deleted - they are needed for:
-        # - Streak calculation (based on session dates)
-        # - Progress tracking and analytics
-        # - Historical performance data
-        
-        return {
-            "success": True,
-            "deleted_files": deleted_files,
-            "message": "Recordings cleared. Your streak and session history are preserved.",
-            "errors": errors if errors else None
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to clear user data: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear user data: {str(e)}"
-        )
-
+# ============================================================================
+# MAIN ENTRY POINT
+# ============================================================================
 
 if __name__ == "__main__":
     import uvicorn

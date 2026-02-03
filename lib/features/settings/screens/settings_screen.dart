@@ -47,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _deactivatePasswordController.dispose();
     _confirmDeactivateController.dispose();
     _audioService.dispose();
-    _userProfileService.dispose();
     super.dispose();
   }
 
