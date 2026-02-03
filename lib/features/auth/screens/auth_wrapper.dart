@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
@@ -8,10 +7,6 @@ import '../../splash/screens/splash_screen1.dart';
 import '../../dashboard/screens/main_dashboard.dart';
 import 'login_screen.dart';
 import 'nickname_setup_screen.dart';
-
-// For URL cleanup on web
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 /// Wrapper that handles authentication state and routing
 class AuthWrapper extends StatefulWidget {
@@ -31,33 +26,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _cleanupOAuthUrl();
     _checkAuthStatus();
     _listenToAuthChanges();
-  }
-
-  /// Clean up OAuth parameters from URL after successful login
-  void _cleanupOAuthUrl() {
-    if (!kIsWeb) return;
-    
-    try {
-      final location = html.window.location;
-      final href = location.href;
-      
-      // Check if URL contains OAuth tokens
-      if (href.contains('access_token=') || 
-          href.contains('provider_token=') ||
-          href.contains('refresh_token=') ||
-          href.contains('expires_at=')) {
-        print('AuthWrapper: Cleaning OAuth tokens from URL');
-        // Replace URL to remove all fragments (tokens)
-        // Keep the path but remove the fragment containing tokens
-        final baseUrl = href.split('#')[0];
-        html.window.history.replaceState(null, '', baseUrl);
-      }
-    } catch (e) {
-      print('AuthWrapper: Error cleaning OAuth URL: $e');
-    }
   }
 
   /// Listen to authentication state changes

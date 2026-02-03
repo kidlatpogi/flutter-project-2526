@@ -399,6 +399,7 @@ async def analyze_audio(
         suffix = ".wav"
     
     temp_path: Path | None = None
+    wav_path: Path | None = None
     
     try:
         # Save uploaded file temporarily
@@ -412,8 +413,8 @@ async def analyze_audio(
         if len(content) < 1024:
             logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
         
-        # Run analysis pipeline
-        result = await run_analysis_pipeline(temp_path)
+        # Run analysis pipeline - returns result and path to converted WAV
+        result, wav_path = await run_analysis_pipeline(temp_path)
         
         # Override audio_duration with frontend recorded_duration if provided
         if recorded_duration is not None and recorded_duration > 0:
@@ -456,8 +457,10 @@ async def analyze_audio(
                 
                 # Save recording to Supabase Storage for web playback
                 # This allows web clients to listen to their recordings
-                logger.info(f"Attempting to upload recording: user_id={user_id}, temp_path_exists={temp_path and temp_path.exists()}")
-                if temp_path and temp_path.exists():
+                # Use the converted WAV file (not the original webm) for proper playback
+                upload_path = wav_path if wav_path and wav_path.exists() else temp_path
+                logger.info(f"Attempting to upload recording: user_id={user_id}, upload_path={upload_path}, exists={upload_path and upload_path.exists()}")
+                if upload_path and upload_path.exists():
                     try:
                         db = get_supabase()
                         storage = db.storage
@@ -468,10 +471,10 @@ async def analyze_audio(
                         else:
                             file_path = f"{result.session_id}.wav"
                         
-                        with open(temp_path, 'rb') as f:
+                        with open(upload_path, 'rb') as f:
                             file_data = f.read()
                         
-                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes)")
+                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes, from: {upload_path.name})")
                         
                         # Upload to storage
                         response = storage.from_("recordings").upload(
@@ -484,7 +487,7 @@ async def analyze_audio(
                         # Don't fail the request if storage upload fails
                         logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
                 else:
-                    logger.warning(f"Cannot upload recording: temp_path_exists={temp_path and temp_path.exists()}")
+                    logger.warning(f"Cannot upload recording: upload_path={upload_path}, exists={upload_path and upload_path.exists() if upload_path else False}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
@@ -500,12 +503,19 @@ async def analyze_audio(
             detail=f"Analysis failed: {str(e)}"
         )
     finally:
-        # Clean up temporary file
+        # Clean up temporary files
         if temp_path and temp_path.exists():
             try:
                 os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file: {e}")
+        
+        # Clean up WAV file if it was created (different from original)
+        if wav_path and wav_path != temp_path and wav_path.exists():
+            try:
+                os.remove(wav_path)
+            except Exception as e:
+                logger.warning(f"Failed to clean up WAV file: {e}")
 
 
 @app.get(

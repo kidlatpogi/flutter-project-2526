@@ -53,6 +53,7 @@ class AnalysisPipeline:
     def _get_audio_duration(self, audio_path: Path) -> float:
         """Get audio duration using librosa."""
         duration = librosa.get_duration(path=str(audio_path))
+        logger.info(f"Audio file: {audio_path.name}, duration detected: {duration:.2f} seconds")
         return float(duration)
     
     def _convert_to_wav(self, audio_path: Path) -> Path:
@@ -61,6 +62,10 @@ class AnalysisPipeline:
         
         Some analysis tools work better with WAV files.
         """
+        # Log original file info
+        original_size = audio_path.stat().st_size if audio_path.exists() else 0
+        logger.info(f"Input file: {audio_path.name}, size: {original_size} bytes, suffix: {audio_path.suffix}")
+        
         if audio_path.suffix.lower() == '.wav':
             return audio_path
 
@@ -118,10 +123,19 @@ class AnalysisPipeline:
             if y is None or len(y) == 0:
                 raise RuntimeError("No audio data loaded from file")
             
+            # Calculate and log the actual audio duration
+            actual_duration = len(y) / sr
+            logger.info(f"Librosa loaded audio: {len(y)} samples at {sr}Hz = {actual_duration:.2f} seconds")
+            
             wav_path = audio_path.with_suffix('.wav')
             import soundfile as sf
             sf.write(str(wav_path), y, sr)
-            logger.info(f"Successfully converted to WAV using librosa: {wav_path}, samples: {len(y)}")
+            
+            # Log output file size
+            output_size = wav_path.stat().st_size if wav_path.exists() else 0
+            logger.info(f"WAV output file: {wav_path.name}, size: {output_size} bytes, expected duration: {actual_duration:.2f}s")
+            
+            return wav_path
             
             return wav_path
         except Exception as e:
@@ -217,21 +231,26 @@ class AnalysisPipeline:
             )
             
             logger.info(f"Analysis complete for session {self.session_id}")
+            
+            # Store the wav_path so it can be accessed for upload
+            self.wav_path = wav_path
+            
             return result
             
-        finally:
-            # Clean up converted WAV if different from original
+        except Exception:
+            # Clean up converted WAV if different from original on error
             if wav_path != audio_path and wav_path.exists():
                 try:
                     os.remove(wav_path)
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp WAV: {e}")
+            raise
 
 
 async def run_analysis_pipeline(
     audio_path: Path,
     session_id: UUID | None = None
-) -> AnalysisResult:
+) -> tuple[AnalysisResult, Path | None]:
     """
     Convenience function to run the analysis pipeline.
     
@@ -240,7 +259,10 @@ async def run_analysis_pipeline(
         session_id: Optional session ID.
         
     Returns:
-        Complete analysis result.
+        Tuple of (analysis result, path to WAV file for playback).
+        The WAV path may be different from audio_path if conversion was needed.
+        Caller is responsible for cleaning up the WAV file.
     """
     pipeline = AnalysisPipeline(session_id)
-    return await pipeline.analyze(audio_path)
+    result = await pipeline.analyze(audio_path)
+    return result, getattr(pipeline, 'wav_path', None)
