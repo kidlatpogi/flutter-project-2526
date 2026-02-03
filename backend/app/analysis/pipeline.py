@@ -302,12 +302,13 @@ class AnalysisPipeline:
             
             # Step 5: Confidence Scoring
             logger.info("Step 5: Calculating confidence score...")
-            self.confidence_score = calculate_confidence_score(
+            self.confidence_score, mispronunciations = calculate_confidence_score(
                 self.audio_metrics,
                 self.fluency_metrics,
                 self.pause_metrics,
                 transcript=self.transcription.text,
-                expected_script=self.expected_script
+                expected_script=self.expected_script,
+                word_timestamps=self.transcription.word_timestamps
             )
             
             # Build result
@@ -319,6 +320,7 @@ class AnalysisPipeline:
                 fluency_metrics=self.fluency_metrics,
                 pause_metrics=self.pause_metrics,
                 confidence_score=self.confidence_score,
+                mispronunciations=mispronunciations,
                 analyzed_at=datetime.utcnow()
             )
             

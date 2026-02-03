@@ -5,9 +5,10 @@ Generates speaking confidence scores based on analyzed metrics.
 
 import logging
 import difflib
+import re
 from typing import NamedTuple
 
-from app.models import AudioMetrics, FluencyMetrics, PauseMetrics, ConfidenceScore
+from app.models import AudioMetrics, FluencyMetrics, PauseMetrics, ConfidenceScore, Mispronunciation
 
 logger = logging.getLogger(__name__)
 
@@ -255,48 +256,137 @@ def calculate_pace_score(
     return (wpm_score * 0.6) + (pause_score * 0.4)
 
 
-def calculate_accuracy_score(transcript: str, expected_script: str) -> float:
+def normalize_word(word: str) -> str:
     """
-    Calculate script accuracy score by comparing transcript with expected script.
+    Normalize a word for comparison: lowercase and remove punctuation.
     
-    Uses sequence matching to determine similarity between what was said
-    and what was expected to be said.
+    Args:
+        word: Word to normalize.
+        
+    Returns:
+        Normalized word.
+    """
+    # Convert to lowercase
+    word = word.lower()
+    # Remove punctuation except apostrophes (for contractions like "don't")
+    word = re.sub(r"[^\w']", '', word)
+    return word
+
+
+def calculate_word_accuracy(
+    transcript_words: list[str],
+    script_words: list[str],
+    word_timestamps: list[dict] | None = None
+) -> tuple[float, list[Mispronunciation]]:
+    """
+    Calculate word-by-word accuracy and detect mispronunciations.
+    
+    Uses word-level alignment to find mismatches between transcript and script.
+    
+    Args:
+        transcript_words: Words from the transcription.
+        script_words: Words from the expected script.
+        word_timestamps: Optional word-level timestamps from Whisper.
+        
+    Returns:
+        Tuple of (accuracy_score, list of mispronunciations).
+    """
+    mispronunciations = []
+    
+    if not script_words or not transcript_words:
+        logger.warning("Empty script or transcript words for accuracy calculation")
+        return 50.0, mispronunciations
+    
+    # Use SequenceMatcher to align words
+    matcher = difflib.SequenceMatcher(None, script_words, transcript_words)
+    
+    total_script_words = len(script_words)
+    correct_words = 0
+    script_index = 0
+    transcript_index = 0
+    
+    # Process matching blocks
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            # Words match
+            correct_words += (i2 - i1)
+            script_index = i2
+            transcript_index = j2
+            
+        elif tag == 'replace':
+            # Words were replaced (mispronunciation or substitution)
+            for k in range(max(i2 - i1, j2 - j1)):
+                script_idx = i1 + k if i1 + k < i2 else i2 - 1
+                trans_idx = j1 + k if j1 + k < j2 else j2 - 1
+                
+                expected = script_words[script_idx] if script_idx < len(script_words) else ""
+                spoken = transcript_words[trans_idx] if trans_idx < len(transcript_words) else ""
+                
+                if expected and spoken and expected != spoken:
+                    # Get timestamp from word_timestamps if available
+                    timestamp = 0.0
+                    if word_timestamps and trans_idx < len(word_timestamps):
+                        timestamp = word_timestamps[trans_idx].get('start', 0.0)
+                    
+                    mispronunciations.append(Mispronunciation(
+                        timestamp=round(timestamp, 2),
+                        expected_word=expected,
+                        spoken_word=spoken
+                    ))
+            
+            script_index = i2
+            transcript_index = j2
+            
+        elif tag == 'delete':
+            # Words were omitted
+            for k in range(i1, i2):
+                if k < len(script_words):
+                    # Get approximate timestamp based on position
+                    timestamp = 0.0
+                    if word_timestamps and transcript_index < len(word_timestamps):
+                        timestamp = word_timestamps[transcript_index].get('start', 0.0)
+                    
+                    mispronunciations.append(Mispronunciation(
+                        timestamp=round(timestamp, 2),
+                        expected_word=script_words[k],
+                        spoken_word="[omitted]"
+                    ))
+            script_index = i2
+            
+        elif tag == 'insert':
+            # Extra words were added (not in script)
+            # We don't penalize additions as heavily
+            transcript_index = j2
+    
+    # Calculate accuracy as percentage of correct words
+    accuracy_score = (correct_words / total_script_words) * 100.0 if total_script_words > 0 else 0.0
+    
+    logger.info(f"Word-by-word accuracy: {accuracy_score:.2f}% ({correct_words}/{total_script_words} correct words, {len(mispronunciations)} mispronunciations)")
+    
+    return round(accuracy_score, 2), mispronunciations
+
+
+def calculate_accuracy_score(
+    transcript: str,
+    expected_script: str,
+    word_timestamps: list[dict] | None = None
+) -> tuple[float, list[Mispronunciation]]:
+    """
+    Calculate script accuracy score with word-by-word comparison.
     
     Args:
         transcript: The actual transcribed text.
         expected_script: The expected script text.
+        word_timestamps: Optional word-level timestamps from Whisper.
         
     Returns:
-        Accuracy score (0-100).
+        Tuple of (accuracy_score, list of mispronunciations).
     """
-    # Normalize both texts: lowercase, remove extra whitespace, remove punctuation
-    def normalize_text(text: str) -> str:
-        import re
-        # Convert to lowercase
-        text = text.lower()
-        # Remove punctuation except apostrophes
-        text = re.sub(r"[^\w\s']", '', text)
-        # Collapse multiple spaces
-        text = ' '.join(text.split())
-        return text
+    # Split into words and normalize
+    transcript_words = [normalize_word(w) for w in transcript.split() if normalize_word(w)]
+    script_words = [normalize_word(w) for w in expected_script.split() if normalize_word(w)]
     
-    transcript_normalized = normalize_text(transcript)
-    script_normalized = normalize_text(expected_script)
-    
-    if not script_normalized or not transcript_normalized:
-        logger.warning("Empty script or transcript for accuracy calculation")
-        return 50.0  # Neutral score
-    
-    # Use SequenceMatcher for similarity ratio
-    matcher = difflib.SequenceMatcher(None, script_normalized, transcript_normalized)
-    similarity_ratio = matcher.ratio()
-    
-    # Convert to 0-100 scale
-    accuracy_score = similarity_ratio * 100.0
-    
-    logger.info(f"Script accuracy: {accuracy_score:.2f}% (transcript length: {len(transcript_normalized)}, script length: {len(script_normalized)})")
-    
-    return round(accuracy_score, 2)
+    return calculate_word_accuracy(transcript_words, script_words, word_timestamps)
 
 
 def calculate_confidence_score(
@@ -305,8 +395,9 @@ def calculate_confidence_score(
     pause_metrics: PauseMetrics,
     weights: ScoringWeights | None = None,
     transcript: str | None = None,
-    expected_script: str | None = None
-) -> ConfidenceScore:
+    expected_script: str | None = None,
+    word_timestamps: list[dict] | None = None
+) -> tuple[ConfidenceScore, list[Mispronunciation]]:
     """
     Calculate overall speaking confidence score.
     
@@ -317,9 +408,10 @@ def calculate_confidence_score(
         weights: Optional custom weights for score components.
         transcript: The transcribed text (for script comparison).
         expected_script: The expected script text (for scripted speeches).
+        word_timestamps: Optional word-level timestamps from Whisper.
         
     Returns:
-        ConfidenceScore with overall and component scores.
+        Tuple of (ConfidenceScore, list of mispronunciations).
     """
     if weights is None:
         weights = ScoringWeights()
@@ -334,9 +426,12 @@ def calculate_confidence_score(
     
     # Calculate accuracy score if script is provided
     accuracy_score = None
+    mispronunciations = []
     if transcript and expected_script:
-        accuracy_score = calculate_accuracy_score(transcript, expected_script)
-        logger.info(f"Script accuracy score: {accuracy_score}")
+        accuracy_score, mispronunciations = calculate_accuracy_score(
+            transcript, expected_script, word_timestamps
+        )
+        logger.info(f"Script accuracy score: {accuracy_score}, mispronunciations: {len(mispronunciations)}")
     
     # Calculate weighted overall score
     # If script accuracy is available, include it with 20% weight and adjust others
@@ -370,4 +465,4 @@ def calculate_confidence_score(
     
     logger.info(f"Confidence score calculated: {confidence.overall_score}")
     
-    return confidence
+    return confidence, mispronunciations

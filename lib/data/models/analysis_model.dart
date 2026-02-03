@@ -103,6 +103,33 @@ class PauseMetrics {
       };
 }
 
+/// Mispronunciation detected during analysis
+class Mispronunciation {
+  final double timestamp;
+  final String expectedWord;
+  final String spokenWord;
+
+  Mispronunciation({
+    required this.timestamp,
+    required this.expectedWord,
+    required this.spokenWord,
+  });
+
+  factory Mispronunciation.fromJson(Map<String, dynamic> json) {
+    return Mispronunciation(
+      timestamp: (json['timestamp'] ?? 0).toDouble(),
+      expectedWord: json['expected_word'] ?? '',
+      spokenWord: json['spoken_word'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'timestamp': timestamp,
+        'expected_word': expectedWord,
+        'spoken_word': spokenWord,
+      };
+}
+
 /// Confidence score breakdown
 class ConfidenceScore {
   final double overallScore;
@@ -147,6 +174,7 @@ class AnalysisModel {
   final FluencyMetrics fluencyMetrics;
   final PauseMetrics pauseMetrics;
   final ConfidenceScore confidenceScore;
+  final List<Mispronunciation> mispronunciations;
   final DateTime analyzedAt;
 
   AnalysisModel({
@@ -157,6 +185,7 @@ class AnalysisModel {
     required this.fluencyMetrics,
     required this.pauseMetrics,
     required this.confidenceScore,
+    required this.mispronunciations,
     required this.analyzedAt,
   });
 
@@ -181,6 +210,10 @@ class AnalysisModel {
       fluencyMetrics: FluencyMetrics.fromJson(json['fluency_metrics'] ?? {}),
       pauseMetrics: PauseMetrics.fromJson(json['pause_metrics'] ?? {}),
       confidenceScore: ConfidenceScore.fromJson(json['confidence_score'] ?? {}),
+      mispronunciations: (json['mispronunciations'] as List<dynamic>?)
+              ?.map((item) => Mispronunciation.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          [],
       analyzedAt: json['analyzed_at'] != null
           ? DateTime.parse(json['analyzed_at'])
           : DateTime.now(),
@@ -195,6 +228,7 @@ class AnalysisModel {
         'fluency_metrics': fluencyMetrics.toJson(),
         'pause_metrics': pauseMetrics.toJson(),
         'confidence_score': confidenceScore.toJson(),
+        'mispronunciations': mispronunciations.map((m) => m.toJson()).toList(),
         'analyzed_at': analyzedAt.toIso8601String(),
       };
 
