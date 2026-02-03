@@ -14,8 +14,6 @@ praat-parselmouth>=0.4.3
 pydub>=0.25.1
 audioread>=3.0.0
 
-# Speech-to-Text - CPU only version (much smaller)
-openai-whisper
 
 # Utilities
 python-dotenv>=1.0.0
@@ -23,7 +21,10 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 pyjwt>=2.8.0
 
-# Lightweight PyTorch - CPU only (no CUDA, ~400MB instead of 2GB)
---index-url https://download.pytorch.org/whl/cpu
-torch
-torchaudio
+# Speech-to-Text
+openai-whisper
+
+# Lightweight PyTorch - CPU only (avoid CUDA packages)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+torchaudio==2.2.2+cpu
