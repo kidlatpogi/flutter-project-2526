@@ -116,7 +116,8 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     }
     
     // Update current word index based on audio amplitude (simple approach)
-    if (_isRecording && !_isPaused && _settings.enableHighlighting && _words.isNotEmpty) {
+    // Only update every 500ms to reduce render load
+    if (_isRecording && !_isPaused && _settings.enableHighlighting && _words.isNotEmpty && now - _lastAmplitudeCheck >= 500) {
       // Estimate reading progress based on time and WPM
       final wordsRead = (_elapsedSeconds / 60.0) * _settings.scrollSpeedWPM;
       final newIndex = wordsRead.floor().clamp(0, _words.length - 1);
@@ -766,29 +767,32 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
   /// Build highlighted text with current word emphasis
   Widget _buildHighlightedText() {
-    return RichText(
-      text: TextSpan(
-        style: GoogleFonts.inter(
-          fontSize: _settings.fontSize,
-          height: 1.8,
-          color: AppColors.primary,
+    // Use RepaintBoundary to reduce unnecessary repaints
+    return RepaintBoundary(
+      child: RichText(
+        text: TextSpan(
+          style: GoogleFonts.inter(
+            fontSize: _settings.fontSize,
+            height: 1.8,
+            color: AppColors.primary,
+          ),
+          children: _words.asMap().entries.map((entry) {
+            final index = entry.key;
+            final word = entry.value;
+            final isCurrentWord = _settings.enableHighlighting && index == _currentWordIndex;
+            
+            return TextSpan(
+              text: '$word ',
+              style: isCurrentWord
+                  ? TextStyle(
+                      backgroundColor: AppColors.primary.withOpacity(0.2),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    )
+                  : null,
+            );
+          }).toList(),
         ),
-        children: _words.asMap().entries.map((entry) {
-          final index = entry.key;
-          final word = entry.value;
-          final isCurrentWord = _settings.enableHighlighting && index == _currentWordIndex;
-          
-          return TextSpan(
-            text: '$word ',
-            style: isCurrentWord
-                ? TextStyle(
-                    backgroundColor: AppColors.primary.withOpacity(0.2),
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  )
-                : null,
-          );
-        }).toList(),
       ),
     );
   }

@@ -186,9 +186,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final fullName = _fullNameController.text.trim();
+      
+      // Update backend profile
       await _userProfileService.updateUserProfile(
-        fullName: _fullNameController.text.trim(),
+        fullName: fullName,
       );
+      
+      // Update Supabase auth user metadata for display_name
+      final supabase = Supabase.instance.client;
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {'display_name': fullName},
+        ),
+      );
+      
+      // Update local state
+      _originalFullName = fullName;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

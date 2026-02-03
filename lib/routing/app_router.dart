@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../core/utils/page_transitions.dart';
 import '../features/splash/screens/splash_screen1.dart';
 import '../features/splash/screens/splash_screen2.dart';
 import '../features/splash/screens/splash_screen3.dart';
@@ -32,74 +31,72 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case RouteNames.authWrapper:
-        return FadeSlidePageRoute(page: const AuthWrapper());
+        return MaterialPageRoute(builder: (_) => const AuthWrapper());
       case RouteNames.splash1:
-        return FadeSlidePageRoute(page: const SplashScreen1());
+        return MaterialPageRoute(builder: (_) => const SplashScreen1());
       case RouteNames.splash2:
-        return FadeSlidePageRoute(page: const SplashScreen2());
+        return MaterialPageRoute(builder: (_) => const SplashScreen2());
       case RouteNames.splash3:
-        return FadeSlidePageRoute(page: const SplashScreen3());
+        return MaterialPageRoute(builder: (_) => const SplashScreen3());
       case RouteNames.login:
-        return FadeSlidePageRoute(page: const LoginScreen());
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
       case RouteNames.createAccount:
-        return FadeSlidePageRoute(page: const CreateAccountScreen());
+        return MaterialPageRoute(builder: (_) => const CreateAccountScreen());
       case RouteNames.nicknameSetup:
-        return FadeSlidePageRoute(page: const NicknameSetupScreen());
+        return MaterialPageRoute(builder: (_) => const NicknameSetupScreen());
       case RouteNames.forgotPassword:
-        return FadeSlidePageRoute(page: const ForgotPasswordScreen());
+        return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
         final email = settings.arguments as String?;
-        return FadeSlidePageRoute(
-          page: VerifyEmailScreen(email: email),
+        return MaterialPageRoute(
+          builder: (_) => VerifyEmailScreen(email: email),
         );
       case RouteNames.resetPassword:
-        return FadeSlidePageRoute(page: const ResetPasswordScreen());
+        return MaterialPageRoute(builder: (_) => const ResetPasswordScreen());
       case RouteNames.dashboard:
-        return FadeSlidePageRoute(page: const MainDashboard());
+        return MaterialPageRoute(builder: (_) => const MainDashboard());
       case RouteNames.sessions:
-        return FadeSlidePageRoute(page: const SessionsScreen());
+        return MaterialPageRoute(builder: (_) => const SessionsScreen());
       case RouteNames.script:
-        return FadeSlidePageRoute(page: const ScriptScreen());
+        return MaterialPageRoute(builder: (_) => const ScriptScreen());
       case RouteNames.createScript:
-        return SlidePageRoute(
-          page: const CreateScriptScreen(),
-          begin: const Offset(0.0, 1.0), // Slide from bottom
+        return MaterialPageRoute(
+          builder: (_) => const CreateScriptScreen(),
         );
       case RouteNames.editScript:
         final script = settings.arguments as Map<String, dynamic>;
-        return SlidePageRoute(
-          page: EditScriptScreen(script: script),
-          begin: const Offset(0.0, 1.0), // Slide from bottom
+        return MaterialPageRoute(
+          builder: (_) => EditScriptScreen(script: script),
         );
       case RouteNames.progress:
-        return FadeSlidePageRoute(
-          page: const ProgressAnalyticsScreen(),
+        return MaterialPageRoute(
+          builder: (_) => const ProgressAnalyticsScreen(),
         );
       case RouteNames.detailedFeedback:
         final args = settings.arguments;
         if (args is AnalysisModel) {
-          return FadeSlidePageRoute(
-            page: DetailedFeedbackScreen(analysisResult: args),
+          return MaterialPageRoute(
+            builder: (_) => DetailedFeedbackScreen(analysisResult: args),
           );
         }
         if (args is Map<String, dynamic>) {
-          return FadeSlidePageRoute(
-            page: DetailedFeedbackScreen(sessionId: args['sessionId'] as String?),
+          return MaterialPageRoute(
+            builder: (_) => DetailedFeedbackScreen(sessionId: args['sessionId'] as String?),
           );
         }
-        return FadeSlidePageRoute(
-          page: const DetailedFeedbackScreen(),
+        return MaterialPageRoute(
+          builder: (_) => const DetailedFeedbackScreen(),
         );
       case RouteNames.profile:
-        return FadeSlidePageRoute(page: const ProfileScreen());
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case RouteNames.settings:
-        return FadeSlidePageRoute(page: const SettingsScreen());
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case RouteNames.practiceSetup:
-        return FadeSlidePageRoute(page: const PracticeSetupScreen());
+        return MaterialPageRoute(builder: (_) => const PracticeSetupScreen());
       case RouteNames.recording:
         final args = settings.arguments as Map<String, dynamic>?;
-        return FadeSlidePageRoute(
-          page: RecordingSessionScreen(
+        return MaterialPageRoute(
+          builder: (_) => RecordingSessionScreen(
             isScripted: args?['isScripted'] as bool? ?? true,
             scriptTitle: args?['scriptTitle'] as String?,
             scriptContent: args?['scriptContent'] as String?,
@@ -108,32 +105,29 @@ class AppRouter {
       case RouteNames.analysis:
         final args = settings.arguments;
         if (args is AnalysisModel) {
-          return FadeSlidePageRoute(
-            page: AnalysisResultScreen(analysisResult: args),
+          return MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(analysisResult: args),
           );
         }
         if (args is Map<String, dynamic>) {
-          return FadeSlidePageRoute(
-            page: AnalysisResultScreen(sessionId: args['sessionId'] as String?),
+          return MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(sessionId: args['sessionId'] as String?),
           );
         }
-        return FadeSlidePageRoute(
-          page: const AnalysisResultScreen(),
+        return MaterialPageRoute(
+          builder: (_) => const AnalysisResultScreen(),
         );
       case RouteNames.changePassword:
-        return SlidePageRoute(
-          page: const ChangePasswordScreen(),
-          begin: const Offset(0.0, 1.0), // Slide from bottom
+        return MaterialPageRoute(
+          builder: (_) => const ChangePasswordScreen(),
         );
       case RouteNames.editNickname:
-        return SlidePageRoute(
-          page: const EditNicknameScreen(),
-          begin: const Offset(0.0, 1.0), // Slide from bottom
+        return MaterialPageRoute(
+          builder: (_) => const EditNicknameScreen(),
         );
       case RouteNames.testAudioVideo:
-        return SlidePageRoute(
-          page: const TestAudioVideoScreen(),
-          begin: const Offset(0.0, 1.0), // Slide from bottom
+        return MaterialPageRoute(
+          builder: (_) => const TestAudioVideoScreen(),
         );
       default:
         // Check if this is an OAuth callback route (contains token parameters)
