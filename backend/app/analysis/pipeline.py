@@ -33,13 +33,13 @@ class AnalysisPipeline:
     """
     
     def __init__(self, session_id: UUID | None = None, expected_script: str | None = None):
-        \"\"\"
+        """
         Initialize the analysis pipeline.
         
         Args:
             session_id: Optional pre-generated session ID.
             expected_script: Optional expected script for accuracy comparison.
-        \"\"\"
+        """
         self.session_id = session_id or uuid4()
         self.audio_path: Path | None = None
         self.duration: float = 0.0
@@ -344,7 +344,7 @@ async def run_analysis_pipeline(
     session_id: UUID | None = None,
     script_content: str | None = None
 ) -> tuple[AnalysisResult, Path | None]:
-    \"\"\"
+    """
     Convenience function to run the analysis pipeline.
     
     Args:
@@ -356,7 +356,7 @@ async def run_analysis_pipeline(
         Tuple of (analysis result, path to WAV file for playback).
         The WAV path may be different from audio_path if conversion was needed.
         Caller is responsible for cleaning up the WAV file.
-    \"\"\"
+    """
     pipeline = AnalysisPipeline(session_id, expected_script=script_content)
     result = await pipeline.analyze(audio_path)
     return result, getattr(pipeline, 'wav_path', None)
