@@ -266,6 +266,8 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
   Future<void> _stopAndAnalyze() async {
     if (!_isRecording) return;
 
+    print('RecordingSession: Stopping and analyzing...');
+    
     setState(() {
       _isRecording = false;
       _isAnalyzing = true;
@@ -277,10 +279,22 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
     try {
       // Stop recording and get the file
+      print('RecordingSession: Calling stopRecording()...');
       final RecordedAudio? recorded = await _audioService.stopRecording();
 
       if (recorded == null) {
         throw Exception('No audio file was recorded');
+      }
+
+      print('RecordingSession: Recording stopped, fileName: ${recorded.fileName}');
+
+      // Validate recorded audio
+      if (!kIsWeb && recorded.file != null) {
+        final fileSize = await recorded.file!.length();
+        print('RecordingSession: File size: $fileSize bytes');
+        if (fileSize < 1024) { // Less than 1KB is suspicious
+          throw Exception('Recording file is too small ($fileSize bytes). Please check your microphone and try again.');
+        }
       }
 
       // Upload to backend for analysis
@@ -288,9 +302,16 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
         throw Exception('No audio data available for upload');
       }
 
+      // Validate bytes on web
+      if (kIsWeb && recorded.bytes != null && recorded.bytes!.isEmpty) {
+        throw Exception('Recorded audio data is empty');
+      }
+
       // Use the elapsed stopwatch time as the recorded duration
       final recordedSeconds = _elapsedSeconds;
+      print('RecordingSession: Recorded duration: $recordedSeconds seconds');
 
+      print('RecordingSession: Uploading audio to backend...');
       final AnalysisModel result = kIsWeb
           ? await _apiService.uploadAudioBytes(
               recorded.bytes ?? Uint8List(0),
@@ -304,6 +325,8 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
               scriptTitle: _isScripted ? _scriptTitle : 'Free Speech',
               recordedDurationSeconds: recordedSeconds,
             );
+
+      print('RecordingSession: Analysis complete, sessionId: ${result.sessionId}');
 
       // Cache recording locally for playback (non-web)
       if (!kIsWeb && recorded.file != null) {
@@ -322,11 +345,13 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
         );
       }
     } on ApiException catch (e) {
+      print('RecordingSession: ApiException - ${e.message}');
       setState(() {
         _isAnalyzing = false;
         _errorMessage = e.message;
       });
     } catch (e) {
+      print('RecordingSession: Exception - $e');
       setState(() {
         _isAnalyzing = false;
         _errorMessage = 'Analysis failed: $e';

@@ -407,7 +407,10 @@ async def analyze_audio(
             temp_file.write(content)
             temp_path = Path(temp_file.name)
         
-        logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes")
+        logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes, content_type: {content_type}")
+        
+        if len(content) < 1024:
+            logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
         
         # Run analysis pipeline
         result = await run_analysis_pipeline(temp_path)

@@ -81,9 +81,11 @@ class AudioService {
 
     // Configure and start recording
     try {
+      // Use higher bit rate and sample rate for better quality
       const config = RecordConfig(
         encoder: AudioEncoder.wav,
         sampleRate: 44100,
+        bitRate: 192000, // 192 kbps for better quality
         numChannels: 1,
       );
       await _recorder.start(config, path: path);
@@ -115,27 +117,57 @@ class AudioService {
   }
 
   /// Stop recording and return the file path
+  /// Ensures all audio buffers are flushed before returning
   Future<RecordedAudio?> stopRecording() async {
     if (!_isRecording) {
       return null;
     }
 
     try {
+      print('AudioService: Stopping recording...');
       final path = await _recorder.stop();
       _isRecording = false;
 
       if (path != null) {
         _currentRecordingPath = path;
         final fileName = path.split('/').last;
-        if (kIsWeb) {
+        
+        // On native platforms, add a delay to ensure file is fully written and flushed
+        if (!kIsWeb) {
+          // Wait for file system to flush
+          await Future.delayed(const Duration(milliseconds: 200));
+          
+          // Verify file exists and has content
+          final file = File(path);
+          if (!await file.exists()) {
+            print('AudioService: ERROR - Recording file was not created at $path');
+            throw AudioException('Recording file was not created');
+          }
+          
+          final fileSize = await file.length();
+          print('AudioService: Recording file created, size: $fileSize bytes, path: $path');
+          
+          if (fileSize == 0) {
+            print('AudioService: ERROR - Recording file is empty');
+            throw AudioException('Recording file is empty');
+          }
+          
+          return RecordedAudio(file: file, fileName: fileName);
+        } else {
+          print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
+          print('AudioService: Web audio data size: ${bytes.length} bytes');
+          if (bytes.isEmpty) {
+            print('AudioService: ERROR - No audio data recorded on web');
+            throw AudioException('No audio data recorded');
+          }
           return RecordedAudio(bytes: bytes, fileName: fileName);
         }
-        return RecordedAudio(file: File(path), fileName: fileName);
       }
       return null;
     } catch (e) {
       _isRecording = false;
+      print('AudioService: ERROR stopping recording: $e');
       throw AudioException('Failed to stop recording: $e');
     }
   }
