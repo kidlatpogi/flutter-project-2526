@@ -30,30 +30,83 @@ Update your Flutter app's API endpoint to use the Railway URL instead of `http:/
 
 ## Frontend Deployment (Netlify)
 
-### 1. Build Flutter Web
+⚠️ **Important**: Netlify doesn't have Flutter pre-installed. You must build locally and deploy the static files.
+
+### Recommended: Build Locally + Drag & Drop
+
+1. **Build Flutter Web**
 ```bash
 flutter build web --release
 ```
 
-### 2. Deploy to Netlify
+2. **Deploy to Netlify**
+   - Go to [netlify.com](https://netlify.com) and sign up
+   - Click "Add new site" → "Deploy manually"
+   - Drag the `build/web` folder to the upload area
+   - Done! Your site is live
 
-**Option A: Drag & Drop**
-1. Go to [netlify.com](https://netlify.com)
-2. Drag the `build/web` folder to deploy
+### Alternative: GitHub Actions + Netlify
 
-**Option B: CLI**
-```bash
-npm install -g netlify-cli
-netlify login
-netlify deploy --dir=build/web --prod
+If you want automatic deployments, use GitHub Actions to build and deploy:
+
+1. **Create `.github/workflows/deploy.yml`**
+```yaml
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [ main, 5.0.0 ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      
+      - run: flutter pub get
+      - run: flutter build web --release
+      
+      - uses: netlify/actions/cli@master
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        with:
+          args: deploy --dir=build/web --prod
 ```
 
-**Option C: GitHub Integration**
-1. Connect your GitHub repo
-2. Set build command: `flutter build web --release`
-3. Set publish directory: `build/web`
+2. **Add secrets to GitHub**
+   - Get Netlify auth token from netlify.com/user/applications
+   - Get site ID from Netlify site settings
+   - Add both as GitHub repository secrets
 
-### 3. Update Backend CORS
+### Alternative: Firebase Hosting (Recommended for Flutter)
+
+Firebase Hosting is better suited for Flutter web:
+
+1. **Install Firebase CLI**
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+2. **Initialize Firebase**
+```bash
+firebase init hosting
+# Choose build/web as public directory
+# Configure as single-page app: Yes
+```
+
+3. **Deploy**
+```bash
+flutter build web --release
+firebase deploy --only hosting
+```
+
+### After Deployment
 Update `ALLOWED_ORIGINS` in Railway to include your Netlify URL
 
 ---
