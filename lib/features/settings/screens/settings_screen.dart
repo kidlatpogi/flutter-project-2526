@@ -541,7 +541,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
             _buildClearItem('• Local cached recordings'),
             _buildClearItem('• All your saved recordings from the server'),
-            _buildClearItem('• All your session history'),
+            const SizedBox(height: 12),
+            Text(
+              'Your streak and session history will be preserved.',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
               'This action cannot be undone.',
@@ -607,14 +615,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         try {
           final result = await apiService.clearUserData();
           final deletedFiles = result['deleted_files'] ?? 0;
-          final deletedSessions = result['deleted_sessions'] ?? 0;
 
           if (mounted) {
             Navigator.pop(context); // Close loading dialog
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Cleared: $deletedFiles recordings, $deletedSessions sessions',
+                  'Cleared $deletedFiles recordings. Streak preserved!',
                 ),
                 backgroundColor: Colors.green,
               ),

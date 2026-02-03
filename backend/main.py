@@ -933,11 +933,14 @@ async def clear_user_data(
     authorization: Annotated[str, Header()] = ""
 ):
     """
-    Clear all recordings and session data for the authenticated user.
+    Clear all recordings for the authenticated user.
     
     This will:
     - Delete all recordings from storage
-    - Delete all session records from the database
+    
+    NOTE: Session records in the database are preserved to maintain
+    the user's streak and progress history. Only the audio files
+    are removed to free up storage space.
     """
     user_id = verify_jwt_token(authorization)
     
@@ -945,11 +948,11 @@ async def clear_user_data(
     storage = db.storage
     
     deleted_files = 0
-    deleted_sessions = 0
     errors = []
     
     try:
-        # 1. Delete recordings from storage
+        # Delete recordings from storage only
+        # Session records are preserved for streak calculation
         try:
             # List files in user's folder
             files = storage.from_("recordings").list(user_id)
@@ -970,20 +973,15 @@ async def clear_user_data(
             errors.append(f"Failed to list recordings: {str(e)}")
             logger.warning(f"Failed to list recordings for user {user_id}: {e}")
         
-        # 2. Delete session records from database
-        try:
-            # Delete from features table
-            result = db.table("features").delete().eq("user_id", user_id).execute()
-            deleted_sessions = len(result.data) if result.data else 0
-            logger.info(f"Deleted {deleted_sessions} session records for user {user_id}")
-        except Exception as e:
-            errors.append(f"Failed to delete sessions: {str(e)}")
-            logger.error(f"Failed to delete sessions for user {user_id}: {e}")
+        # Session records are NOT deleted - they are needed for:
+        # - Streak calculation (based on session dates)
+        # - Progress tracking and analytics
+        # - Historical performance data
         
         return {
             "success": True,
             "deleted_files": deleted_files,
-            "deleted_sessions": deleted_sessions,
+            "message": "Recordings cleared. Your streak and session history are preserved.",
             "errors": errors if errors else None
         }
         

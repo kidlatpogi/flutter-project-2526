@@ -159,24 +159,12 @@ class AudioService {
           
           return RecordedAudio(file: file, fileName: fileName);
         } else {
-          // Web platform: Wait for audio encoding to complete
-          // The browser's MediaRecorder needs time to finalize the blob
-          // CRITICAL: Must wait for all audio data to be encoded
-          print('AudioService: Web platform, waiting for audio encoding to complete...');
-          
-          // Wait 5 seconds to ensure complete audio encoding
-          // This is necessary because MediaRecorder.stop() returns before
-          // all audio data is fully encoded into the blob
-          // Increased to 5s to ensure the full recording is captured
-          // (32s recordings were being cut to ~29s with shorter delays)
-          await Future.delayed(const Duration(milliseconds: 5000));
-          
+          // Web platform: The pre-stop delay in the recording screen
+          // ensures audio buffers are flushed before we reach here.
+          // Just read the audio bytes directly.
           print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
           print('AudioService: Web audio data size: ${bytes.length} bytes (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
-          
-          // For reference: webm/opus at ~50KB/s means 32s should be ~1.6MB
-          // If we're getting significantly less, the audio is truncated
           
           if (bytes.isEmpty) {
             print('AudioService: ERROR - No audio data recorded on web');

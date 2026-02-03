@@ -53,9 +53,10 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
   TeleprompterSettings _settings = const TeleprompterSettings();
   bool _showSettingsPanel = false;
   
-  // For speech highlighting
-  int _currentWordIndex = -1;
-  List<String> _words = [];
+  // For speech highlighting - now sentence-based for less distraction
+  int _currentSentenceIndex = -1;
+  List<String> _sentences = [];
+  int _lastSentenceHighlightCheck = 0; // Separate timer for sentence highlighting
   
   @override
   void initState() {
@@ -65,9 +66,17 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     _scriptTitle = widget.scriptTitle;
     _scriptContent = widget.scriptContent;
     
-    // Split script into words for highlighting
+    // Split script into sentences for highlighting (less distracting than word-by-word)
     if (_scriptContent != null) {
-      _words = _scriptContent!.split(RegExp(r'\s+'));
+      // Split by sentence-ending punctuation, keeping the punctuation
+      _sentences = _scriptContent!
+          .split(RegExp(r'(?<=[.!?])\s+'))
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+      // If no sentence breaks found, treat the whole text as one sentence
+      if (_sentences.isEmpty) {
+        _sentences = [_scriptContent!];
+      }
     }
 
     // Load teleprompter settings
@@ -115,15 +124,29 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
       }
     }
     
-    // Update current word index based on audio amplitude (simple approach)
+    // Update current sentence index based on elapsed time and WPM
     // Only update every 500ms to reduce render load
-    if (_isRecording && !_isPaused && _settings.enableHighlighting && _words.isNotEmpty && now - _lastAmplitudeCheck >= 500) {
+    if (_isRecording && !_isPaused && _settings.enableHighlighting && _sentences.isNotEmpty && now - _lastSentenceHighlightCheck >= 500) {
+      _lastSentenceHighlightCheck = now;
       // Estimate reading progress based on time and WPM
       final wordsRead = (_elapsedSeconds / 60.0) * _settings.scrollSpeedWPM;
-      final newIndex = wordsRead.floor().clamp(0, _words.length - 1);
-      if (newIndex != _currentWordIndex) {
+      
+      // Calculate cumulative word count per sentence to find current sentence
+      int cumulativeWords = 0;
+      int newIndex = 0;
+      for (int i = 0; i < _sentences.length; i++) {
+        final sentenceWordCount = _sentences[i].split(RegExp(r'\s+')).length;
+        cumulativeWords += sentenceWordCount;
+        if (wordsRead < cumulativeWords) {
+          newIndex = i;
+          break;
+        }
+        newIndex = i; // If we've read all words, stay on last sentence
+      }
+      
+      if (newIndex != _currentSentenceIndex) {
         setState(() {
-          _currentWordIndex = newIndex;
+          _currentSentenceIndex = newIndex;
         });
       }
     }
@@ -276,6 +299,17 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     });
     _stopTeleprompter();
     _stopwatch.stop();
+    
+    // CRITICAL: On web, add a delay BEFORE stopping to allow browser
+    // to flush its internal audio buffers. This prevents audio cutoff
+    // at the end of longer recordings (30+ seconds).
+    if (kIsWeb) {
+      print('RecordingSession: Web platform - waiting for audio buffers to flush...');
+      // Wait 3 seconds to ensure all audio data is captured
+      // The browser's AudioWorklet has internal buffering that needs time to flush
+      await Future.delayed(const Duration(milliseconds: 3000));
+      print('RecordingSession: Buffer flush delay complete');
+    }
 
     try {
       // Stop recording and get the file
@@ -454,7 +488,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
                     child: _isScripted && _showScript
                         ? SingleChildScrollView(
                             controller: _teleprompterController,
-                            child: _settings.enableHighlighting && _words.isNotEmpty
+                            child: _settings.enableHighlighting && _sentences.isNotEmpty
                                 ? _buildHighlightedText()
                                 : Text(
                                     _scriptContent?.trim().isNotEmpty == true
@@ -796,7 +830,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     );
   }
 
-  /// Build highlighted text with current word emphasis
+  /// Build highlighted text with current sentence emphasis (less distracting than word-by-word)
   Widget _buildHighlightedText() {
     // Use RepaintBoundary to reduce unnecessary repaints
     return RepaintBoundary(
@@ -807,17 +841,17 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
             height: 1.8,
             color: AppColors.primary,
           ),
-          children: _words.asMap().entries.map((entry) {
+          children: _sentences.asMap().entries.map((entry) {
             final index = entry.key;
-            final word = entry.value;
-            final isCurrentWord = _settings.enableHighlighting && index == _currentWordIndex;
+            final sentence = entry.value;
+            final isCurrentSentence = _settings.enableHighlighting && index == _currentSentenceIndex;
             
             return TextSpan(
-              text: '$word ',
-              style: isCurrentWord
+              text: '$sentence ',
+              style: isCurrentSentence
                   ? TextStyle(
-                      backgroundColor: AppColors.primary.withOpacity(0.2),
-                      fontWeight: FontWeight.bold,
+                      backgroundColor: AppColors.primary.withOpacity(0.15),
+                      fontWeight: FontWeight.w600,
                       color: AppColors.primary,
                     )
                   : null,
@@ -974,7 +1008,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
                     setState(() {
                       _settings = _settings.copyWith(enableHighlighting: value);
                       if (!value) {
-                        _currentWordIndex = -1; // Reset highlighting
+                        _currentSentenceIndex = -1; // Reset highlighting
                       }
                     });
                     _saveSettings();
