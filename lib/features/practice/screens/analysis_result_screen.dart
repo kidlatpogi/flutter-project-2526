@@ -140,7 +140,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           // Play from URL (web or network)
           final fullUrl = _recordingPath!.startsWith('http') 
               ? _recordingPath! 
-              : 'http://localhost:8000${_recordingPath!}';
+              : 'https://flutter-project-2526-production.up.railway.app${_recordingPath!}';
           await _audioPlayer.play(UrlSource(fullUrl));
         } else {
           // Play from file (native)

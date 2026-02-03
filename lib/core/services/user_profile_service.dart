@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Service for managing user profiles
 class UserProfileService {
   // Base URL for the FastAPI backend
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = 'https://flutter-project-2526-production.up.railway.app';
 
   // For Android emulator, use: 'http://10.0.2.2:3000'
 
