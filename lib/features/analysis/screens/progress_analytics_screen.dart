@@ -20,6 +20,8 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   int _avgScore = 0;
   List<Map<String, dynamic>> _recentHistory = [];
   List<double> _trendScores = [];
+  List<Map<String, dynamic>> _allSessions = []; // Store all sessions for filtering
+  String _selectedPeriod = 'Week'; // Week, Month, Year
   final ApiService _apiService = ApiService();
 
   @override
@@ -31,8 +33,20 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   Future<void> _loadProgressData() async {
     try {
       print('Loading progress data...');
-      final response = await _apiService.getSessions(limit: 20);
-      print('Progress: got ${response.length} sessions');
+      
+      // Fetch more sessions to support Year view (up to 365 days of data)
+      // Limit based on period: Week=20, Month=50, Year=200
+      final limit = _selectedPeriod == 'Year' ? 200 : (_selectedPeriod == 'Month' ? 50 : 20);
+      
+      // Fetch sessions and total count in parallel
+      final sessionsFuture = _apiService.getSessions(limit: limit);
+      final countFuture = _apiService.getTotalSessionsCount();
+      
+      final results = await Future.wait([sessionsFuture, countFuture]);
+      final response = results[0] as List<Map<String, dynamic>>;
+      final totalCount = results[1] as int;
+      
+      print('Progress: got ${response.length} sessions, total: $totalCount');
 
       final sessions = response.map((session) {
         final createdAt = DateTime.parse(session['created_at']);
@@ -53,14 +67,15 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           ? 0
           : (scores.reduce((a, b) => a + b) / scores.length).round();
 
-      final trendScores = _buildTrendScores(sessions);
+      final trendScores = _buildTrendScores(sessions, _selectedPeriod);
 
       if (mounted) {
         setState(() {
-          _totalSessions = sessions.length;
+          _totalSessions = totalCount;
           _avgScore = avgScore;
           _recentHistory = sessions.take(5).toList();
           _trendScores = trendScores;
+          _allSessions = sessions;
           _isLoading = false;
         });
         print('Progress loaded: $_totalSessions total, $_avgScore avg');
@@ -162,15 +177,72 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Performance Trend Label
-                      Text(
-                        'PERFORMANCE TREND',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 0.5,
-                        ),
+                      // Performance Trend Label and Period Selector
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'PERFORMANCE TREND',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          // Period Selector
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: ['Week', 'Month', 'Year'].map((period) {
+                                final isSelected = _selectedPeriod == period;
+                                return GestureDetector(
+                                  onTap: () async {
+                                    // Reload data with new period
+                                    setState(() {
+                                      _selectedPeriod = period;
+                                      _isLoading = true;
+                                    });
+                                    // Recalculate trend scores
+                                    await Future.delayed(const Duration(milliseconds: 100));
+                                    if (mounted) {
+                                      setState(() {
+                                        _trendScores = _buildTrendScores(_allSessions, period);
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      period,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 24),
@@ -334,6 +406,24 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         color: AppColors.primary,
                       ),
                     ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, RouteNames.sessions);
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'View All',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
 
@@ -395,7 +485,8 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _buildHistoryItem(
                           sessionId: session['id'] as String,
-                          icon: Icons.mic,
+                          icon: _getScoreIcon(score),
+                          iconColor: _getScoreColor(score),
                           title: session['title'] as String,
                           date: session['date'] as String,
                           subtitle: session['duration'] as String,
@@ -440,6 +531,20 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     );
   }
 
+  IconData _getScoreIcon(int score) {
+    if (score >= 85) return Icons.emoji_events; // Trophy for Excellent
+    if (score >= 70) return Icons.star; // Star for Good
+    if (score >= 50) return Icons.thumb_up; // Thumbs up for Fair
+    return Icons.trending_up; // Improvement needed
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 85) return Colors.amber; // Gold for Excellent
+    if (score >= 70) return Colors.green; // Green for Good
+    if (score >= 50) return Colors.blue; // Blue for Fair
+    return Colors.orange; // Orange for needs improvement
+  }
+
   Widget _buildHistoryItem({
     required String sessionId,
     required IconData icon,
@@ -448,7 +553,9 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     required String subtitle,
     required String score,
     required String rating,
+    Color? iconColor,
   }) {
+    final color = iconColor ?? AppColors.primary;
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
@@ -474,10 +581,10 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 20),
+              child: Icon(icon, color: color, size: 20),
             ),
 
             const SizedBox(width: 12),
@@ -541,10 +648,35 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     );
   }
 
-  List<double> _buildTrendScores(List<Map<String, dynamic>> sessions) {
+  List<double> _buildTrendScores(List<Map<String, dynamic>> sessions, String period) {
     if (sessions.isEmpty) return [];
 
-    final sorted = [...sessions]
+    // Filter sessions based on period
+    final now = DateTime.now();
+    DateTime cutoffDate;
+    
+    switch (period) {
+      case 'Week':
+        cutoffDate = now.subtract(const Duration(days: 7));
+        break;
+      case 'Month':
+        cutoffDate = DateTime(now.year, now.month - 1, now.day);
+        break;
+      case 'Year':
+        cutoffDate = DateTime(now.year - 1, now.month, now.day);
+        break;
+      default:
+        cutoffDate = now.subtract(const Duration(days: 7));
+    }
+
+    final filteredSessions = sessions.where((s) {
+      final createdAt = s['createdAt'] as DateTime;
+      return createdAt.isAfter(cutoffDate);
+    }).toList();
+
+    if (filteredSessions.isEmpty) return [];
+
+    final sorted = [...filteredSessions]
       ..sort(
         (a, b) =>
             (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime),

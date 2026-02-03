@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/services/image_upload_service.dart';
@@ -186,9 +187,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final fullName = _fullNameController.text.trim();
+      
+      // Update backend profile
       await _userProfileService.updateUserProfile(
-        fullName: _fullNameController.text.trim(),
+        fullName: fullName,
       );
+      
+      // Update Supabase auth user metadata for full_name (consistent with authService)
+      final supabase = Supabase.instance.client;
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {'full_name': fullName},
+        ),
+      );
+      
+      // Refresh user data to update displayName getter
+      await _authService.refreshUserData();
+      
+      // Update local state
+      _originalFullName = fullName;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -265,15 +283,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         child: _avatarUrl != null
                             ? ClipOval(
-                                child: Image.network(
-                                  _avatarUrl!,
+                                child: CachedNetworkImage(
+                                  imageUrl: _avatarUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(
-                                        Icons.person,
-                                        size: 60,
-                                        color: AppColors.primary,
-                                      ),
+                                  width: 120,
+                                  height: 120,
+                                  memCacheWidth: 240,
+                                  memCacheHeight: 240,
+                                  placeholder: (context, url) => Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    Icons.person,
+                                    size: 60,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                               )
                             : Icon(

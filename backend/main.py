@@ -34,6 +34,7 @@ from app.database import (
     insert_analysis_result,
     insert_session_record,
     get_sessions,
+    get_total_sessions_count,
     get_analysis_by_session,
     check_connection,
     get_user_profile,
@@ -361,6 +362,7 @@ async def analyze_audio(
     save_to_db: Annotated[bool, Query(description="Save results to database")] = True,
     authorization: Annotated[str, Header()] = "",
     script_title: Annotated[str | None, Form()] = None,
+    script_content: Annotated[str | None, Form(description="Expected script content for accuracy comparison")] = None,
     recorded_duration: Annotated[int | None, Form(description="Recorded duration in seconds from the frontend")] = None
 ):
     """
@@ -399,6 +401,7 @@ async def analyze_audio(
         suffix = ".wav"
     
     temp_path: Path | None = None
+    wav_path: Path | None = None
     
     try:
         # Save uploaded file temporarily
@@ -407,10 +410,13 @@ async def analyze_audio(
             temp_file.write(content)
             temp_path = Path(temp_file.name)
         
-        logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes")
+        logger.info(f"Received audio file: {audio.filename}, size: {len(content)} bytes, content_type: {content_type}")
         
-        # Run analysis pipeline
-        result = await run_analysis_pipeline(temp_path)
+        if len(content) < 1024:
+            logger.warning(f"Audio file is suspiciously small: {len(content)} bytes")
+        
+        # Run analysis pipeline - returns result and path to converted WAV
+        result, wav_path = await run_analysis_pipeline(temp_path, script_content=script_content)
         
         # Override audio_duration with frontend recorded_duration if provided
         if recorded_duration is not None and recorded_duration > 0:
@@ -453,8 +459,10 @@ async def analyze_audio(
                 
                 # Save recording to Supabase Storage for web playback
                 # This allows web clients to listen to their recordings
-                logger.info(f"Attempting to upload recording: user_id={user_id}, temp_path_exists={temp_path and temp_path.exists()}")
-                if temp_path and temp_path.exists():
+                # Use the converted WAV file (not the original webm) for proper playback
+                upload_path = wav_path if wav_path and wav_path.exists() else temp_path
+                logger.info(f"Attempting to upload recording: user_id={user_id}, upload_path={upload_path}, exists={upload_path and upload_path.exists()}")
+                if upload_path and upload_path.exists():
                     try:
                         db = get_supabase()
                         storage = db.storage
@@ -465,10 +473,10 @@ async def analyze_audio(
                         else:
                             file_path = f"{result.session_id}.wav"
                         
-                        with open(temp_path, 'rb') as f:
+                        with open(upload_path, 'rb') as f:
                             file_data = f.read()
                         
-                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes)")
+                        logger.info(f"Uploading recording to storage: {file_path} (size: {len(file_data)} bytes, from: {upload_path.name})")
                         
                         # Upload to storage
                         response = storage.from_("recordings").upload(
@@ -481,7 +489,7 @@ async def analyze_audio(
                         # Don't fail the request if storage upload fails
                         logger.error(f"Failed to save recording to storage: {e}", exc_info=True)
                 else:
-                    logger.warning(f"Cannot upload recording: temp_path_exists={temp_path and temp_path.exists()}")
+                    logger.warning(f"Cannot upload recording: upload_path={upload_path}, exists={upload_path and upload_path.exists() if upload_path else False}")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
                 # Don't fail the request, just log the error
@@ -497,12 +505,19 @@ async def analyze_audio(
             detail=f"Analysis failed: {str(e)}"
         )
     finally:
-        # Clean up temporary file
+        # Clean up temporary files
         if temp_path and temp_path.exists():
             try:
                 os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file: {e}")
+        
+        # Clean up WAV file if it was created (different from original)
+        if wav_path and wav_path != temp_path and wav_path.exists():
+            try:
+                os.remove(wav_path)
+            except Exception as e:
+                logger.warning(f"Failed to clean up WAV file: {e}")
 
 
 @app.get(
@@ -530,6 +545,33 @@ async def list_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve sessions: {str(e)}"
+        )
+
+
+@app.get(
+    "/sessions/count",
+    response_model=dict,
+    tags=["Sessions"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def get_sessions_count(
+    authorization: Annotated[str, Header()] = "",
+):
+    """
+    Return total session count for the authenticated user.
+    """
+    user_id = verify_jwt_token(authorization)
+
+    try:
+        count = await get_total_sessions_count(user_id=user_id)
+        return {"total": count}
+    except Exception as e:
+        logger.error(f"Failed to retrieve sessions count: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve sessions count: {str(e)}"
         )
 
 
@@ -905,6 +947,78 @@ async def get_session_recording(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve recording: {str(e)}"
+        )
+
+
+@app.delete(
+    "/user/clear-data",
+    tags=["User"],
+    responses={
+        200: {"description": "User data cleared successfully"},
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def clear_user_data(
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Clear all recordings for the authenticated user.
+    
+    This will:
+    - Delete all recordings from storage
+    
+    NOTE: Session records in the database are preserved to maintain
+    the user's streak and progress history. Only the audio files
+    are removed to free up storage space.
+    """
+    user_id = verify_jwt_token(authorization)
+    
+    db = get_supabase()
+    storage = db.storage
+    
+    deleted_files = 0
+    errors = []
+    
+    try:
+        # Delete recordings from storage only
+        # Session records are preserved for streak calculation
+        try:
+            # List files in user's folder
+            files = storage.from_("recordings").list(user_id)
+            logger.info(f"Found {len(files)} files in user folder: {user_id}")
+            
+            for file_info in files:
+                file_name = file_info.get("name")
+                if file_name:
+                    try:
+                        file_path = f"{user_id}/{file_name}"
+                        storage.from_("recordings").remove([file_path])
+                        deleted_files += 1
+                        logger.info(f"Deleted recording: {file_path}")
+                    except Exception as e:
+                        errors.append(f"Failed to delete {file_name}: {str(e)}")
+                        logger.warning(f"Failed to delete recording {file_name}: {e}")
+        except Exception as e:
+            errors.append(f"Failed to list recordings: {str(e)}")
+            logger.warning(f"Failed to list recordings for user {user_id}: {e}")
+        
+        # Session records are NOT deleted - they are needed for:
+        # - Streak calculation (based on session dates)
+        # - Progress tracking and analytics
+        # - Historical performance data
+        
+        return {
+            "success": True,
+            "deleted_files": deleted_files,
+            "message": "Recordings cleared. Your streak and session history are preserved.",
+            "errors": errors if errors else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to clear user data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear user data: {str(e)}"
         )
 
 

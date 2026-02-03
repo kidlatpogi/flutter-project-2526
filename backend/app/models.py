@@ -70,6 +70,22 @@ class PauseMetrics(BaseModel):
     })
 
 
+class Mispronunciation(BaseModel):
+    """Details of a mispronounced word."""
+    
+    timestamp: float = Field(..., description="Time in seconds when the word was spoken")
+    expected_word: str = Field(..., description="The word from the script")
+    spoken_word: str = Field(..., description="What was actually said (from transcript)")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "timestamp": 13.5,
+            "expected_word": "pronunciation",
+            "spoken_word": "pronounciation"
+        }
+    })
+
+
 class ConfidenceScore(BaseModel):
     """Confidence score breakdown."""
     
@@ -78,6 +94,7 @@ class ConfidenceScore(BaseModel):
     fluency_score: float = Field(..., ge=0, le=100, description="Fluency score")
     voice_quality_score: float = Field(..., ge=0, le=100, description="Voice quality score (jitter/shimmer)")
     pace_score: float = Field(..., ge=0, le=100, description="Speaking pace score")
+    accuracy_score: float | None = Field(None, ge=0, le=100, description="Script accuracy score (only for scripted speeches)")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -85,7 +102,8 @@ class ConfidenceScore(BaseModel):
             "pitch_score": 82.0,
             "fluency_score": 75.0,
             "voice_quality_score": 80.0,
-            "pace_score": 77.0
+            "pace_score": 77.0,
+            "accuracy_score": 85.0
         }
     })
 
@@ -100,6 +118,7 @@ class AnalysisResult(BaseModel):
     fluency_metrics: FluencyMetrics
     pause_metrics: PauseMetrics
     confidence_score: ConfidenceScore
+    mispronunciations: list[Mispronunciation] = Field(default_factory=list, description="List of detected mispronunciations (scripted speeches only)")
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
     
     model_config = ConfigDict(from_attributes=True)

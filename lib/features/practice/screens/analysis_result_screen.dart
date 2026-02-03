@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:confetti/confetti.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -21,11 +22,15 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   late final ApiService _apiService;
   late final AudioService _audioService;
   late final AudioPlayer _audioPlayer;
+  late final ConfettiController _confettiController;
   Future<AnalysisModel>? _analysisFuture;
   String? _recordingPath;
   String? _recordingSessionId;
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
+  bool _confettiPlayed = false;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
 
   @override
   void initState() {
@@ -33,11 +38,38 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _apiService = ApiService();
     _audioService = AudioService();
     _audioPlayer = AudioPlayer();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
 
+    // Listen to player state changes
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (!mounted) return;
       setState(() {
         _isPlaying = state == PlayerState.playing;
+      });
+    });
+
+    // Listen to player completion to reset UI
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+      });
+    });
+
+    // Listen to duration changes
+    _audioPlayer.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() {
+        _totalDuration = duration;
+      });
+    });
+
+    // Listen to position changes
+    _audioPlayer.onPositionChanged.listen((position) {
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = position;
       });
     });
 
@@ -51,6 +83,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _apiService.dispose();
     _audioService.dispose();
     _audioPlayer.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -90,11 +123,17 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _togglePlayback() async {
-    if (_recordingPath == null) return;
+    if (_recordingPath == null) {
+      _showRecordingNotFoundDialog();
+      return;
+    }
     if (_isPlaying) {
       await _audioPlayer.pause();
     } else {
       try {
+        // Stop any existing playback first
+        await _audioPlayer.stop();
+        
         // On web, _recordingPath is a URL path like /sessions/{id}/recording
         // On native, it's a file path
         if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
@@ -110,11 +149,90 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       } catch (e) {
         print('Error playing recording: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error playing recording: $e')),
-          );
+          // Check if it's a 404 or network error indicating deleted recording
+          final errorString = e.toString().toLowerCase();
+          if (errorString.contains('404') || 
+              errorString.contains('not found') ||
+              errorString.contains('failed to load') ||
+              errorString.contains('unable to connect')) {
+            _showRecordingNotFoundDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error playing recording'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
+    }
+  }
+
+  void _showRecordingNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(
+          Icons.audio_file,
+          color: AppColors.inactive,
+          size: 48,
+        ),
+        title: Text(
+          'Recording Not Available',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'This recording has been deleted or is no longer available.',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You may have cleared your cache and recordings from Settings.',
+              style: GoogleFonts.inter(
+                color: AppColors.inactive,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _stopPlayback() async {
+    await _audioPlayer.stop();
+    if (mounted) {
+      setState(() {
+        _isPlaying = false;
+        _currentPosition = Duration.zero;
+      });
     }
   }
 
@@ -227,6 +345,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Widget _buildContent(BuildContext context, AnalysisModel result) {
+    // Trigger confetti for good scores (>= 65) only once
+    if (result.overallScore >= 65 && !_confettiPlayed) {
+      _confettiPlayed = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _confettiController.play();
+      });
+    }
+    
     // Helper to get score label and color
     String getScoreLabel(double score) {
       if (score >= 80) return 'EXCELLENT';
@@ -242,29 +368,31 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       return Colors.red;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.close, color: AppColors.primary),
-                    onPressed: () {
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        RouteNames.dashboard,
-                        (route) => false,
-                      );
-                    },
-                  ),
-                  Text(
-                    'ANALYSIS RESULT',
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.close, color: AppColors.primary),
+                        onPressed: () {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            RouteNames.dashboard,
+                            (route) => false,
+                          );
+                        },
+                      ),
+                      Text(
+                        'ANALYSIS RESULT',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -552,6 +680,28 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           ],
         ),
       ),
+        ),
+        // Confetti Widget - centered at top
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: const [
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+              Colors.orange,
+              Colors.purple,
+              Colors.amber,
+            ],
+            emissionFrequency: 0.05,
+            numberOfParticles: 30,
+            gravity: 0.2,
+          ),
+        ),
+      ],
     );
   }
 

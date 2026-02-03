@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/services/microphone_settings_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
@@ -21,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _authService = AuthService();
   final _audioService = AudioService();
   final _userProfileService = UserProfileService();
+  final _microphoneSettingsService = MicrophoneSettingsService();
   final _deactivatePasswordController = TextEditingController();
   final _confirmDeactivateController = TextEditingController();
   bool _isDeactivating = false;
@@ -29,7 +32,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _selectedMicrophone = 'Built-in Microphone'; // Set initial value
-    _loadMicrophones();
+    _initializeMicrophoneSettings();
+  }
+
+  Future<void> _initializeMicrophoneSettings() async {
+    // First load available microphones
+    await _loadMicrophones();
+    // Then apply saved setting (after microphones are loaded)
+    await _loadSavedMicrophoneSetting();
   }
 
   @override
@@ -39,6 +49,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _audioService.dispose();
     _userProfileService.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedMicrophoneSetting() async {
+    final settings = await _microphoneSettingsService.loadSettings();
+    if (settings != null && settings.selectedMicrophoneName != null && mounted) {
+      setState(() {
+        // Only set if the saved microphone is in the available list
+        if (_availableMicrophones.contains(settings.selectedMicrophoneName)) {
+          _selectedMicrophone = settings.selectedMicrophoneName;
+        }
+      });
+    }
+  }
+
+  Future<void> _saveMicrophoneSetting() async {
+    if (_selectedMicrophone == null) return;
+    
+    await _microphoneSettingsService.saveSettings(
+      MicrophoneSettings(
+        selectedMicrophoneName: _selectedMicrophone,
+        selectedMicrophoneId: _selectedMicrophone, // Using name as ID for now
+      ),
+    );
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Microphone setting saved: $_selectedMicrophone'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _loadMicrophones() async {
@@ -131,14 +174,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildDropdown(
-                  value: _selectedMicrophone,
-                  items: _availableMicrophones,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedMicrophone = value;
-                    });
-                  },
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDropdown(
+                        value: _selectedMicrophone,
+                        items: _availableMicrophones,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedMicrophone = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _saveMicrophoneSetting,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                        ),
+                        child: Text(
+                          'Save',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 16),
@@ -179,15 +249,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: () async {
-                      await _audioService.clearRecordingCache();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Cache cleared successfully'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
+                      await _showClearDataDialog();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.inactive.withOpacity(0.5),
@@ -198,7 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       elevation: 0,
                     ),
                     child: Text(
-                      'Clear Local Cache',
+                      'Clear Cache & Recordings',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -454,6 +516,157 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeColor: AppColors.primary,
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showClearDataDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Clear Cache & Recordings',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This will permanently delete:',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildClearItem('• Local cached recordings'),
+            _buildClearItem('• All your saved recordings from the server'),
+            const SizedBox(height: 12),
+            Text(
+              'Your streak and session history will be preserved.',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'This action cannot be undone.',
+              style: GoogleFonts.inter(
+                color: Colors.red,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Clear All',
+              style: GoogleFonts.inter(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Text(
+                'Clearing data...',
+                style: GoogleFonts.inter(color: AppColors.primary),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      try {
+        // Clear local cache
+        await _audioService.clearRecordingCache();
+
+        // Clear server data (recordings and sessions)
+        final apiService = ApiService();
+        try {
+          final result = await apiService.clearUserData();
+          final deletedFiles = result['deleted_files'] ?? 0;
+
+          if (mounted) {
+            Navigator.pop(context); // Close loading dialog
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Cleared $deletedFiles recordings. Streak preserved!',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } on ApiException catch (e) {
+          if (mounted) {
+            Navigator.pop(context); // Close loading dialog
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Server error: ${e.message}. Local cache cleared.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // Close loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error clearing data: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildClearItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+        ),
       ),
     );
   }

@@ -96,10 +96,22 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
         
         # Transcribe with word-level timestamps
         # Pass numpy array directly instead of file path
+        # Using enhanced settings for better accuracy
         result = model.transcribe(
             audio,
             word_timestamps=True,
-            verbose=False
+            verbose=False,
+            language="en",  # Force English for better accuracy
+            task="transcribe",
+            temperature=0.0,  # Use greedy decoding for consistency
+            best_of=5,  # Consider top 5 beams
+            beam_size=5,  # Beam search for better quality
+            patience=1.0,  # Standard patience
+            condition_on_previous_text=True,  # Use context for better accuracy
+            initial_prompt="This is a speech practice session with clear pronunciation.",  # Guide the model
+            compression_ratio_threshold=2.4,
+            logprob_threshold=-1.0,
+            no_speech_threshold=0.6,
         )
         
         transcription = TranscriptionResult(

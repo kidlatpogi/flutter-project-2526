@@ -75,17 +75,24 @@ class AudioService {
       path = '${directory.path}/recording_$timestamp.wav';
       _currentRecordingPath = path;
     } else {
-      path = 'recording_$timestamp.webm';
+      // On web, the record package uses MicRecorderDelegate for WAV which outputs WAV directly
+      // NOT webm. The file extension should match the actual format.
+      path = 'recording_$timestamp.wav';
       _currentRecordingPath = path;
     }
 
     // Configure and start recording
     try {
+      // Use WAV encoder - this creates proper WAV files on all platforms including web
+      // On web, this uses AudioWorklet to capture and encode to WAV directly,
+      // which avoids the webm duration metadata issues that plague MediaRecorder
       const config = RecordConfig(
         encoder: AudioEncoder.wav,
-        sampleRate: 44100,
-        numChannels: 1,
+        sampleRate: 16000,  // 16kHz for speech (matches backend expectation)
+        bitRate: 256000,    // 256 kbps for good quality
+        numChannels: 1,     // Mono for speech
       );
+      print('AudioService: Starting recording with WAV encoder, sampleRate: 16000, channels: 1');
       await _recorder.start(config, path: path);
       _isRecording = true;
       return _currentRecordingPath ?? '';
@@ -115,27 +122,62 @@ class AudioService {
   }
 
   /// Stop recording and return the file path
+  /// Ensures all audio buffers are flushed before returning
   Future<RecordedAudio?> stopRecording() async {
     if (!_isRecording) {
       return null;
     }
 
     try {
+      print('AudioService: Stopping recording...');
       final path = await _recorder.stop();
       _isRecording = false;
 
       if (path != null) {
         _currentRecordingPath = path;
         final fileName = path.split('/').last;
-        if (kIsWeb) {
+        
+        // On native platforms, add a delay to ensure file is fully written and flushed
+        if (!kIsWeb) {
+          // Wait for file system to flush
+          await Future.delayed(const Duration(milliseconds: 200));
+          
+          // Verify file exists and has content
+          final file = File(path);
+          if (!await file.exists()) {
+            print('AudioService: ERROR - Recording file was not created at $path');
+            throw AudioException('Recording file was not created');
+          }
+          
+          final fileSize = await file.length();
+          print('AudioService: Recording file created, size: $fileSize bytes, path: $path');
+          
+          if (fileSize == 0) {
+            print('AudioService: ERROR - Recording file is empty');
+            throw AudioException('Recording file is empty');
+          }
+          
+          return RecordedAudio(file: file, fileName: fileName);
+        } else {
+          // Web platform: The pre-stop delay in the recording screen
+          // ensures audio buffers are flushed before we reach here.
+          // Just read the audio bytes directly.
+          print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
+          print('AudioService: Web audio data size: ${bytes.length} bytes (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
+          
+          if (bytes.isEmpty) {
+            print('AudioService: ERROR - No audio data recorded on web');
+            throw AudioException('No audio data recorded');
+          }
+          
           return RecordedAudio(bytes: bytes, fileName: fileName);
         }
-        return RecordedAudio(file: File(path), fileName: fileName);
       }
       return null;
     } catch (e) {
       _isRecording = false;
+      print('AudioService: ERROR stopping recording: $e');
       throw AudioException('Failed to stop recording: $e');
     }
   }

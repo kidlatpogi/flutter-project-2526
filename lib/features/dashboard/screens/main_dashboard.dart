@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
@@ -240,15 +241,28 @@ class _MainDashboardState extends State<MainDashboard> {
                         ),
                         child: _avatarUrl != null
                             ? ClipOval(
-                                child: Image.network(
-                                  _avatarUrl!,
+                                child: CachedNetworkImage(
+                                  imageUrl: _avatarUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(
-                                        Icons.person_outline,
+                                  width: 40,
+                                  height: 40,
+                                  memCacheWidth: 80,
+                                  memCacheHeight: 80,
+                                  placeholder: (context, url) => Center(
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                         color: AppColors.primary,
-                                        size: 24,
                                       ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    Icons.person_outline,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
                                 ),
                               )
                             : Icon(
@@ -297,9 +311,147 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 24),
 
-                // Ready to speak card
+                // Ready to speak card - More engaging design
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primary,
+                        AppColors.primary.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.record_voice_over,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.local_fire_department,
+                                  color: Colors.amber,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isStatsLoading ? '...' : '$_streakDays day streak',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Title
+                      Text(
+                        'Ready to speak?',
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Description
+                      Text(
+                        'Practice makes perfect! Start your daily session\nand improve your public speaking skills.',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          height: 1.5,
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Start Practice button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              RouteNames.practiceSetup,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.play_circle_filled,
+                                size: 22,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Start Practice',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Quick Stats with better design
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
@@ -311,311 +463,112 @@ class _MainDashboardState extends State<MainDashboard> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      // Microphone icon
+                      // Sessions Today
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.calendar_today,
+                          iconColor: Colors.blue,
+                          value: _isStatsLoading ? '—' : '${_recentSessions.where((s) => (s['date'] as String).startsWith('Today')).length}',
+                          label: 'Today',
+                        ),
+                      ),
                       Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.mic,
-                          color: Colors.white,
-                          size: 24,
+                        width: 1,
+                        height: 40,
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                      // Average Score
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.analytics,
+                          iconColor: Colors.green,
+                          value: _isStatsLoading ? '—' : '$_avgScore',
+                          label: 'Avg Score',
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Title
-                      Text(
-                        'Ready to speak?',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: AppColors.inactive.withOpacity(0.3),
                       ),
-
-                      const SizedBox(height: 8),
-
-                      // Description
-                      Text(
-                        'Your daily pronunciation drill is ready.\nToday we focus on vowel clarity.',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Start Practice button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(
-                              context,
-                              RouteNames.practiceSetup,
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Start Practice',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.arrow_forward,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
+                      // Streak
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.local_fire_department,
+                          iconColor: Colors.orange,
+                          value: _isStatsLoading ? '—' : '$_streakDays',
+                          label: 'Streak',
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // Stats Row
-                Row(
-                  children: [
-                    // Streak card
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'STREAK',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  _isStatsLoading ? '—' : '$_streakDays',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'days',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Average Score card
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'AVG SCORE',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  _isStatsLoading ? '—' : '$_avgScore',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                Text(
-                                  '/100',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
                 const SizedBox(height: 24),
 
-                // Recent Sessions Header
+                // Motivation and Tips Section - 2 columns 1 row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'RECENT SESSIONS',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, RouteNames.sessions);
-                      },
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'View All',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                    // Motivation Quote
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.format_quote,
+                                  color: Colors.black.withOpacity(0.6),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'MOTIVATION',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black.withOpacity(0.7),
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _getMotivationalQuote(),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primary,
+                                fontStyle: FontStyle.italic,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    // Daily Tip of the Day
+                    Expanded(
+                      child: _buildDailyTipCard(),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 16),
-
-                if (_isStatsLoading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                else if (_recentSessions.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.inactive.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 48,
-                          color: AppColors.inactive,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No sessions yet',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start practicing to see your\nrecent sessions here',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: AppColors.textSecondary.withOpacity(0.7),
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Column(
-                    children: _recentSessions.map((session) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildSessionItem(
-                          sessionId: session['id'] as String,
-                          icon: Icons.mic,
-                          title: session['title'] as String,
-                          date: session['date'] as String,
-                          duration: session['duration'] as String,
-                          score: (session['confidenceScore'] as int).toString(),
-                        ),
-                      );
-                    }).toList(),
-                  ),
 
                 const SizedBox(height: 80), // Space for bottom nav
               ],
@@ -650,93 +603,184 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
-  Widget _buildSessionItem({
-    required String sessionId,
+  // Daily speaking tips that rotate based on day of year
+  static const List<Map<String, String>> _speakingTips = [
+    {
+      'title': 'Breathe from your diaphragm',
+      'content': 'Deep breathing supports your voice and reduces nervousness. Place one hand on your belly and feel it expand as you inhale.',
+      'icon': 'air',
+    },
+    {
+      'title': 'Pause for emphasis',
+      'content': 'Strategic pauses give your audience time to absorb key points and make you appear more confident and in control.',
+      'icon': 'pause_circle',
+    },
+    {
+      'title': 'Make eye contact',
+      'content': 'Connect with individuals in your audience for 2-3 seconds each. This builds trust and keeps listeners engaged.',
+      'icon': 'visibility',
+    },
+    {
+      'title': 'Vary your vocal pitch',
+      'content': 'A monotone voice loses attention. Use higher pitch for excitement and lower pitch for serious points.',
+      'icon': 'music_note',
+    },
+    {
+      'title': 'Practice power poses',
+      'content': 'Standing tall with shoulders back for 2 minutes before speaking can boost confidence and reduce stress hormones.',
+      'icon': 'accessibility_new',
+    },
+    {
+      'title': 'Slow down your pace',
+      'content': 'Speaking too fast signals nervousness. Aim for 120-150 words per minute and let your words breathe.',
+      'icon': 'speed',
+    },
+    {
+      'title': 'Use gestures naturally',
+      'content': 'Hand movements help emphasize points and release nervous energy. Keep them purposeful and above your waist.',
+      'icon': 'pan_tool',
+    },
+    {
+      'title': 'Eliminate filler words',
+      'content': 'Replace "um," "uh," and "like" with brief pauses. Record yourself to identify your most common fillers.',
+      'icon': 'block',
+    },
+    {
+      'title': 'Start with a hook',
+      'content': 'Open with a surprising fact, question, or story to grab attention in the first 30 seconds.',
+      'icon': 'bolt',
+    },
+    {
+      'title': 'Practice the rule of three',
+      'content': 'People remember things in threes. Structure key messages in groups of three for maximum impact.',
+      'icon': 'looks_3',
+    },
+    {
+      'title': 'Project your voice',
+      'content': 'Speak to the back of the room without shouting. Good projection comes from your diaphragm, not your throat.',
+      'icon': 'campaign',
+    },
+    {
+      'title': 'End with a call to action',
+      'content': 'Tell your audience exactly what you want them to do next. A clear ending is more memorable than fading out.',
+      'icon': 'trending_up',
+    },
+    {
+      'title': 'Smile genuinely',
+      'content': 'A warm smile relaxes your voice and makes you more approachable. It also releases endorphins to calm nerves.',
+      'icon': 'sentiment_satisfied',
+    },
+    {
+      'title': 'Know your opening cold',
+      'content': 'Memorize your first 30 seconds perfectly. A confident start sets the tone for your entire presentation.',
+      'icon': 'play_arrow',
+    },
+  ];
+
+  Map<String, String> _getTodaysTip() {
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    return _speakingTips[dayOfYear % _speakingTips.length];
+  }
+
+  Widget _buildQuickStat({
     required IconData icon,
-    required String title,
-    required String date,
-    required String duration,
-    required String score,
+    required Color iconColor,
+    required String value,
+    required String label,
   }) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to analysis result screen with session ID
-        Navigator.pushNamed(
-          context,
-          RouteNames.analysis,
-          arguments: {'sessionId': sessionId},
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Column(
+      children: [
+        Icon(icon, color: iconColor, size: 24),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
         ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(8),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const List<String> _motivationalQuotes = [
+    '"The only way to do great work is to love what you do." — Steve Jobs',
+    '"Speech is power: speech is to persuade, to convert, to compel." — Ralph Waldo Emerson',
+    '"The more you practice, the better you get, the more freedom you have to create." — Jocko Willink',
+    '"Your voice is a powerful tool. Use it wisely and it will open doors." — Unknown',
+    '"Courage is what it takes to stand up and speak." — Winston Churchill',
+    '"Words are singularly the most powerful force available to humanity." — Yehuda Berg',
+    '"Be a voice, not an echo." — Albert Einstein',
+    '"The art of communication is the language of leadership." — James Humes',
+  ];
+
+  String _getMotivationalQuote() {
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    return _motivationalQuotes[dayOfYear % _motivationalQuotes.length];
+  }
+
+  Widget _buildDailyTipCard() {
+    final tip = _getTodaysTip();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.black.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.lightbulb_outline,
+                color: Colors.black.withOpacity(0.6),
+                size: 24,
               ),
-              child: Icon(icon, color: AppColors.primary, size: 20),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Title and details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$date • $duration',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Score and arrow
-            Row(
-              children: [
-                Text(
-                  '$score/100',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
+              const SizedBox(width: 8),
+              Text(
+                'TIP OF THE DAY',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black.withOpacity(0.7),
+                  letterSpacing: 1,
                 ),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            tip['title'] ?? 'Speaking Tip',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            tip['content'] ?? '',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }

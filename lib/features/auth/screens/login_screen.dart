@@ -442,68 +442,71 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Google Logo Widget using the provided SVG
+/// Google Logo Widget - Official Google 'G' logo
 class _GoogleLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Using a simple multicolored square pattern to represent Google's brand colors
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(2),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4285F4), // Google Blue
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(2),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    color: const Color(0xFFFBBC05), // Google Yellow
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEA4335), // Google Red
-                      borderRadius: BorderRadius.only(
-                        topRight: Radius.circular(2),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF34A853), // Google Green
-                      borderRadius: BorderRadius.only(
-                        bottomRight: Radius.circular(2),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return CustomPaint(
+      size: const Size(20, 20),
+      painter: _GoogleLogoPainter(),
     );
   }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double cx = w / 2;
+    final double cy = h / 2;
+    final double r = w * 0.45; // radius
+    final double strokeWidth = w * 0.18;
+    
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+    
+    // Blue arc (right side, top portion)
+    final bluePaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+    canvas.drawArc(rect, -0.4, 1.5, false, bluePaint);
+    
+    // Green arc (bottom right)
+    final greenPaint = Paint()
+      ..color = const Color(0xFF34A853)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+    canvas.drawArc(rect, 1.1, 0.9, false, greenPaint);
+    
+    // Yellow arc (bottom left)
+    final yellowPaint = Paint()
+      ..color = const Color(0xFFFBBC05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+    canvas.drawArc(rect, 2.0, 0.7, false, yellowPaint);
+    
+    // Red arc (top left)
+    final redPaint = Paint()
+      ..color = const Color(0xFFEA4335)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+    canvas.drawArc(rect, 2.7, 0.7, false, redPaint);
+    
+    // Blue horizontal bar
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromLTWH(cx - strokeWidth * 0.1, cy - strokeWidth / 2, r + strokeWidth / 2, strokeWidth),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

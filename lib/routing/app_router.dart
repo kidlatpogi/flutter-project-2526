@@ -62,13 +62,11 @@ class AppRouter {
       case RouteNames.createScript:
         return MaterialPageRoute(
           builder: (_) => const CreateScriptScreen(),
-          fullscreenDialog: true,
         );
       case RouteNames.editScript:
         final script = settings.arguments as Map<String, dynamic>;
         return MaterialPageRoute(
           builder: (_) => EditScriptScreen(script: script),
-          fullscreenDialog: true,
         );
       case RouteNames.progress:
         return MaterialPageRoute(
@@ -78,19 +76,15 @@ class AppRouter {
         final args = settings.arguments;
         if (args is AnalysisModel) {
           return MaterialPageRoute(
-            settings: settings,
             builder: (_) => DetailedFeedbackScreen(analysisResult: args),
           );
         }
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
-            settings: settings,
-            builder: (_) =>
-                DetailedFeedbackScreen(sessionId: args['sessionId'] as String?),
+            builder: (_) => DetailedFeedbackScreen(sessionId: args['sessionId'] as String?),
           );
         }
         return MaterialPageRoute(
-          settings: settings,
           builder: (_) => const DetailedFeedbackScreen(),
         );
       case RouteNames.profile:
@@ -112,35 +106,28 @@ class AppRouter {
         final args = settings.arguments;
         if (args is AnalysisModel) {
           return MaterialPageRoute(
-            settings: settings,
             builder: (_) => AnalysisResultScreen(analysisResult: args),
           );
         }
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
-            settings: settings,
-            builder: (_) =>
-                AnalysisResultScreen(sessionId: args['sessionId'] as String?),
+            builder: (_) => AnalysisResultScreen(sessionId: args['sessionId'] as String?),
           );
         }
         return MaterialPageRoute(
-          settings: settings,
           builder: (_) => const AnalysisResultScreen(),
         );
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordScreen(),
-          fullscreenDialog: true,
         );
       case RouteNames.editNickname:
         return MaterialPageRoute(
           builder: (_) => const EditNicknameScreen(),
-          fullscreenDialog: true,
         );
       case RouteNames.testAudioVideo:
         return MaterialPageRoute(
           builder: (_) => const TestAudioVideoScreen(),
-          fullscreenDialog: true,
         );
       default:
         // Check if this is an OAuth callback route (contains token parameters)
