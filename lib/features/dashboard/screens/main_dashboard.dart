@@ -508,126 +508,65 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 24),
 
-                // Motivational Quote Section
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.purple.withOpacity(0.1),
-                        Colors.blue.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.purple.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.format_quote,
-                            color: Colors.purple,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'MOTIVATION',
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.purple,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _getMotivationalQuote(),
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.primary,
-                          fontStyle: FontStyle.italic,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Motivational and Tips Section - 1 column 2 rows
-                Column(
+                // Motivation and Tips Section - 2 columns 1 row
+                Row(
                   children: [
                     // Motivation Quote
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.blue.withOpacity(0.1),
-                            Colors.indigo.withOpacity(0.05),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.format_quote,
+                                  color: Colors.black.withOpacity(0.6),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'MOTIVATION',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black.withOpacity(0.7),
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _getMotivationalQuote(),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primary,
+                                fontStyle: FontStyle.italic,
+                                height: 1.5,
+                              ),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.blue.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.format_quote,
-                                color: Colors.blue,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'MOTIVATION',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.blue,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _getMotivationalQuote(),
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.primary,
-                              fontStyle: FontStyle.italic,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(width: 16),
 
                     // Daily Tip of the Day
-                    _buildDailyTipCard(),
+                    Expanded(
+                      child: _buildDailyTipCard(),
+                    ),
                   ],
                 ),
 
@@ -792,20 +731,12 @@ class _MainDashboardState extends State<MainDashboard> {
     final tip = _getTodaysTip();
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.cyan.withOpacity(0.1),
-            Colors.blue.withOpacity(0.05),
-          ],
-        ),
+        color: Colors.black.withOpacity(0.03),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.cyan.withOpacity(0.3),
+          color: Colors.black.withOpacity(0.1),
           width: 1,
         ),
       ),
@@ -816,7 +747,7 @@ class _MainDashboardState extends State<MainDashboard> {
             children: [
               Icon(
                 Icons.lightbulb_outline,
-                color: Colors.cyan,
+                color: Colors.black.withOpacity(0.6),
                 size: 24,
               ),
               const SizedBox(width: 8),
@@ -825,7 +756,7 @@ class _MainDashboardState extends State<MainDashboard> {
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: Colors.cyan,
+                  color: Colors.black.withOpacity(0.7),
                   letterSpacing: 1,
                 ),
               ),
@@ -835,7 +766,7 @@ class _MainDashboardState extends State<MainDashboard> {
           Text(
             tip['title'] ?? 'Speaking Tip',
             style: GoogleFonts.inter(
-              fontSize: 15,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),
@@ -844,9 +775,9 @@ class _MainDashboardState extends State<MainDashboard> {
           Text(
             tip['content'] ?? '',
             style: GoogleFonts.inter(
-              fontSize: 13,
+              fontSize: 12,
               color: AppColors.textSecondary,
-              height: 1.5,
+              height: 1.4,
             ),
           ),
         ],

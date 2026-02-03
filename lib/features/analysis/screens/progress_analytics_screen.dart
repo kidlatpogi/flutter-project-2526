@@ -201,12 +201,20 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                               children: ['Week', 'Month', 'Year'].map((period) {
                                 final isSelected = _selectedPeriod == period;
                                 return GestureDetector(
-                                  onTap: () {
+                                  onTap: () async {
+                                    // Reload data with new period
                                     setState(() {
                                       _selectedPeriod = period;
-                                      // Update trend scores immediately from stored sessions
-                                      _trendScores = _buildTrendScores(_allSessions, period);
+                                      _isLoading = true;
                                     });
+                                    // Recalculate trend scores
+                                    await Future.delayed(const Duration(milliseconds: 100));
+                                    if (mounted) {
+                                      setState(() {
+                                        _trendScores = _buildTrendScores(_allSessions, period);
+                                        _isLoading = false;
+                                      });
+                                    }
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
