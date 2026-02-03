@@ -7,7 +7,7 @@ nixPkgs = ["python311", "ffmpeg"]
 [phases.install]
 cmds = [
   "pip install --upgrade pip",
-  "pip install -r backend/requirements.txt"
+  "pip install -r backend/requirements-prod.txt"
 ]
 
 [phases.build]
