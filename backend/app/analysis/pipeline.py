@@ -69,8 +69,11 @@ class AnalysisPipeline:
         if audio_path.suffix.lower() == '.wav':
             return audio_path
 
-        # For webm/ogg, try ffmpeg first, then fallback to librosa
+        # For webm/ogg, try ffmpeg first (most reliable for webm), then pydub, then librosa
         if audio_path.suffix.lower() in {'.webm', '.ogg'}:
+            logger.info(f"Need to convert {audio_path.suffix} to WAV. Checking available methods...")
+            
+            # Method 1: Try FFmpeg (best for webm/opus)
             ffmpeg = shutil.which('ffmpeg')
             
             # Try common installation paths if not in PATH
@@ -86,10 +89,10 @@ class AnalysisPipeline:
                         break
             
             if ffmpeg:
-                logger.info(f"Converting {audio_path.suffix} to WAV using ffmpeg: {ffmpeg}")
+                logger.info(f"Using FFmpeg for conversion: {ffmpeg}")
                 wav_path = audio_path.with_suffix('.wav')
                 try:
-                    subprocess.run(
+                    result = subprocess.run(
                         [
                             ffmpeg,
                             '-y',
@@ -106,18 +109,47 @@ class AnalysisPipeline:
                         stderr=subprocess.PIPE,
                         timeout=30,
                     )
-                    logger.info(f"Successfully converted to WAV using ffmpeg: {wav_path}")
-                    return wav_path
+                    # Verify output file
+                    if wav_path.exists():
+                        wav_size = wav_path.stat().st_size
+                        # Calculate expected duration from WAV file
+                        # WAV 16kHz mono 16-bit = 32000 bytes/second
+                        wav_duration = wav_size / 32000
+                        logger.info(f"FFmpeg conversion successful: {wav_path.name}, size: {wav_size} bytes, ~{wav_duration:.1f}s")
+                        return wav_path
+                    else:
+                        logger.warning("FFmpeg ran but output file not found")
                 except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-                    logger.warning(f"FFmpeg conversion failed, falling back to librosa: {e}")
-                    # Fall through to librosa
+                    logger.warning(f"FFmpeg conversion failed: {e}")
+                    # Fall through to pydub
             else:
-                logger.info(f"FFmpeg not found, using librosa to convert {audio_path.suffix} to WAV")
+                logger.info("FFmpeg not found in PATH or common locations")
+            
+            # Method 2: Try pydub (uses ffmpeg under the hood but handles it differently)
+            try:
+                from pydub import AudioSegment
+                logger.info("Trying pydub for webm conversion...")
+                audio_segment = AudioSegment.from_file(str(audio_path))
+                original_duration = len(audio_segment) / 1000.0  # pydub uses milliseconds
+                logger.info(f"Pydub loaded audio: duration = {original_duration:.2f}s")
+                
+                wav_path = audio_path.with_suffix('.wav')
+                audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
+                audio_segment.export(str(wav_path), format='wav')
+                
+                wav_size = wav_path.stat().st_size if wav_path.exists() else 0
+                logger.info(f"Pydub conversion successful: {wav_path.name}, size: {wav_size} bytes")
+                return wav_path
+            except ImportError:
+                logger.warning("pydub not installed")
+            except Exception as e:
+                logger.warning(f"pydub conversion failed: {e}")
         
         # Fallback: Load and save as WAV using librosa
         logger.info(f"Converting {audio_path.suffix} to WAV using librosa and soundfile")
         try:
             # For webm/ogg, librosa may need audioread backend
+            logger.info(f"Loading audio with librosa: {audio_path}")
             y, sr = librosa.load(str(audio_path), sr=16000, mono=True)
             
             if y is None or len(y) == 0:
@@ -127,15 +159,19 @@ class AnalysisPipeline:
             actual_duration = len(y) / sr
             logger.info(f"Librosa loaded audio: {len(y)} samples at {sr}Hz = {actual_duration:.2f} seconds")
             
+            # CRITICAL: Check if librosa loaded the full audio
+            # For 32 seconds at 16kHz, we expect ~512,000 samples
+            expected_samples_per_second = 16000
+            if actual_duration < 10:  # If less than 10 seconds, warn
+                logger.warning(f"WARNING: Audio duration seems short ({actual_duration:.2f}s). Original file may not have been fully loaded.")
+            
             wav_path = audio_path.with_suffix('.wav')
             import soundfile as sf
             sf.write(str(wav_path), y, sr)
             
             # Log output file size
             output_size = wav_path.stat().st_size if wav_path.exists() else 0
-            logger.info(f"WAV output file: {wav_path.name}, size: {output_size} bytes, expected duration: {actual_duration:.2f}s")
-            
-            return wav_path
+            logger.info(f"WAV output file: {wav_path.name}, size: {output_size} bytes, duration: {actual_duration:.2f}s")
             
             return wav_path
         except Exception as e:

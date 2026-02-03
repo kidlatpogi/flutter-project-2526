@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
@@ -8,9 +7,6 @@ import '../../splash/screens/splash_screen1.dart';
 import '../../dashboard/screens/main_dashboard.dart';
 import 'login_screen.dart';
 import 'nickname_setup_screen.dart';
-
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 /// Wrapper that handles authentication state and routing
 class AuthWrapper extends StatefulWidget {
@@ -30,37 +26,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _cleanupOAuthUrlSafely();
     _checkAuthStatus();
     _listenToAuthChanges();
-  }
-
-  /// Clean up OAuth parameters from URL after successful login
-  /// Uses pushState instead of replace to avoid page reload
-  void _cleanupOAuthUrlSafely() {
-    if (!kIsWeb) return;
-    
-    try {
-      final href = html.window.location.href;
-      
-      // Check if URL contains OAuth tokens
-      if (href.contains('access_token=') || 
-          href.contains('provider_token=') ||
-          href.contains('refresh_token=')) {
-        print('AuthWrapper: Cleaning OAuth tokens from URL (using pushState)');
-        
-        // Extract the base URL without fragment
-        final uri = Uri.parse(href);
-        final cleanUrl = '${uri.scheme}://${uri.host}${uri.port != 0 && uri.port != 80 && uri.port != 443 ? ':${uri.port}' : ''}${uri.path}';
-        
-        // Use pushState instead of replaceState to avoid breaking Flutter's history
-        // Use null state to let Flutter manage it
-        html.window.history.pushState(null, '', cleanUrl);
-        print('AuthWrapper: URL cleaned to: $cleanUrl');
-      }
-    } catch (e) {
-      print('AuthWrapper: Error cleaning OAuth URL: $e');
-    }
   }
 
   /// Listen to authentication state changes

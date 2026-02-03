@@ -155,41 +155,27 @@ class AudioService {
           return RecordedAudio(file: file, fileName: fileName);
         } else {
           // Web platform: Wait for audio encoding to complete
-          // The browser's audio context and MediaRecorder need significant time to:
-          // 1. Finish encoding all recorded audio frames
-          // 2. Complete the ondataavailable callback
-          // 3. Finalize the blob
-          print('AudioService: Web platform, waiting for audio encoding...');
+          // The browser's MediaRecorder needs time to finalize the blob
+          // CRITICAL: Must wait for all audio data to be encoded
+          print('AudioService: Web platform, waiting for audio encoding to complete...');
           
-          // Increase delay to ensure complete encoding
-          // Start with 1 second for very complete encoding
-          await Future.delayed(const Duration(milliseconds: 1000));
+          // Wait 2 seconds to ensure complete audio encoding
+          // This is necessary because MediaRecorder.stop() returns before
+          // all audio data is fully encoded into the blob
+          await Future.delayed(const Duration(milliseconds: 2000));
           
           print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
-          print('AudioService: Web audio data size: ${bytes.length} bytes');
+          print('AudioService: Web audio data size: ${bytes.length} bytes (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
           
-          // If file is suspiciously small, wait longer and try again
-          if (bytes.length < 5000) {
-            print('AudioService: WARNING - Audio file is small (${bytes.length} bytes), waiting longer...');
-            await Future.delayed(const Duration(milliseconds: 500));
-            final retryBytes = await readWebFileBytes(path);
-            print('AudioService: Retry audio data size: ${retryBytes.length} bytes');
-            
-            if (retryBytes.length > bytes.length) {
-              print('AudioService: Using retried audio data (larger)');
-              if (retryBytes.isEmpty) {
-                print('AudioService: ERROR - No audio data recorded on web');
-                throw AudioException('No audio data recorded');
-              }
-              return RecordedAudio(bytes: retryBytes, fileName: fileName);
-            }
-          }
+          // For reference: webm/opus at ~50KB/s means 32s should be ~1.6MB
+          // If we're getting significantly less, the audio is truncated
           
           if (bytes.isEmpty) {
             print('AudioService: ERROR - No audio data recorded on web');
             throw AudioException('No audio data recorded');
           }
+          
           return RecordedAudio(bytes: bytes, fileName: fileName);
         }
       }
