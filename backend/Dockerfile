@@ -27,9 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port (Cloud Run/Render usually use 8080 or 8000)
-ENV PORT=8000
-EXPOSE 8000
+# Expose the port (HF Spaces uses 7860)
+ENV PORT=7860
+EXPOSE 7860
 
 # Set environment variables for optimization
 ENV PYTHONUNBUFFERED=1
@@ -37,4 +37,4 @@ ENV OMP_NUM_THREADS=4
 ENV MKL_NUM_THREADS=4
 
 # Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
