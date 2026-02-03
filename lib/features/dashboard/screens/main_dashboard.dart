@@ -311,9 +311,147 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 24),
 
-                // Ready to speak card
+                // Ready to speak card - More engaging design
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primary,
+                        AppColors.primary.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.record_voice_over,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.local_fire_department,
+                                  color: Colors.amber,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isStatsLoading ? '...' : '$_streakDays day streak',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Title
+                      Text(
+                        'Ready to speak?',
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Description
+                      Text(
+                        'Practice makes perfect! Start your daily session\nand improve your public speaking skills.',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          height: 1.5,
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Start Practice button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              RouteNames.practiceSetup,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.play_circle_filled,
+                                size: 22,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Start Practice',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Quick Stats with better design
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
@@ -325,191 +463,104 @@ class _MainDashboardState extends State<MainDashboard> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      // Title
-                      Text(
-                        'Ready to speak?',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                      // Sessions Today
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.calendar_today,
+                          iconColor: Colors.blue,
+                          value: _isStatsLoading ? '—' : '${_recentSessions.where((s) => (s['date'] as String).startsWith('Today')).length}',
+                          label: 'Today',
                         ),
                       ),
-
-                      const SizedBox(height: 8),
-
-                      // Description
-                      Text(
-                        'Your daily pronunciation drill is ready.\nToday we focus on vowel clarity.',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                      // Average Score
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.analytics,
+                          iconColor: Colors.green,
+                          value: _isStatsLoading ? '—' : '$_avgScore',
+                          label: 'Avg Score',
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Start Practice button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(
-                              context,
-                              RouteNames.practiceSetup,
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Start Practice',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.arrow_forward,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                      // Streak
+                      Expanded(
+                        child: _buildQuickStat(
+                          icon: Icons.local_fire_department,
+                          iconColor: Colors.orange,
+                          value: _isStatsLoading ? '—' : '$_streakDays',
+                          label: 'Streak',
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-                // Stats Row
-                Row(
-                  children: [
-                    // Streak card
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
+                // Motivational Quote Section
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.purple.withOpacity(0.1),
+                        Colors.blue.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.purple.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.format_quote,
+                            color: Colors.purple,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'MOTIVATION',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.purple,
+                              letterSpacing: 1,
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'STREAK',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  _isStatsLoading ? '—' : '$_streakDays',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'days',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _getMotivationalQuote(),
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.primary,
+                          fontStyle: FontStyle.italic,
+                          height: 1.5,
                         ),
                       ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Average Score card
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'AVG SCORE',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  _isStatsLoading ? '—' : '$_avgScore',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                Text(
-                                  '/100',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 24),
@@ -659,6 +710,51 @@ class _MainDashboardState extends State<MainDashboard> {
       case 'play_arrow': return Icons.play_arrow;
       default: return Icons.lightbulb_outline;
     }
+  }
+
+  Widget _buildQuickStat({
+    required IconData icon,
+    required Color iconColor,
+    required String value,
+    required String label,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: iconColor, size: 24),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const List<String> _motivationalQuotes = [
+    '"The only way to do great work is to love what you do." — Steve Jobs',
+    '"Speech is power: speech is to persuade, to convert, to compel." — Ralph Waldo Emerson',
+    '"The more you practice, the better you get, the more freedom you have to create." — Jocko Willink',
+    '"Your voice is a powerful tool. Use it wisely and it will open doors." — Unknown',
+    '"Courage is what it takes to stand up and speak." — Winston Churchill',
+    '"Words are singularly the most powerful force available to humanity." — Yehuda Berg',
+    '"Be a voice, not an echo." — Albert Einstein',
+    '"The art of communication is the language of leadership." — James Humes',
+  ];
+
+  String _getMotivationalQuote() {
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    return _motivationalQuotes[dayOfYear % _motivationalQuotes.length];
   }
 
   Widget _buildDailyTipCard() {

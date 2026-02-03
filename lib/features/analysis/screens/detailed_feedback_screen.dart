@@ -460,8 +460,8 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
                     const SizedBox(height: 12),
                     _buildTranscriptionCard(result),
 
-                    // Mispronunciations Section (if any)
-                    if (result.mispronunciations.isNotEmpty) ...[
+                    // Mispronunciations Section - always show for awareness
+                    ...[
                       const SizedBox(height: 24),
                       _buildSectionTitle(
                         'MISPRONUNCIATIONS',
@@ -1019,6 +1019,53 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   }
 
   Widget _buildMispronunciationsCard(AnalysisModel result) {
+    // Show empty state if no mispronunciations
+    if (result.mispronunciations.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Perfect Pronunciation!',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No mispronunciations detected in this session.\nGreat job on your speech clarity!',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),

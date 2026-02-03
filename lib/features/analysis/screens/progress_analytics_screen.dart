@@ -34,8 +34,12 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     try {
       print('Loading progress data...');
       
+      // Fetch more sessions to support Year view (up to 365 days of data)
+      // Limit based on period: Week=20, Month=50, Year=200
+      final limit = _selectedPeriod == 'Year' ? 200 : (_selectedPeriod == 'Month' ? 50 : 20);
+      
       // Fetch sessions and total count in parallel
-      final sessionsFuture = _apiService.getSessions(limit: 20);
+      final sessionsFuture = _apiService.getSessions(limit: limit);
       final countFuture = _apiService.getTotalSessionsCount();
       
       final results = await Future.wait([sessionsFuture, countFuture]);
@@ -200,8 +204,9 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                                   onTap: () {
                                     setState(() {
                                       _selectedPeriod = period;
-                                      _trendScores = _buildTrendScores(_allSessions, period);
                                     });
+                                    // Reload data with appropriate limit for the period
+                                    _loadProgressData();
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
