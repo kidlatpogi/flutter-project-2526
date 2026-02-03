@@ -276,7 +276,16 @@ class AuthService {
 
   /// Get user's display name
   String? get displayName =>
-      userMetadata?['full_name'] ?? userMetadata?['name'];
+      userMetadata?['full_name'] ?? userMetadata?['display_name'] ?? userMetadata?['name'];
+
+  /// Refresh current user data from Supabase
+  Future<void> refreshUserData() async {
+    try {
+      await _supabase.auth.refreshSession();
+    } catch (e) {
+      print('Failed to refresh user data: $e');
+    }
+  }
 
   /// Get user's email
   String? get email => currentUser?.email;

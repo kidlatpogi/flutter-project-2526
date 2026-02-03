@@ -154,6 +154,11 @@ class AudioService {
           
           return RecordedAudio(file: file, fileName: fileName);
         } else {
+          // Web platform: Wait longer for audio encoding to complete
+          // The browser's audio context needs time to encode all frames
+          print('AudioService: Web platform, waiting for audio encoding...');
+          await Future.delayed(const Duration(milliseconds: 500));
+          
           print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
           print('AudioService: Web audio data size: ${bytes.length} bytes');

@@ -193,13 +193,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fullName: fullName,
       );
       
-      // Update Supabase auth user metadata for display_name
+      // Update Supabase auth user metadata for full_name (consistent with authService)
       final supabase = Supabase.instance.client;
       await supabase.auth.updateUser(
         UserAttributes(
-          data: {'display_name': fullName},
+          data: {'full_name': fullName},
         ),
       );
+      
+      // Refresh user data to update displayName getter
+      await _authService.refreshUserData();
       
       // Update local state
       _originalFullName = fullName;
