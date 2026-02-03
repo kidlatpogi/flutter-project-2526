@@ -921,6 +921,80 @@ async def get_session_recording(
         )
 
 
+@app.delete(
+    "/user/clear-data",
+    tags=["User"],
+    responses={
+        200: {"description": "User data cleared successfully"},
+        401: {"model": ErrorResponse, "description": "Unauthorized"}
+    }
+)
+async def clear_user_data(
+    authorization: Annotated[str, Header()] = ""
+):
+    """
+    Clear all recordings and session data for the authenticated user.
+    
+    This will:
+    - Delete all recordings from storage
+    - Delete all session records from the database
+    """
+    user_id = verify_jwt_token(authorization)
+    
+    db = get_supabase()
+    storage = db.storage
+    
+    deleted_files = 0
+    deleted_sessions = 0
+    errors = []
+    
+    try:
+        # 1. Delete recordings from storage
+        try:
+            # List files in user's folder
+            files = storage.from_("recordings").list(user_id)
+            logger.info(f"Found {len(files)} files in user folder: {user_id}")
+            
+            for file_info in files:
+                file_name = file_info.get("name")
+                if file_name:
+                    try:
+                        file_path = f"{user_id}/{file_name}"
+                        storage.from_("recordings").remove([file_path])
+                        deleted_files += 1
+                        logger.info(f"Deleted recording: {file_path}")
+                    except Exception as e:
+                        errors.append(f"Failed to delete {file_name}: {str(e)}")
+                        logger.warning(f"Failed to delete recording {file_name}: {e}")
+        except Exception as e:
+            errors.append(f"Failed to list recordings: {str(e)}")
+            logger.warning(f"Failed to list recordings for user {user_id}: {e}")
+        
+        # 2. Delete session records from database
+        try:
+            # Delete from features table
+            result = db.table("features").delete().eq("user_id", user_id).execute()
+            deleted_sessions = len(result.data) if result.data else 0
+            logger.info(f"Deleted {deleted_sessions} session records for user {user_id}")
+        except Exception as e:
+            errors.append(f"Failed to delete sessions: {str(e)}")
+            logger.error(f"Failed to delete sessions for user {user_id}: {e}")
+        
+        return {
+            "success": True,
+            "deleted_files": deleted_files,
+            "deleted_sessions": deleted_sessions,
+            "errors": errors if errors else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to clear user data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear user data: {str(e)}"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     

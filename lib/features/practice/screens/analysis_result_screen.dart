@@ -118,7 +118,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Future<void> _togglePlayback() async {
-    if (_recordingPath == null) return;
+    if (_recordingPath == null) {
+      _showRecordingNotFoundDialog();
+      return;
+    }
     if (_isPlaying) {
       await _audioPlayer.pause();
     } else {
@@ -141,12 +144,81 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       } catch (e) {
         print('Error playing recording: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error playing recording: $e')),
-          );
+          // Check if it's a 404 or network error indicating deleted recording
+          final errorString = e.toString().toLowerCase();
+          if (errorString.contains('404') || 
+              errorString.contains('not found') ||
+              errorString.contains('failed to load') ||
+              errorString.contains('unable to connect')) {
+            _showRecordingNotFoundDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error playing recording'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     }
+  }
+
+  void _showRecordingNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(
+          Icons.audio_file,
+          color: AppColors.inactive,
+          size: 48,
+        ),
+        title: Text(
+          'Recording Not Available',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'This recording has been deleted or is no longer available.',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You may have cleared your cache and recordings from Settings.',
+              style: GoogleFonts.inter(
+                color: AppColors.inactive,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _stopPlayback() async {

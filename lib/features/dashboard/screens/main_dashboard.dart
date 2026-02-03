@@ -243,6 +243,21 @@ class _MainDashboardState extends State<MainDashboard> {
                                 child: Image.network(
                                   _avatarUrl!,
                                   fit: BoxFit.cover,
+                                  cacheWidth: 80,
+                                  cacheHeight: 80,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                   errorBuilder: (context, error, stackTrace) =>
                                       Icon(
                                         Icons.person_outline,

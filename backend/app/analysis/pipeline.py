@@ -69,14 +69,27 @@ class AnalysisPipeline:
         if audio_path.suffix.lower() == '.wav':
             return audio_path
 
-        # For webm/ogg, try ffmpeg first (most reliable for webm), then pydub, then librosa
+        # For webm/ogg, we MUST use FFmpeg - librosa doesn't handle these well
         if audio_path.suffix.lower() in {'.webm', '.ogg'}:
-            logger.info(f"Need to convert {audio_path.suffix} to WAV. Checking available methods...")
+            logger.info(f"Converting {audio_path.suffix} to WAV...")
             
-            # Method 1: Try FFmpeg (best for webm/opus)
+            # First, try to get input file duration using ffprobe
+            ffprobe = shutil.which('ffprobe')
+            if ffprobe:
+                try:
+                    probe_result = subprocess.run(
+                        [ffprobe, '-v', 'error', '-show_entries', 'format=duration', 
+                         '-of', 'default=noprint_wrappers=1:nokey=1', str(audio_path)],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if probe_result.stdout.strip():
+                        input_duration = float(probe_result.stdout.strip())
+                        logger.info(f"FFprobe detected input duration: {input_duration:.2f}s")
+                except Exception as e:
+                    logger.warning(f"FFprobe failed: {e}")
+            
+            # Use FFmpeg for conversion
             ffmpeg = shutil.which('ffmpeg')
-            
-            # Try common installation paths if not in PATH
             if not ffmpeg:
                 potential_paths = [
                     'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
@@ -89,41 +102,80 @@ class AnalysisPipeline:
                         break
             
             if ffmpeg:
-                logger.info(f"Using FFmpeg for conversion: {ffmpeg}")
+                logger.info(f"Using FFmpeg: {ffmpeg}")
                 wav_path = audio_path.with_suffix('.wav')
                 try:
+                    # CRITICAL: Browser MediaRecorder creates webm files with missing/incorrect duration
+                    # The webm duration metadata is often wrong or missing entirely.
+                    # We need to force FFmpeg to read the ENTIRE file, not trust duration metadata.
+                    #
+                    # Key flags:
+                    # -fflags +genpts+igndts: Generate PTS, ignore DTS errors
+                    # -analyzeduration/probesize: Analyze entire file
+                    # -f webm: Force input format to webm (helps with detection)
+                    
+                    # First, convert to raw PCM to bypass container issues
+                    # then wrap in WAV container
+                    cmd = [
+                        ffmpeg,
+                        '-y',
+                        '-fflags', '+genpts+igndts+discardcorrupt',
+                        '-analyzeduration', '2147483647',  # Max int32 - analyze everything
+                        '-probesize', '2147483647',        # Max int32 - probe everything
+                        '-f', 'webm',                      # Force webm input format
+                        '-i', str(audio_path),
+                        '-vn',                             # No video
+                        '-ar', '16000',
+                        '-ac', '1',
+                        '-acodec', 'pcm_s16le',
+                        '-f', 'wav',                       # Force WAV output
+                        str(wav_path),
+                    ]
+                    logger.info(f"Running: {' '.join(cmd)}")
+                    
                     result = subprocess.run(
-                        [
-                            ffmpeg,
-                            '-y',
-                            '-i',
-                            str(audio_path),
-                            '-ar',
-                            '16000',
-                            '-ac',
-                            '1',
-                            str(wav_path),
-                        ],
-                        check=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.PIPE,
-                        timeout=30,
+                        cmd,
+                        capture_output=True,
+                        timeout=180,  # 3 minutes for large files
                     )
-                    # Verify output file
+                    
+                    # Log ffmpeg output for debugging
+                    stderr_text = result.stderr.decode('utf-8', errors='ignore')
+                    for line in stderr_text.split('\n'):
+                        if any(x in line for x in ['Duration:', 'time=', 'size=', 'Error', 'error', 'Stream']):
+                            logger.info(f"FFmpeg: {line.strip()}")
+                    
+                    if result.returncode != 0:
+                        logger.error(f"FFmpeg failed with code {result.returncode}")
+                        # Log full stderr on failure
+                        logger.error(f"FFmpeg stderr: {stderr_text[:2000]}")
+                        raise subprocess.CalledProcessError(result.returncode, cmd)
+                    
+                    # Verify output file exists and has content
                     if wav_path.exists():
                         wav_size = wav_path.stat().st_size
-                        # Calculate expected duration from WAV file
-                        # WAV 16kHz mono 16-bit = 32000 bytes/second
-                        wav_duration = wav_size / 32000
-                        logger.info(f"FFmpeg conversion successful: {wav_path.name}, size: {wav_size} bytes, ~{wav_duration:.1f}s")
+                        # WAV 16kHz mono 16-bit = 32000 bytes/second + 44 byte header
+                        wav_duration = (wav_size - 44) / 32000
+                        logger.info(f"FFmpeg SUCCESS: {wav_path.name}, size: {wav_size} bytes, duration: {wav_duration:.1f}s")
+                        
+                        # Check for significant duration mismatch with input size
+                        # webm at ~50KB/s: 1.6MB should be ~32s
+                        expected_input_duration = original_size / 50000  # rough estimate
+                        if wav_duration < expected_input_duration * 0.7:
+                            logger.warning(f"WARNING: Output duration ({wav_duration:.1f}s) is much shorter than expected ({expected_input_duration:.1f}s based on input size)")
+                        
                         return wav_path
                     else:
-                        logger.warning("FFmpeg ran but output file not found")
-                except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-                    logger.warning(f"FFmpeg conversion failed: {e}")
-                    # Fall through to pydub
+                        logger.error("FFmpeg ran but output file not found")
+                        
+                except subprocess.TimeoutExpired:
+                    logger.error("FFmpeg timed out after 180 seconds")
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"FFmpeg failed: {e}")
+                except Exception as e:
+                    logger.error(f"FFmpeg error: {e}")
             else:
-                logger.info("FFmpeg not found in PATH or common locations")
+                logger.error("FFmpeg not found! Cannot convert webm to wav properly.")
             
             # Method 2: Try pydub (uses ffmpeg under the hood but handles it differently)
             try:

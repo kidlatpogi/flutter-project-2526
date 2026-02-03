@@ -285,6 +285,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Image.network(
                                   _avatarUrl!,
                                   fit: BoxFit.cover,
+                                  cacheWidth: 240,
+                                  cacheHeight: 240,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    );
+                                  },
                                   errorBuilder: (context, error, stackTrace) =>
                                       Icon(
                                         Icons.person,

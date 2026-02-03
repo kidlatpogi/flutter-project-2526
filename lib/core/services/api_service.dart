@@ -391,6 +391,50 @@ class ApiService {
     }
   }
 
+  /// Clear all recordings and session data for the current user
+  Future<Map<String, dynamic>> clearUserData() async {
+    final uri = Uri.parse('$baseUrl/user/clear-data');
+
+    try {
+      await _ensureFreshSession();
+      final headers = _buildHeaders();
+
+      final response = await _client
+          .delete(uri, headers: headers)
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else if (response.statusCode == 401) {
+        await _ensureFreshSession(forceRefresh: true);
+        final retryHeaders = _buildHeaders();
+        final retryResponse = await _client
+            .delete(uri, headers: retryHeaders)
+            .timeout(_timeout);
+        if (retryResponse.statusCode == 200) {
+          return json.decode(retryResponse.body) as Map<String, dynamic>;
+        }
+        throw ApiException(
+          'Unauthorized. Please sign in again.',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      } else {
+        throw ApiException(
+          'Failed to clear user data',
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+      }
+    } on SocketException {
+      throw ApiException('Cannot connect to server', statusCode: 0);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Unexpected error: ${e.toString()}');
+    }
+  }
+
   /// Dispose the HTTP client when no longer needed
   void dispose() {
     _client.close();

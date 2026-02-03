@@ -75,19 +75,24 @@ class AudioService {
       path = '${directory.path}/recording_$timestamp.wav';
       _currentRecordingPath = path;
     } else {
-      path = 'recording_$timestamp.webm';
+      // On web, the record package uses MicRecorderDelegate for WAV which outputs WAV directly
+      // NOT webm. The file extension should match the actual format.
+      path = 'recording_$timestamp.wav';
       _currentRecordingPath = path;
     }
 
     // Configure and start recording
     try {
-      // Use higher bit rate and sample rate for better quality
+      // Use WAV encoder - this creates proper WAV files on all platforms including web
+      // On web, this uses AudioWorklet to capture and encode to WAV directly,
+      // which avoids the webm duration metadata issues that plague MediaRecorder
       const config = RecordConfig(
         encoder: AudioEncoder.wav,
-        sampleRate: 44100,
-        bitRate: 192000, // 192 kbps for better quality
-        numChannels: 1,
+        sampleRate: 16000,  // 16kHz for speech (matches backend expectation)
+        bitRate: 256000,    // 256 kbps for good quality
+        numChannels: 1,     // Mono for speech
       );
+      print('AudioService: Starting recording with WAV encoder, sampleRate: 16000, channels: 1');
       await _recorder.start(config, path: path);
       _isRecording = true;
       return _currentRecordingPath ?? '';
@@ -159,10 +164,12 @@ class AudioService {
           // CRITICAL: Must wait for all audio data to be encoded
           print('AudioService: Web platform, waiting for audio encoding to complete...');
           
-          // Wait 2 seconds to ensure complete audio encoding
+          // Wait 5 seconds to ensure complete audio encoding
           // This is necessary because MediaRecorder.stop() returns before
           // all audio data is fully encoded into the blob
-          await Future.delayed(const Duration(milliseconds: 2000));
+          // Increased to 5s to ensure the full recording is captured
+          // (32s recordings were being cut to ~29s with shorter delays)
+          await Future.delayed(const Duration(milliseconds: 5000));
           
           print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
