@@ -1,26 +1,33 @@
----
-title: {{title}}
-emoji: {{emoji}}
-colorFrom: {{colorFrom}}
-colorTo: {{colorTo}}
-sdk: {{sdk}}
-sdk_version: "{{sdkVersion}}"
-{{#pythonVersion}}
-python_version: "{{pythonVersion}}"
-{{/pythonVersion}}
-app_file: app.py
-pinned: false
----
+# Bigkas - Public Speaking Assessment App
 
-# FIRST TIME RUN
+A Flutter web application with FastAPI backend for analyzing public speaking performance using AI.
 
-# 1. cd backend
-# 2. pip install -r requirements.txt
-# 3. python main.py
-# 4. flutter run -d edge --web-port 3000  
+## Quick Start
 
-# NEXT RUN
+### First Time Setup
 
-# 1. cd backend
-# 3. python main.py
-# 3. flutter run -d edge --web-port 3000
+1. **Backend Setup**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+2. **Run the Application**
+   - Backend: `.\run_backend_8000.ps1` (runs on http://localhost:8000)
+   - Frontend: `.\run_web_3000.ps1` (runs on http://localhost:3000)
+
+### Subsequent Runs
+
+Simply run both scripts:
+```bash
+.\run_backend_8000.ps1
+.\run_web_3000.ps1
+```
+
+## Tech Stack
+
+- **Frontend**: Flutter Web
+- **Backend**: FastAPI (Python)
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth + Google Sign-In
+- **Deployment**: Railway / Hugging Face Spaces
