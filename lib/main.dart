@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart';
 import 'features/auth/screens/auth_wrapper.dart';
+import 'features/auth/screens/reset_password_screen.dart';
 
 /// Supabase configuration
 const String supabaseUrl = 'https://krbcgixttxxdofdmevyj.supabase.co';
@@ -41,6 +42,15 @@ class MyApp extends StatelessWidget {
         // Handle unknown routes - OAuth redirects have access_token in URL fragment
         final routeName = settings.name ?? '';
         print('Unknown route: $routeName');
+        
+        // Check for password reset type parameter (type=recovery)
+        if (routeName.contains('type=recovery') || routeName.contains('recovery')) {
+          print('Password recovery callback detected');
+          // Import and navigate to reset password screen
+          return MaterialPageRoute(
+            builder: (_) => const ResetPasswordScreen(),
+          );
+        }
         
         // OAuth callback URLs - the entire fragment becomes the route name
         // Check if route contains ANY OAuth-related parameter

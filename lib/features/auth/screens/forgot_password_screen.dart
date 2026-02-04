@@ -57,7 +57,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               
               // Subtitle
               Text(
-                'Enter your email address to receive a\nverification code.',
+                'Enter your email address to receive a\npassword reset link.',
                 style: AppTextStyles.paragraph,
               ),
               
@@ -172,7 +172,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Send Code'),
+                      : const Text('Send Link'),
                 ),
               ),
             ],

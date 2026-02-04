@@ -64,6 +64,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: Text(
+          'BIGKAS',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+            letterSpacing: 1.5,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -75,7 +90,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 
                 // Reset Password Title
                 Text(
-                  'Reset Password',
+                  'Reset\nPassword',
                   style: AppTextStyles.header,
                 ),
                 
@@ -91,11 +106,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 
                 // New Password Field
                 Text(
-                  'New Password',
+                  'NEW PASSWORD',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primary,
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -158,11 +174,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 
                 // Confirm New Password Field
                 Text(
-                  'Confirm New Password',
+                  'CONFIRM PASSWORD',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primary,
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -206,9 +223,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 200),
+                const SizedBox(height: 40),
                 
-                // Save new password Button
+                // Reset Password Button
                 SizedBox(
                   width: double.infinity,
                   height: AppConstants.buttonHeight,
@@ -244,11 +261,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Password updated successfully'),
+                                  content: Text('Password updated successfully! Please log in with your new password.'),
                                   backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 3),
                                 ),
                               );
-                              Navigator.pop(context);
+                              // Sign out and redirect to login
+                              await _authService.signOut();
+                              if (!mounted) return;
+                              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                             } on AuthException catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
