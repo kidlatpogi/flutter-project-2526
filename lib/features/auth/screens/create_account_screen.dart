@@ -139,10 +139,31 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
     try {
       print('Calling signUpWithEmail...');
-      await _authService.signUpWithEmail(email, password, name: fullName);
-      
+      final user = await _authService.signUpWithEmail(
+        email,
+        password,
+        name: fullName,
+      );
+
+      final hasSession = _authService.currentSession != null;
+      final isEmailConfirmed = user?.emailConfirmedAt != null;
+
+      // If email confirmation is not required, go straight to app flow
+      if (hasSession || isEmailConfirmed) {
+        if (hasSession) {
+          await _userProfileService.updateUserProfile(fullName: fullName);
+        }
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          RouteNames.authWrapper,
+          (route) => false,
+        );
+        return;
+      }
+
       print('Signup successful, prompting email confirmation...');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -443,24 +464,52 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // Sign up Button
-                SizedBox(
-                  width: double.infinity,
-                  height: AppConstants.buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleCreateAccount,
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Create Account'),
+                // Error Message
+                if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                ),
+                child: Row(
+                children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                child: Text(
+                    _errorMessage!,
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Sign up Button
+              SizedBox(
+                width: double.infinity,
+                height: AppConstants.buttonHeight,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleCreateAccount,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Create Account'),
+                ),
+              ),
                 
                 const SizedBox(height: 24),
                 

@@ -183,8 +183,31 @@ class AuthService {
         data: name != null ? {'full_name': name} : null,
         emailRedirectTo: emailRedirectTo,
       );
+      if (response.user == null) {
+        throw AuthException('Registration failed. Please try again.');
+      }
       return response.user;
     } on AuthApiException catch (e) {
+      final message = e.message.toLowerCase();
+      final isRedirectError = message.contains('redirect') || message.contains('url');
+
+      if (kIsWeb && isRedirectError) {
+        try {
+          final AuthResponse fallbackResponse = await _supabase.auth.signUp(
+            email: email,
+            password: password,
+            data: name != null ? {'full_name': name} : null,
+          );
+          if (fallbackResponse.user == null) {
+            throw AuthException('Registration failed. Please try again.');
+          }
+          return fallbackResponse.user;
+        } on AuthApiException catch (fallbackError) {
+          throw AuthException(fallbackError.message,
+              code: fallbackError.statusCode);
+        }
+      }
+
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       throw AuthException('Registration failed: ${e.toString()}');

@@ -39,16 +39,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserData() async {
     try {
       // Load data from Supabase auth
-      _fullNameController.text = _authService.displayName ?? '';
-      _emailController.text = _authService.email ?? '';
-      _avatarUrl = _authService.avatarUrl;
+      final authFullName = _authService.displayName ?? '';
+      final authEmail = _authService.email ?? '';
+      final authAvatarUrl = _authService.avatarUrl;
+
+      // Load profile from database (fallback for full name)
+      final profile = await _userProfileService.getUserProfile();
+      final profileFullName = profile?['full_name'] ?? '';
+
+      final resolvedFullName = authFullName.isNotEmpty
+          ? authFullName
+          : (profileFullName as String);
+
+      _fullNameController.text = resolvedFullName;
+      _emailController.text = authEmail;
+      _avatarUrl = authAvatarUrl;
 
       // Store original values
-      _originalFullName = _authService.displayName ?? '';
-      _originalAvatarUrl = _authService.avatarUrl;
+      _originalFullName = resolvedFullName;
+      _originalAvatarUrl = authAvatarUrl;
 
-      // Load nickname from backend
-      final profile = await _userProfileService.getUserProfile();
+      // Load nickname
       _nickname = profile?['nickname'];
 
       if (mounted) {
@@ -190,9 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final fullName = _fullNameController.text.trim();
       
       // Update backend profile
-      await _userProfileService.updateUserProfile(
-        fullName: fullName,
-      );
+      await _userProfileService.updateUserProfile(fullName: fullName);
       
       // Update Supabase auth user metadata for full_name (consistent with authService)
       final supabase = Supabase.instance.client;
@@ -206,9 +215,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _authService.refreshUserData();
       
       // Update local state
-      _originalFullName = fullName;
-
       if (mounted) {
+        setState(() {
+          _originalFullName = fullName;
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile updated successfully'),
