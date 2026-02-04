@@ -40,9 +40,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       // Load profile from database (single source of truth)
       final profile = await _userProfileService.getUserProfile();
+      
+      if (profile == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+      
       // Use custom_full_name from database (user's preference)
       // Falls back to full_name if custom_full_name not set
-      final displayName = profile?['custom_full_name'] ?? profile?['full_name'] ?? '';
+      if (!profile.containsKey('custom_full_name')) {
+        print('WARNING: custom_full_name not returned from API. Run: select pg_notify(\'pgrst\', \'reload schema\');');
+      }
+      final displayName = profile['custom_full_name'] ?? profile['full_name'] ?? '';
       
       // Load email and avatar from auth
       final authEmail = _authService.email ?? '';
@@ -57,13 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _originalAvatarUrl = authAvatarUrl;
 
       // Load nickname from profile
-      try {
-        final profile = await _userProfileService.getUserProfile();
-        _nickname = profile?['nickname'];
-      } catch (e) {
-        print('Error loading nickname: $e');
-        _nickname = null;
-      }
+      _nickname = profile['nickname'];
 
       if (mounted) {
         setState(() => _isLoading = false);

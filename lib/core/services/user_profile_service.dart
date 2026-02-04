@@ -60,7 +60,7 @@ class UserProfileService {
     }
   }
 
-  /// Get user's nickname or display name (first name from display_name)
+  /// Get user's nickname or display name (first name from custom_full_name/full_name)
   Future<String?> getNicknameOrDisplayName() async {
     try {
       final profile = await getUserProfile();
@@ -72,10 +72,15 @@ class UserProfileService {
         return profile['nickname'] as String;
       }
 
-      // Fall back to first name from display_name
-      if (profile['display_name'] != null &&
-          (profile['display_name'] as String).isNotEmpty) {
-        return (profile['display_name'] as String).split(' ').first;
+      // Fall back to first name from custom_full_name, then full_name
+      if (profile['custom_full_name'] != null &&
+          (profile['custom_full_name'] as String).isNotEmpty) {
+        return (profile['custom_full_name'] as String).split(' ').first;
+      }
+
+      if (profile['full_name'] != null &&
+          (profile['full_name'] as String).isNotEmpty) {
+        return (profile['full_name'] as String).split(' ').first;
       }
 
       return null;

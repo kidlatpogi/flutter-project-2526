@@ -15,7 +15,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('user_profiles')
-          .select()
+          .select('id,nickname,full_name,custom_full_name,is_active,account_status,created_at,updated_at')
           .eq('id', _userId!)
           .maybeSingle();
 

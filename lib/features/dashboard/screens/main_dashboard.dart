@@ -22,7 +22,6 @@ class _MainDashboardState extends State<MainDashboard> {
   final _authService = AuthService();
   final _apiService = ApiService();
   String? _nickname;
-  String? _displayName;
   String? _avatarUrl;
   bool _isLoading = true;
   bool _isStatsLoading = true;
@@ -39,8 +38,6 @@ class _MainDashboardState extends State<MainDashboard> {
 
   Future<void> _loadUserProfile() async {
     try {
-      // Get Google account info first
-      _displayName = _authService.displayName;
       _avatarUrl = _authService.avatarUrl;
 
       // Try to get nickname or display name from service
@@ -55,8 +52,8 @@ class _MainDashboardState extends State<MainDashboard> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Fallback to display name if available
-          _nickname = _displayName?.split(' ').first ?? 'there';
+          // Fallback to generic greeting
+          _nickname = 'there';
           _isLoading = false;
         });
       }
