@@ -46,8 +46,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     if (password.isEmpty) {
       return 'Password is required';
     }
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters';
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters';
     }
     if (!password.contains(RegExp(r'[A-Z]'))) {
       return 'Password must contain at least one uppercase letter';
@@ -325,7 +325,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 
                 // Password Field
                 Text(
-                  'PASSWORD (Minimum 8 characters)',
+                  'PASSWORD (Minimum 12 characters)',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -381,8 +381,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildPasswordRequirement(
-                        'At least 8 characters',
-                        _passwordController.text.length >= 8,
+                        'At least 12 characters',
+                        _passwordController.text.length >= 12,
                       ),
                       const SizedBox(height: 4),
                       _buildPasswordRequirement(
