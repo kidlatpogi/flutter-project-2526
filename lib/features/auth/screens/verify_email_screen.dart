@@ -18,6 +18,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   final AuthService _authService = AuthService();
   bool _isSending = false;
   String? _email;
+  DateTime? _lastEmailSent;
 
   @override
   void didChangeDependencies() {
@@ -36,14 +37,31 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       return;
     }
 
+    // Check cooldown
+    if (_lastEmailSent != null) {
+      final secondsSinceLastSend = DateTime.now().difference(_lastEmailSent!).inSeconds;
+      if (secondsSinceLastSend < 60) {
+        final remainingSeconds = 60 - secondsSinceLastSend;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please wait $remainingSeconds seconds before resending.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isSending = true);
     try {
       await _authService.resendConfirmationEmail(_email!);
+      _lastEmailSent = DateTime.now();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Verification email sent. Please check your inbox.'),
+            content: Text('Verification email sent. Please check your inbox and wait 60 seconds before resending.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
           ),
         );
       }

@@ -16,6 +16,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   final _authService = AuthService();
   bool _isLoading = false;
+  DateTime? _lastEmailSent;
 
   bool _isValidEmail(String email) {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
@@ -112,6 +113,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   onPressed: _isLoading
                       ? null
                       : () async {
+                          // Check cooldown
+                          if (_lastEmailSent != null) {
+                            final secondsSinceLastSend = DateTime.now().difference(_lastEmailSent!).inSeconds;
+                            if (secondsSinceLastSend < 60) {
+                              final remainingSeconds = 60 - secondsSinceLastSend;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Please wait $remainingSeconds seconds before trying again.'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+                          }
+
                           final email = _emailController.text.trim();
                           if (email.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -135,11 +151,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           setState(() => _isLoading = true);
                           try {
                             await _authService.sendPasswordResetEmail(email);
+                            _lastEmailSent = DateTime.now();
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Password reset email sent. Please check your inbox.'),
+                                content: Text('Password reset email sent. Please check your inbox. Wait 60 seconds before retrying.'),
                                 backgroundColor: Colors.green,
+                                duration: Duration(seconds: 4),
                               ),
                             );
                             Navigator.pop(context);

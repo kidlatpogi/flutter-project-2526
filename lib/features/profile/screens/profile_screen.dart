@@ -38,29 +38,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      // Load data from Supabase auth
-      final authFullName = _authService.displayName ?? '';
+      // Load profile from database (single source of truth)
+      final profile = await _userProfileService.getUserProfile();
+      // Use custom_full_name from database (user's preference)
+      // Falls back to full_name if custom_full_name not set
+      final displayName = profile?['custom_full_name'] ?? profile?['full_name'] ?? '';
+      
+      // Load email and avatar from auth
       final authEmail = _authService.email ?? '';
       final authAvatarUrl = _authService.avatarUrl;
 
-      // Load profile from database (fallback for full name)
-      final profile = await _userProfileService.getUserProfile();
-      final profileFullName = profile?['full_name'] ?? '';
-
-      final resolvedFullName = authFullName.isNotEmpty
-          ? authFullName
-          : (profileFullName as String);
-
-      _fullNameController.text = resolvedFullName;
+      _fullNameController.text = displayName;
       _emailController.text = authEmail;
       _avatarUrl = authAvatarUrl;
 
       // Store original values
-      _originalFullName = resolvedFullName;
+      _originalFullName = displayName;
       _originalAvatarUrl = authAvatarUrl;
 
-      // Load nickname
-      _nickname = profile?['nickname'];
+      // Load nickname from profile
+      try {
+        final profile = await _userProfileService.getUserProfile();
+        _nickname = profile?['nickname'];
+      } catch (e) {
+        print('Error loading nickname: $e');
+        _nickname = null;
+      }
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -200,19 +203,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final fullName = _fullNameController.text.trim();
       
-      // Update backend profile
+      // Update custom_full_name in database only (NOT auth metadata)
+      // Database column persists across OAuth logins
       await _userProfileService.updateUserProfile(fullName: fullName);
-      
-      // Update Supabase auth user metadata for full_name (consistent with authService)
-      final supabase = Supabase.instance.client;
-      await supabase.auth.updateUser(
-        UserAttributes(
-          data: {'full_name': fullName},
-        ),
-      );
-      
-      // Refresh user data to update displayName getter
-      await _authService.refreshUserData();
       
       // Update local state
       if (mounted) {

@@ -44,6 +44,7 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
     });
 
     try {
+      // Only set nickname, preserve existing full_name if it exists
       await _userProfileService.updateUserProfile(nickname: nickname);
       
       if (mounted) {
