@@ -166,8 +166,21 @@ class AuthService {
       }
       return response.user;
     } on AuthApiException catch (e) {
+      final message = e.message.toLowerCase();
+      
+      // Check for invalid credentials
+      if (message.contains('invalid') || 
+          message.contains('wrong') || 
+          message.contains('incorrect')) {
+        throw AuthException(
+          'Invalid email or password. If you signed up with Google, please use the Google Sign-In button.',
+          code: 'invalid_credentials',
+        );
+      }
+      
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
+      if (e is AuthException) rethrow;
       throw AuthException('Sign-in failed: ${e.toString()}');
     }
   }
@@ -183,8 +196,58 @@ class AuthService {
         data: name != null ? {'full_name': name} : null,
         emailRedirectTo: emailRedirectTo,
       );
+      if (response.user == null) {
+        throw AuthException('Registration failed. Please try again.');
+      }
       return response.user;
     } on AuthApiException catch (e) {
+      final message = e.message.toLowerCase();
+      
+      // Check for duplicate email error
+      if (message.contains('already') || 
+          message.contains('registered') || 
+          message.contains('exists') ||
+          message.contains('duplicate') ||
+          message.contains('user with this email already exists')) {
+        throw AuthException(
+          'This email is already registered. Please sign in instead or use a different email.',
+          code: 'email_exists',
+        );
+      }
+      
+      final isRedirectError = message.contains('redirect') || message.contains('url');
+
+      if (kIsWeb && isRedirectError) {
+        try {
+          final AuthResponse fallbackResponse = await _supabase.auth.signUp(
+            email: email,
+            password: password,
+            data: name != null ? {'full_name': name} : null,
+          );
+          if (fallbackResponse.user == null) {
+            throw AuthException('Registration failed. Please try again.');
+          }
+          return fallbackResponse.user;
+        } on AuthApiException catch (fallbackError) {
+          final fallbackMessage = fallbackError.message.toLowerCase();
+          
+          // Check for duplicate email in fallback as well
+          if (fallbackMessage.contains('already') || 
+              fallbackMessage.contains('registered') || 
+              fallbackMessage.contains('exists') ||
+              fallbackMessage.contains('duplicate') ||
+              fallbackMessage.contains('user with this email already exists')) {
+            throw AuthException(
+              'This email is already registered. Please sign in instead or use a different email.',
+              code: 'email_exists',
+            );
+          }
+          
+          throw AuthException(fallbackError.message,
+              code: fallbackError.statusCode);
+        }
+      }
+
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       throw AuthException('Registration failed: ${e.toString()}');

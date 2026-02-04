@@ -46,8 +46,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     if (password.isEmpty) {
       return 'Password is required';
     }
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters';
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters';
     }
     if (!password.contains(RegExp(r'[A-Z]'))) {
       return 'Password must contain at least one uppercase letter';
@@ -139,10 +139,31 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
     try {
       print('Calling signUpWithEmail...');
-      await _authService.signUpWithEmail(email, password, name: fullName);
-      
+      final user = await _authService.signUpWithEmail(
+        email,
+        password,
+        name: fullName,
+      );
+
+      final hasSession = _authService.currentSession != null;
+      final isEmailConfirmed = user?.emailConfirmedAt != null;
+
+      // If email confirmation is not required, go straight to app flow
+      if (hasSession || isEmailConfirmed) {
+        if (hasSession) {
+          await _userProfileService.updateUserProfile(fullName: fullName);
+        }
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          RouteNames.authWrapper,
+          (route) => false,
+        );
+        return;
+      }
+
       print('Signup successful, prompting email confirmation...');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -159,7 +180,66 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       }
     } on AuthException catch (e) {
       print('AuthException caught: ${e.message}');
-      setState(() => _errorMessage = e.message);
+      
+      // Special handling for duplicate email error
+      if (e.code == 'email_exists' || 
+          e.message.toLowerCase().contains('already') ||
+          e.message.toLowerCase().contains('registered')) {
+        if (mounted) {
+          // Show error message
+          setState(() => _errorMessage = e.message);
+          
+          // Show dialog with option to go to login
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: Text(
+                    'Email Already Registered',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  content: Text(
+                    'This email is already associated with an account. Would you like to sign in instead?',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Close dialog
+                        Navigator.pushReplacementNamed(context, RouteNames.login);
+                      },
+                      child: const Text('Go to Sign In'),
+                    ),
+                  ],
+                );
+              },
+            );
+          });
+        }
+      } else {
+        setState(() => _errorMessage = e.message);
+      }
     } catch (e) {
       print('Unexpected error caught: $e');
       setState(() => _errorMessage = 'Failed to create account. Please try again.');
@@ -304,7 +384,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 
                 // Password Field
                 Text(
-                  'PASSWORD (Minimum 8 characters)',
+                  'PASSWORD (Minimum 12 characters)',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -360,8 +440,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildPasswordRequirement(
-                        'At least 8 characters',
-                        _passwordController.text.length >= 8,
+                        'At least 12 characters',
+                        _passwordController.text.length >= 12,
                       ),
                       const SizedBox(height: 4),
                       _buildPasswordRequirement(
@@ -443,24 +523,52 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // Sign up Button
-                SizedBox(
-                  width: double.infinity,
-                  height: AppConstants.buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleCreateAccount,
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Create Account'),
+                // Error Message
+                if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                ),
+                child: Row(
+                children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                child: Text(
+                    _errorMessage!,
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Sign up Button
+              SizedBox(
+                width: double.infinity,
+                height: AppConstants.buttonHeight,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleCreateAccount,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Create Account'),
+                ),
+              ),
                 
                 const SizedBox(height: 24),
                 

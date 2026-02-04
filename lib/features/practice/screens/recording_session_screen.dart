@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/audio_service.dart';
@@ -39,6 +40,10 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
   final Stopwatch _stopwatch = Stopwatch();
   late final Ticker _ticker;
   int _elapsedSeconds = 0;
+  bool _isCountingDown = false;
+  int _countdownSeconds = 3;
+  String _countdownText = '';
+  Timer? _countdownTimer;
   bool _showScript = true;
   bool _isScripted = true;
   String? _scriptTitle;
@@ -182,7 +187,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
       // Request permission and start recording automatically
       final hasPermission = await _audioService.requestPermission();
       if (hasPermission) {
-        await _startRecording();
+        await _startCountdownThenRecord();
       } else {
         setState(() {
           _errorMessage = 'Microphone permission is required to record';
@@ -197,6 +202,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
   Future<void> _startRecording() async {
     try {
+      if (_isRecording) return;
       await _audioService.startRecording();
       setState(() {
         _isRecording = true;
@@ -213,8 +219,49 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     }
   }
 
+  Future<void> _startCountdownThenRecord() async {
+    if (_isCountingDown || _isRecording || _isAnalyzing) return;
+
+    _countdownTimer?.cancel();
+    setState(() {
+      _isCountingDown = true;
+      _countdownSeconds = 3;
+      _countdownText = '3';
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final next = _countdownSeconds - 1;
+      if (next <= 0) {
+        setState(() {
+          _countdownSeconds = 0;
+          _countdownText = 'Start';
+        });
+        timer.cancel();
+
+        Future.delayed(const Duration(milliseconds: 500), () async {
+          if (!mounted) return;
+          setState(() {
+            _isCountingDown = false;
+          });
+          await _startRecording();
+        });
+      } else {
+        setState(() {
+          _countdownSeconds = next;
+          _countdownText = '$next';
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _ticker.dispose();
     _teleprompterController.dispose();
     _audioService.dispose();
@@ -278,7 +325,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
       if (_teleprompterController.hasClients) {
         _teleprompterController.jumpTo(0.0);
       }
-      await _startRecording();
+      await _startCountdownThenRecord();
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to restart recording: $e';
@@ -523,6 +570,35 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
                       top: 0,
                       right: 24,
                       child: _buildSettingsPanel(),
+                    ),
+
+                  if (_isCountingDown)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.5),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _countdownText,
+                              style: GoogleFonts.inter(
+                                fontSize: 64,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Get ready to start speaking',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                 ],
               ),
