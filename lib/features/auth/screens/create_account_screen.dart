@@ -180,7 +180,66 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       }
     } on AuthException catch (e) {
       print('AuthException caught: ${e.message}');
-      setState(() => _errorMessage = e.message);
+      
+      // Special handling for duplicate email error
+      if (e.code == 'email_exists' || 
+          e.message.toLowerCase().contains('already') ||
+          e.message.toLowerCase().contains('registered')) {
+        if (mounted) {
+          // Show error message
+          setState(() => _errorMessage = e.message);
+          
+          // Show dialog with option to go to login
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: Text(
+                    'Email Already Registered',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  content: Text(
+                    'This email is already associated with an account. Would you like to sign in instead?',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Close dialog
+                        Navigator.pushReplacementNamed(context, RouteNames.login);
+                      },
+                      child: const Text('Go to Sign In'),
+                    ),
+                  ],
+                );
+              },
+            );
+          });
+        }
+      } else {
+        setState(() => _errorMessage = e.message);
+      }
     } catch (e) {
       print('Unexpected error caught: $e');
       setState(() => _errorMessage = 'Failed to create account. Please try again.');
