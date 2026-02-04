@@ -145,18 +145,45 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             Navigator.pop(context);
                           } on AuthException catch (e) {
                             if (!mounted) return;
+                            
+                            // Check for rate limit error
+                            final errorMsg = e.message.toLowerCase();
+                            String displayMessage;
+                            
+                            if (errorMsg.contains('rate') || 
+                                errorMsg.contains('too many') || 
+                                errorMsg.contains('limit') ||
+                                errorMsg.contains('email rate limit exceeded')) {
+                              displayMessage = 'Too many requests. Please wait a few minutes before trying again.';
+                            } else {
+                              displayMessage = e.message;
+                            }
+                            
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(e.message),
+                                content: Text(displayMessage),
                                 backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 5),
                               ),
                             );
                           } catch (e) {
                             if (!mounted) return;
+                            final errorStr = e.toString().toLowerCase();
+                            String displayMessage;
+                            
+                            if (errorStr.contains('rate') || 
+                                errorStr.contains('too many') || 
+                                errorStr.contains('limit')) {
+                              displayMessage = 'Too many requests. Please wait a few minutes before trying again.';
+                            } else {
+                              displayMessage = 'Failed to send reset email. Please try again later.';
+                            }
+                            
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to send reset email: $e'),
+                                content: Text(displayMessage),
                                 backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 5),
                               ),
                             );
                           } finally {
