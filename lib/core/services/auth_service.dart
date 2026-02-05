@@ -99,14 +99,14 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     try {
       if (kIsWeb) {
-        // Web: Use Supabase OAuth flow (more reliable for web)
+        // Web: Use Supabase OAuth flow with in-app browser (popup window)
         // Use the current page origin for redirect
         final redirectTo = Uri.base.origin;
         
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
           redirectTo: redirectTo,
-          authScreenLaunchMode: LaunchMode.externalApplication,
+          authScreenLaunchMode: LaunchMode.platformDefault,
         );
         // OAuth flow redirects, so we return null here
         // The auth state change listener will handle the session

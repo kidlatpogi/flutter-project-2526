@@ -672,8 +672,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showDeleteAccountDialog() {
     final user = _authService.currentUser;
-    final providers = user?.appMetadata['providers'] as List? ?? [];
-    final isGoogleOnly = !providers.contains('email') && providers.contains('google');
+    
+    // Check auth identities to determine if user has password auth
+    // Identities is a list of {provider, id, identity_data}
+    final identities = user?.identities ?? [];
+    final hasEmailAuth = identities.any((identity) => identity.provider == 'email');
+    final hasGoogleAuth = identities.any((identity) => identity.provider == 'google');
+    
+    // Fallback: Check if user has any identities at all (Google users might not have email provider listed)
+    // If no email provider identity found, assume Google-only
+    final isGoogleOnly = !hasEmailAuth && (hasGoogleAuth || identities.isEmpty);
     
     showDialog(
       context: context,
@@ -794,8 +802,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final password = _deactivatePasswordController.text;
                     final confirmation = _confirmDeactivateController.text.trim();
                     final user = _authService.currentUser;
-                    final providers = user?.appMetadata['providers'] as List? ?? [];
-                    final isGoogleOnly = !providers.contains('email') && providers.contains('google');
+                    
+                    // Use identities to check auth providers
+                    final identities = user?.identities ?? [];
+                    final hasEmailAuth = identities.any((identity) => identity.provider == 'email');
+                    final hasGoogleAuth = identities.any((identity) => identity.provider == 'google');
+                    final isGoogleOnly = !hasEmailAuth && (hasGoogleAuth || identities.isEmpty);
 
                     if (confirmation != 'DELETE ACCOUNT') {
                       ScaffoldMessenger.of(context).showSnackBar(
