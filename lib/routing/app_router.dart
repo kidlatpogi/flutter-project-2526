@@ -5,6 +5,7 @@ import '../features/splash/screens/splash_screen3.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/create_account_screen.dart';
 import '../features/auth/screens/nickname_setup_screen.dart';
+import '../features/auth/screens/password_setup_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/verify_email_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
@@ -44,6 +45,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const CreateAccountScreen());
       case RouteNames.nicknameSetup:
         return MaterialPageRoute(builder: (_) => const NicknameSetupScreen());
+      case RouteNames.passwordSetup:
+        return MaterialPageRoute(builder: (_) => const PasswordSetupScreen());
       case RouteNames.forgotPassword:
         return MaterialPageRoute(builder: (_) => const ForgotPasswordScreen());
       case RouteNames.verifyEmail:
@@ -157,16 +160,7 @@ class AppRouter {
         if (routeName.contains('error=') ||
             routeName.contains('error_code=') ||
             routeName.contains('error_description=')) {
-          // Parse error details for user-friendly message
-          String errorMessage =
-              'The password reset link has expired or is invalid.';
-          if (routeName.contains('otp_expired')) {
-            errorMessage =
-                'The password reset link has expired. Please request a new one.';
-          } else if (routeName.contains('access_denied')) {
-            errorMessage = 'Access denied. The link may be invalid or expired.';
-          }
-
+          // Redirect to forgot password page for any reset errors
           return MaterialPageRoute(
             builder: (context) => Scaffold(
               backgroundColor: Colors.white,
@@ -178,23 +172,23 @@ class AppRouter {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(
-                          Icons.link_off,
+                          Icons.error_outline,
                           size: 64,
                           color: Colors.orange,
                         ),
                         const SizedBox(height: 24),
                         const Text(
-                          'Link Expired',
+                          'Reset Link Error',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          errorMessage,
+                        const Text(
+                          'The password reset link is invalid or has expired. Please request a new one.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey,
                           ),

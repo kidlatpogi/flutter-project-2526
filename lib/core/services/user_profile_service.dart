@@ -38,6 +38,8 @@ class UserProfileService {
         final updatedProfile = await _supabaseService.updateUserProfile(
           nickname: nickname,
           fullName: fullName, // Only updates if not null
+          isActive: isActive,
+          accountStatus: accountStatus,
         );
         return updatedProfile ?? existingProfile;
       }
