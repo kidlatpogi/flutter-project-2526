@@ -22,7 +22,6 @@ class _MainDashboardState extends State<MainDashboard> {
   final _authService = AuthService();
   final _apiService = ApiService();
   String? _nickname;
-  String? _displayName;
   String? _avatarUrl;
   bool _isLoading = true;
   bool _isStatsLoading = true;
@@ -39,8 +38,6 @@ class _MainDashboardState extends State<MainDashboard> {
 
   Future<void> _loadUserProfile() async {
     try {
-      // Get Google account info first
-      _displayName = _authService.displayName;
       _avatarUrl = _authService.avatarUrl;
 
       // Try to get nickname or display name from service
@@ -55,8 +52,8 @@ class _MainDashboardState extends State<MainDashboard> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Fallback to display name if available
-          _nickname = _displayName?.split(' ').first ?? 'there';
+          // Fallback to generic greeting
+          _nickname = 'there';
           _isLoading = false;
         });
       }
@@ -350,7 +347,10 @@ class _MainDashboardState extends State<MainDashboard> {
                           ),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(20),
@@ -364,7 +364,9 @@ class _MainDashboardState extends State<MainDashboard> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  _isStatsLoading ? '...' : '$_streakDays day streak',
+                                  _isStatsLoading
+                                      ? '...'
+                                      : '$_streakDays day streak',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -469,7 +471,9 @@ class _MainDashboardState extends State<MainDashboard> {
                         child: _buildQuickStat(
                           icon: Icons.calendar_today,
                           iconColor: Colors.blue,
-                          value: _isStatsLoading ? '—' : '${_recentSessions.where((s) => (s['date'] as String).startsWith('Today')).length}',
+                          value: _isStatsLoading
+                              ? '—'
+                              : '${_recentSessions.where((s) => (s['date'] as String).startsWith('Today')).length}',
                           label: 'Today',
                         ),
                       ),
@@ -507,66 +511,69 @@ class _MainDashboardState extends State<MainDashboard> {
 
                 const SizedBox(height: 24),
 
-                // Motivation and Tips Section - 2 columns 1 row
-                Row(
-                  children: [
-                    // Motivation Quote
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.03),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.black.withOpacity(0.1),
-                            width: 1,
+                // Motivation and Tips Section - 2 columns 1 row with equal height
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Motivation Quote
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.03),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.black.withOpacity(0.1),
+                              width: 1,
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.format_quote,
-                                  color: Colors.black.withOpacity(0.6),
-                                  size: 24,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'MOTIVATION',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.format_quote,
+                                    color: Colors.black.withOpacity(0.6),
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'MOTIVATION',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black.withOpacity(0.7),
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Expanded(
+                                child: Text(
+                                  _getMotivationalQuote(),
                                   style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black.withOpacity(0.7),
-                                    letterSpacing: 1,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.primary,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.5,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _getMotivationalQuote(),
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.primary,
-                                fontStyle: FontStyle.italic,
-                                height: 1.5,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(width: 16),
+                      const SizedBox(width: 16),
 
-                    // Daily Tip of the Day
-                    Expanded(
-                      child: _buildDailyTipCard(),
-                    ),
-                  ],
+                      // Daily Tip of the Day
+                      Expanded(child: _buildDailyTipCard()),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 80), // Space for bottom nav
@@ -606,78 +613,94 @@ class _MainDashboardState extends State<MainDashboard> {
   static const List<Map<String, String>> _speakingTips = [
     {
       'title': 'Breathe from your diaphragm',
-      'content': 'Deep breathing supports your voice and reduces nervousness. Place one hand on your belly and feel it expand as you inhale.',
+      'content':
+          'Deep breathing supports your voice and reduces nervousness. Place one hand on your belly and feel it expand as you inhale.',
       'icon': 'air',
     },
     {
       'title': 'Pause for emphasis',
-      'content': 'Strategic pauses give your audience time to absorb key points and make you appear more confident and in control.',
+      'content':
+          'Strategic pauses give your audience time to absorb key points and make you appear more confident and in control.',
       'icon': 'pause_circle',
     },
     {
       'title': 'Make eye contact',
-      'content': 'Connect with individuals in your audience for 2-3 seconds each. This builds trust and keeps listeners engaged.',
+      'content':
+          'Connect with individuals in your audience for 2-3 seconds each. This builds trust and keeps listeners engaged.',
       'icon': 'visibility',
     },
     {
       'title': 'Vary your vocal pitch',
-      'content': 'A monotone voice loses attention. Use higher pitch for excitement and lower pitch for serious points.',
+      'content':
+          'A monotone voice loses attention. Use higher pitch for excitement and lower pitch for serious points.',
       'icon': 'music_note',
     },
     {
       'title': 'Practice power poses',
-      'content': 'Standing tall with shoulders back for 2 minutes before speaking can boost confidence and reduce stress hormones.',
+      'content':
+          'Standing tall with shoulders back for 2 minutes before speaking can boost confidence and reduce stress hormones.',
       'icon': 'accessibility_new',
     },
     {
       'title': 'Slow down your pace',
-      'content': 'Speaking too fast signals nervousness. Aim for 120-150 words per minute and let your words breathe.',
+      'content':
+          'Speaking too fast signals nervousness. Aim for 120-150 words per minute and let your words breathe.',
       'icon': 'speed',
     },
     {
       'title': 'Use gestures naturally',
-      'content': 'Hand movements help emphasize points and release nervous energy. Keep them purposeful and above your waist.',
+      'content':
+          'Hand movements help emphasize points and release nervous energy. Keep them purposeful and above your waist.',
       'icon': 'pan_tool',
     },
     {
       'title': 'Eliminate filler words',
-      'content': 'Replace "um," "uh," and "like" with brief pauses. Record yourself to identify your most common fillers.',
+      'content':
+          'Replace "um," "uh," and "like" with brief pauses. Record yourself to identify your most common fillers.',
       'icon': 'block',
     },
     {
       'title': 'Start with a hook',
-      'content': 'Open with a surprising fact, question, or story to grab attention in the first 30 seconds.',
+      'content':
+          'Open with a surprising fact, question, or story to grab attention in the first 30 seconds.',
       'icon': 'bolt',
     },
     {
       'title': 'Practice the rule of three',
-      'content': 'People remember things in threes. Structure key messages in groups of three for maximum impact.',
+      'content':
+          'People remember things in threes. Structure key messages in groups of three for maximum impact.',
       'icon': 'looks_3',
     },
     {
       'title': 'Project your voice',
-      'content': 'Speak to the back of the room without shouting. Good projection comes from your diaphragm, not your throat.',
+      'content':
+          'Speak to the back of the room without shouting. Good projection comes from your diaphragm, not your throat.',
       'icon': 'campaign',
     },
     {
       'title': 'End with a call to action',
-      'content': 'Tell your audience exactly what you want them to do next. A clear ending is more memorable than fading out.',
+      'content':
+          'Tell your audience exactly what you want them to do next. A clear ending is more memorable than fading out.',
       'icon': 'trending_up',
     },
     {
       'title': 'Smile genuinely',
-      'content': 'A warm smile relaxes your voice and makes you more approachable. It also releases endorphins to calm nerves.',
+      'content':
+          'A warm smile relaxes your voice and makes you more approachable. It also releases endorphins to calm nerves.',
       'icon': 'sentiment_satisfied',
     },
     {
       'title': 'Know your opening cold',
-      'content': 'Memorize your first 30 seconds perfectly. A confident start sets the tone for your entire presentation.',
+      'content':
+          'Memorize your first 30 seconds perfectly. A confident start sets the tone for your entire presentation.',
       'icon': 'play_arrow',
     },
   ];
 
   Map<String, String> _getTodaysTip() {
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year, 1, 1))
+        .inDays;
     return _speakingTips[dayOfYear % _speakingTips.length];
   }
 
@@ -722,7 +745,9 @@ class _MainDashboardState extends State<MainDashboard> {
   ];
 
   String _getMotivationalQuote() {
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year, 1, 1))
+        .inDays;
     return _motivationalQuotes[dayOfYear % _motivationalQuotes.length];
   }
 
@@ -734,10 +759,7 @@ class _MainDashboardState extends State<MainDashboard> {
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.black.withOpacity(0.1), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,21 +784,28 @@ class _MainDashboardState extends State<MainDashboard> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            tip['title'] ?? 'Speaking Tip',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            tip['content'] ?? '',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-              height: 1.4,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tip['title'] ?? 'Speaking Tip',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tip['content'] ?? '',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

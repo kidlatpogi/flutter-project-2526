@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart';
 import 'features/auth/screens/auth_wrapper.dart';
+import 'features/auth/screens/reset_password_screen.dart';
 
 /// Supabase configuration
 const String supabaseUrl = 'https://krbcgixttxxdofdmevyj.supabase.co';
@@ -12,6 +14,9 @@ const String supabaseAnonKey =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyYmNnaXh0dHh4ZG9mZG1ldnlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MDkxMDcsImV4cCI6MjA4NTA4NTEwN30.KY-H30jPK7KUu6tyTYGaLAicqIANL1cNCqvKaUnx_l8';
 
 Future<void> main() async {
+  // Enable clean URLs (without #) for better Supabase Auth compatibility
+  usePathUrlStrategy();
+
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -41,6 +46,15 @@ class MyApp extends StatelessWidget {
         // Handle unknown routes - OAuth redirects have access_token in URL fragment
         final routeName = settings.name ?? '';
         print('Unknown route: $routeName');
+        
+        // Check for password reset type parameter (type=recovery)
+        if (routeName.contains('type=recovery') || routeName.contains('recovery')) {
+          print('Password recovery callback detected');
+          // Import and navigate to reset password screen
+          return MaterialPageRoute(
+            builder: (_) => const ResetPasswordScreen(),
+          );
+        }
         
         // OAuth callback URLs - the entire fragment becomes the route name
         // Check if route contains ANY OAuth-related parameter

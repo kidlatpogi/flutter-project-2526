@@ -106,15 +106,18 @@ class AppRouter {
         final args = settings.arguments;
         if (args is AnalysisModel) {
           return MaterialPageRoute(
+            settings: settings,
             builder: (_) => AnalysisResultScreen(analysisResult: args),
           );
         }
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
+            settings: settings,
             builder: (_) => AnalysisResultScreen(sessionId: args['sessionId'] as String?),
           );
         }
         return MaterialPageRoute(
+          settings: settings,
           builder: (_) => const AnalysisResultScreen(),
         );
       case RouteNames.changePassword:

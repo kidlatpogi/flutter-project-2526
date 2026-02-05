@@ -20,8 +20,11 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   int _avgScore = 0;
   List<Map<String, dynamic>> _recentHistory = [];
   List<double> _trendScores = [];
-  List<Map<String, dynamic>> _allSessions = []; // Store all sessions for filtering
+  List<String> _trendLabels = []; // Labels for X-axis (Mon, Jan, 2024, etc.)
+  List<Map<String, dynamic>> _allSessions =
+      []; // Store all sessions for filtering
   String _selectedPeriod = 'Week'; // Week, Month, Year
+  List<Map<String, dynamic>> _recommendations = []; // Personalized tips
   final ApiService _apiService = ApiService();
 
   @override
@@ -33,19 +36,21 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   Future<void> _loadProgressData() async {
     try {
       print('Loading progress data...');
-      
+
       // Fetch more sessions to support Year view (up to 365 days of data)
       // Limit based on period: Week=20, Month=50, Year=200
-      final limit = _selectedPeriod == 'Year' ? 200 : (_selectedPeriod == 'Month' ? 50 : 20);
-      
+      final limit = _selectedPeriod == 'Year'
+          ? 200
+          : (_selectedPeriod == 'Month' ? 50 : 20);
+
       // Fetch sessions and total count in parallel
       final sessionsFuture = _apiService.getSessions(limit: limit);
       final countFuture = _apiService.getTotalSessionsCount();
-      
+
       final results = await Future.wait([sessionsFuture, countFuture]);
       final response = results[0] as List<Map<String, dynamic>>;
       final totalCount = results[1] as int;
-      
+
       print('Progress: got ${response.length} sessions, total: $totalCount');
 
       final sessions = response.map((session) {
@@ -67,15 +72,18 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           ? 0
           : (scores.reduce((a, b) => a + b) / scores.length).round();
 
-      final trendScores = _buildTrendScores(sessions, _selectedPeriod);
+      final trendData = _buildTrendScores(sessions, _selectedPeriod);
+      final recs = _generateRecommendations(sessions);
 
       if (mounted) {
         setState(() {
           _totalSessions = totalCount;
           _avgScore = avgScore;
           _recentHistory = sessions.take(5).toList();
-          _trendScores = trendScores;
+          _trendScores = trendData.scores;
+          _trendLabels = trendData.labels;
           _allSessions = sessions;
+          _recommendations = recs;
           _isLoading = false;
         });
         print('Progress loaded: $_totalSessions total, $_avgScore avg');
@@ -88,6 +96,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           _avgScore = 0;
           _recentHistory = [];
           _trendScores = [];
+          _recommendations = [];
           _isLoading = false;
         });
       }
@@ -135,6 +144,100 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '${minutes}m ${remainingSeconds}s';
+  }
+
+  /// Generate personalized recommendations based on analytics data
+  List<Map<String, dynamic>> _generateRecommendations(
+    List<Map<String, dynamic>> sessions,
+  ) {
+    final recommendations = <Map<String, dynamic>>[];
+
+    if (sessions.isEmpty) {
+      recommendations.add({
+        'icon': Icons.play_circle_outline,
+        'color': Colors.blue,
+        'title': 'Start Practicing',
+        'description': 'Record your first session to get personalized tips!',
+      });
+      return recommendations;
+    }
+
+    // Analyze recent trends
+    final recentScores = sessions.take(5).map((s) => s['confidenceScore'] as int).toList();
+    final avgScore = recentScores.isEmpty ? 0 : recentScores.reduce((a, b) => a + b) ~/ recentScores.length;
+
+    // Score-based recommendations
+    if (avgScore < 50) {
+      recommendations.add({
+        'icon': Icons.record_voice_over,
+        'color': Colors.orange,
+        'title': 'Focus on Clarity',
+        'description': 'Try speaking more slowly and enunciating clearly.',
+      });
+    }
+
+    if (avgScore < 70) {
+      recommendations.add({
+        'icon': Icons.trending_up,
+        'color': Colors.green,
+        'title': 'Build Consistency',
+        'description': 'Practice daily to improve your speaking rhythm.',
+      });
+    }
+
+    // Check for improvement trend
+    if (recentScores.length >= 3) {
+      final firstHalf = recentScores.sublist(recentScores.length ~/ 2);
+      final secondHalf = recentScores.sublist(0, recentScores.length ~/ 2);
+      final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+      final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+      
+      if (secondAvg > firstAvg + 5) {
+        recommendations.add({
+          'icon': Icons.emoji_events,
+          'color': Colors.amber,
+          'title': 'Great Progress!',
+          'description': "You're improving! Keep up the momentum.",
+        });
+      } else if (firstAvg > secondAvg + 5) {
+        recommendations.add({
+          'icon': Icons.refresh,
+          'color': Colors.purple,
+          'title': 'Stay Consistent',
+          'description': 'Your recent scores dipped. Try practicing more regularly.',
+        });
+      }
+    }
+
+    // Session frequency recommendation
+    if (sessions.length >= 2) {
+      final firstSession = sessions.first['createdAt'] as DateTime;
+      final lastSession = sessions.last['createdAt'] as DateTime;
+      final daysDiff = firstSession.difference(lastSession).inDays;
+      final sessionsPerWeek = daysDiff > 0 ? (sessions.length / (daysDiff / 7)).round() : sessions.length;
+      
+      if (sessionsPerWeek < 3) {
+        recommendations.add({
+          'icon': Icons.calendar_today,
+          'color': Colors.blue,
+          'title': 'Practice More Often',
+          'description': 'Aim for 3-5 sessions per week for best results.',
+        });
+      }
+    }
+
+    // High performer tips
+    if (avgScore >= 80) {
+      recommendations.add({
+        'icon': Icons.star,
+        'color': Colors.amber,
+        'title': 'Challenge Yourself',
+        'description': 'Try longer scripts or new topics to push your skills.',
+      });
+    }
+
+    // Limit to top 3 recommendations
+    return recommendations.take(3).toList();
   }
 
   @override
@@ -208,10 +311,17 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                                       _isLoading = true;
                                     });
                                     // Recalculate trend scores
-                                    await Future.delayed(const Duration(milliseconds: 100));
+                                    await Future.delayed(
+                                      const Duration(milliseconds: 100),
+                                    );
                                     if (mounted) {
                                       setState(() {
-                                        _trendScores = _buildTrendScores(_allSessions, period);
+                                        final trendData = _buildTrendScores(
+                                          _allSessions,
+                                          period,
+                                        );
+                                        _trendScores = trendData.scores;
+                                        _trendLabels = trendData.labels;
                                         _isLoading = false;
                                       });
                                     }
@@ -291,7 +401,11 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                         SizedBox(
                           height: 180,
                           child: CustomPaint(
-                            painter: LineChartPainter(scores: _trendScores),
+                            painter: LineChartPainter(
+                              scores: _trendScores,
+                              labels: _trendLabels,
+                              period: _selectedPeriod,
+                            ),
                             child: const SizedBox.expand(),
                           ),
                         ),
@@ -393,6 +507,75 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
                 ),
 
                 const SizedBox(height: 24),
+
+                // Recommendations Section
+                if (_recommendations.isNotEmpty) ...[
+                  Text(
+                    'Recommendations',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...(_recommendations.map((rec) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: (rec['color'] as Color).withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: (rec['color'] as Color).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              rec['icon'] as IconData,
+                              color: rec['color'] as Color,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  rec['title'] as String,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  rec['description'] as String,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )).toList()),
+                  const SizedBox(height: 12),
+                ],
 
                 // Recent Session Header
                 Row(
@@ -561,7 +744,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
         Navigator.pushNamed(
           context,
           RouteNames.analysis,
-          arguments: {'sessionId': sessionId},
+          arguments: {'sessionId': sessionId, 'fromProgress': true},
         );
       },
       child: Container(
@@ -648,25 +831,33 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
     );
   }
 
-  List<double> _buildTrendScores(List<Map<String, dynamic>> sessions, String period) {
-    if (sessions.isEmpty) return [];
+  ({List<double> scores, List<String> labels}) _buildTrendScores(
+    List<Map<String, dynamic>> sessions,
+    String period,
+  ) {
+    if (sessions.isEmpty) return (scores: [], labels: []);
 
     // Filter sessions based on period
     final now = DateTime.now();
     DateTime cutoffDate;
-    
+    int maxPoints;
+
     switch (period) {
       case 'Week':
         cutoffDate = now.subtract(const Duration(days: 7));
+        maxPoints = 7; // Show up to 7 days
         break;
       case 'Month':
         cutoffDate = DateTime(now.year, now.month - 1, now.day);
+        maxPoints = 5; // Show 5 weeks approximately
         break;
       case 'Year':
         cutoffDate = DateTime(now.year - 1, now.month, now.day);
+        maxPoints = 12; // Show 12 months
         break;
       default:
         cutoffDate = now.subtract(const Duration(days: 7));
+        maxPoints = 7;
     }
 
     final filteredSessions = sessions.where((s) {
@@ -674,33 +865,72 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
       return createdAt.isAfter(cutoffDate);
     }).toList();
 
-    if (filteredSessions.isEmpty) return [];
+    if (filteredSessions.isEmpty) return (scores: [], labels: []);
 
-    final sorted = [...filteredSessions]
-      ..sort(
-        (a, b) =>
-            (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime),
-      );
+    // Group sessions by time period with display labels
+    final Map<String, List<int>> groupedScores = {};
+    final Map<String, String> keyToLabel = {};
+    
+    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    final scores = sorted
-        .map((s) => (s['confidenceScore'] as int).toDouble())
-        .toList();
+    for (final session in filteredSessions) {
+      final createdAt = session['createdAt'] as DateTime;
+      final score = session['confidenceScore'] as int;
+      String key;
+      String label;
 
-    // Use a rolling average to smooth the trend (window size 3)
-    const window = 3;
-    final smoothed = <double>[];
-    for (var i = 0; i < scores.length; i++) {
-      final start = (i - (window - 1)) < 0 ? 0 : i - (window - 1);
-      final slice = scores.sublist(start, i + 1);
-      final avg = slice.reduce((a, b) => a + b) / slice.length;
-      smoothed.add(avg);
+      switch (period) {
+        case 'Week':
+          // Group by day - show day name (Mon, Tue, etc.)
+          key = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}';
+          label = dayNames[createdAt.weekday - 1];
+          break;
+        case 'Month':
+          // Group by week number - show week range
+          final weekNum = ((createdAt.day - 1) ~/ 7) + 1;
+          key = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-W$weekNum';
+          label = 'W$weekNum';
+          break;
+        case 'Year':
+          // Group by month - show month name
+          key = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}';
+          label = monthNames[createdAt.month - 1];
+          break;
+        default:
+          key = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}';
+          label = dayNames[createdAt.weekday - 1];
+      }
+
+      groupedScores.putIfAbsent(key, () => []);
+      groupedScores[key]!.add(score);
+      keyToLabel[key] = label;
     }
 
-    // Keep last 6 points for chart
-    final lastPoints = smoothed.length > 6
-        ? smoothed.sublist(smoothed.length - 6)
-        : smoothed;
-    return lastPoints;
+    // Calculate average for each group
+    final List<MapEntry<String, double>> averages = groupedScores.entries.map((
+      e,
+    ) {
+      final avg = e.value.reduce((a, b) => a + b) / e.value.length;
+      return MapEntry(e.key, avg);
+    }).toList();
+
+    // Sort by key (date)
+    averages.sort((a, b) => a.key.compareTo(b.key));
+
+    // Get scores and labels
+    final scores = averages.map((e) => e.value).toList();
+    final labels = averages.map((e) => keyToLabel[e.key] ?? '').toList();
+
+    // Limit to max points, keeping the most recent
+    final lastScores = scores.length > maxPoints
+        ? scores.sublist(scores.length - maxPoints)
+        : scores;
+    final lastLabels = labels.length > maxPoints
+        ? labels.sublist(labels.length - maxPoints)
+        : labels;
+
+    return (scores: lastScores, labels: lastLabels);
   }
 
   Color _getRatingColor(String rating) {
@@ -725,11 +955,17 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
   }
 }
 
-// Simple line chart painter with score labels
+// Line chart painter with period-based labels
 class LineChartPainter extends CustomPainter {
   final List<double> scores;
+  final List<String> labels;
+  final String period;
 
-  LineChartPainter({required this.scores});
+  LineChartPainter({
+    required this.scores,
+    required this.labels,
+    required this.period,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -751,7 +987,7 @@ class LineChartPainter extends CustomPainter {
     // Add padding for labels
     const leftPadding = 30.0;
     const topPadding = 20.0;
-    const bottomPadding = 25.0;
+    const bottomPadding = 30.0;
     final chartWidth = size.width - leftPadding;
     final chartHeight = size.height - topPadding - bottomPadding;
 
@@ -823,9 +1059,10 @@ class LineChartPainter extends CustomPainter {
       );
     }
 
-    // Draw session number labels at bottom
+    // Draw period-based X-axis labels (Mon, Tue... or Jan, Feb... or 2024, 2025...)
     for (int i = 0; i < points.length; i++) {
-      textPainter.text = TextSpan(text: '${i + 1}', style: labelStyle);
+      final label = i < labels.length ? labels[i] : '${i + 1}';
+      textPainter.text = TextSpan(text: label, style: labelStyle);
       textPainter.layout();
       textPainter.paint(
         canvas,
@@ -840,6 +1077,7 @@ class LineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant LineChartPainter oldDelegate) {
     if (scores.length != oldDelegate.scores.length) return true;
+    if (period != oldDelegate.period) return true;
     for (int i = 0; i < scores.length; i++) {
       if (scores[i] != oldDelegate.scores[i]) return true;
     }

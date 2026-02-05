@@ -27,17 +27,18 @@ class UserProfileService {
       final existingProfile = await _supabaseService.getUserProfile();
 
       if (existingProfile == null) {
-        // Create new profile
+        // Create new profile - let SupabaseService handle getting Google full name
+        // Only pass fullName if explicitly provided
         final newProfile = await _supabaseService.createUserProfile(
           nickname: nickname ?? '',
-          fullName: fullName,
+          fullName: fullName, // Can be null - SupabaseService will use Google name
         );
         return newProfile ?? {};
       } else {
-        // Update existing profile
+        // Profile exists - only update fields that are explicitly provided
         final updatedProfile = await _supabaseService.updateUserProfile(
           nickname: nickname,
-          fullName: fullName,
+          fullName: fullName, // Only updates if not null
         );
         return updatedProfile ?? existingProfile;
       }
@@ -59,7 +60,7 @@ class UserProfileService {
     }
   }
 
-  /// Get user's nickname or display name (first name from full_name)
+  /// Get user's nickname or display name (first name from custom_full_name/full_name)
   Future<String?> getNicknameOrDisplayName() async {
     try {
       final profile = await getUserProfile();
@@ -71,7 +72,12 @@ class UserProfileService {
         return profile['nickname'] as String;
       }
 
-      // Fall back to first name from full_name
+      // Fall back to first name from custom_full_name, then full_name
+      if (profile['custom_full_name'] != null &&
+          (profile['custom_full_name'] as String).isNotEmpty) {
+        return (profile['custom_full_name'] as String).split(' ').first;
+      }
+
       if (profile['full_name'] != null &&
           (profile['full_name'] as String).isNotEmpty) {
         return (profile['full_name'] as String).split(' ').first;

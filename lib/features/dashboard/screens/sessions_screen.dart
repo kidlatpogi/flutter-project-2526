@@ -15,7 +15,10 @@ class SessionsScreen extends StatefulWidget {
 class _SessionsScreenState extends State<SessionsScreen> {
   int _currentIndex = 2; // Home is selected
   List<Map<String, dynamic>> _sessions = [];
+  List<Map<String, dynamic>> _allSessions =
+      []; // Store all sessions for filtering
   bool _isLoading = true;
+  String _selectedFilter = 'All'; // All, Today, This Week, This Month
   final ApiService _apiService = ApiService();
 
   @override
@@ -32,29 +35,32 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
   Future<void> _loadSessions() async {
     try {
-      final response = await _apiService.getSessions(limit: 50);
+      final response = await _apiService.getSessions(limit: 100);
 
       if (mounted) {
-        setState(() {
-          _sessions = response.map((session) {
-            final createdAt = DateTime.parse(session['created_at']);
-            final formattedDate = _formatDate(createdAt);
-            final duration = _formatDuration(session['duration_seconds'] ?? 0);
+        final sessions = response.map((session) {
+          final createdAt = DateTime.parse(session['created_at']);
+          final formattedDate = _formatDate(createdAt);
+          final duration = _formatDuration(session['duration_seconds'] ?? 0);
 
-            return {
-              'id': session['id'].toString(),
-              'title': session['script_title'] ?? 'Untitled Session',
-              'date': formattedDate,
-              'duration': duration,
-              'confidenceScore': (session['confidence_score'] ?? 0).round(),
-              'pitchScore': (session['pitch_score'] ?? 0).round(),
-              'voiceQualityScore': (session['voice_quality_score'] ?? 0)
-                  .round(),
-              'paceScore': (session['pace_score'] ?? 0).round(),
-              'fluencyScore': (session['fluency_score'] ?? 0).round(),
-              'transcription': session['transcription'] ?? '',
-            };
-          }).toList();
+          return {
+            'id': session['id'].toString(),
+            'title': session['script_title'] ?? 'Untitled Session',
+            'date': formattedDate,
+            'duration': duration,
+            'confidenceScore': (session['confidence_score'] ?? 0).round(),
+            'pitchScore': (session['pitch_score'] ?? 0).round(),
+            'voiceQualityScore': (session['voice_quality_score'] ?? 0).round(),
+            'paceScore': (session['pace_score'] ?? 0).round(),
+            'fluencyScore': (session['fluency_score'] ?? 0).round(),
+            'transcription': session['transcription'] ?? '',
+            'createdAt': createdAt,
+          };
+        }).toList();
+
+        setState(() {
+          _allSessions = sessions;
+          _applyFilter();
           _isLoading = false;
         });
       }
@@ -62,9 +68,42 @@ class _SessionsScreenState extends State<SessionsScreen> {
       if (mounted) {
         setState(() {
           _sessions = [];
+          _allSessions = [];
           _isLoading = false;
         });
       }
+    }
+  }
+
+  void _applyFilter() {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    switch (_selectedFilter) {
+      case 'Today':
+        _sessions = _allSessions.where((s) {
+          final createdAt = s['createdAt'] as DateTime;
+          return createdAt.isAfter(todayStart);
+        }).toList();
+        break;
+      case 'This Week':
+        final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        _sessions = _allSessions.where((s) {
+          final createdAt = s['createdAt'] as DateTime;
+          return createdAt.isAfter(weekStart);
+        }).toList();
+        break;
+      case 'This Month':
+        final monthStart = DateTime(now.year, now.month, 1);
+        _sessions = _allSessions.where((s) {
+          final createdAt = s['createdAt'] as DateTime;
+          return createdAt.isAfter(monthStart);
+        }).toList();
+        break;
+      case 'All':
+      default:
+        _sessions = List.from(_allSessions);
+        break;
     }
   }
 
@@ -154,6 +193,56 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         fontSize: 14,
                         color: AppColors.textSecondary,
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Filter chips
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: ['All', 'Today', 'This Week', 'This Month'].map(
+                        (filter) {
+                          final isSelected = _selectedFilter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = filter;
+                                  _applyFilter();
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : AppColors.inactive.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  filter,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ).toList(),
                     ),
                   ),
                 ],
@@ -255,17 +344,19 @@ class _SessionsScreenState extends State<SessionsScreen> {
         ),
         child: Row(
           children: [
-            // Icon
+            // Icon - Score-based icon like in Recent Sessions
             Container(
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: _getScoreColor(
+                  session['confidenceScore'],
+                ).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.mic_rounded,
-                color: AppColors.primary,
+                _getScoreIcon(session['confidenceScore']),
+                color: _getScoreColor(session['confidenceScore']),
                 size: 24,
               ),
             ),
@@ -343,12 +434,16 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Color _getScoreColor(int score) {
-    if (score >= 80) {
-      return Colors.green;
-    } else if (score >= 60) {
-      return Colors.orange;
-    } else {
-      return Colors.red;
-    }
+    if (score >= 85) return Colors.amber; // Gold for Excellent
+    if (score >= 70) return Colors.green; // Green for Good
+    if (score >= 50) return Colors.blue; // Blue for Fair
+    return Colors.orange; // Orange for needs improvement
+  }
+
+  IconData _getScoreIcon(int score) {
+    if (score >= 85) return Icons.emoji_events; // Trophy for Excellent
+    if (score >= 70) return Icons.star; // Star for Good
+    if (score >= 50) return Icons.thumb_up; // Thumbs up for Fair
+    return Icons.trending_up; // Improvement needed
   }
 }

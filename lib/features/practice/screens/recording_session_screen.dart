@@ -1081,7 +1081,7 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
                 ),
                 Switch(
                   value: _settings.enableHighlighting,
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                   onChanged: (value) {
                     setState(() {
                       _settings = _settings.copyWith(enableHighlighting: value);

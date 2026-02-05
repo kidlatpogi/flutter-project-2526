@@ -292,12 +292,13 @@ class AnalysisPipeline:
             # Calculate speech duration (excluding pauses)
             speech_duration = calculate_speech_duration(self.duration, self.pause_metrics)
             
-            # Step 4: Fluency Analysis
+            # Step 4: Fluency Analysis (with off-script word detection if script provided)
             logger.info("Step 4: Analyzing fluency...")
             self.fluency_metrics = analyze_fluency(
                 self.transcription.text,
                 self.duration,
-                speech_duration
+                speech_duration,
+                expected_script=self.expected_script
             )
             
             # Step 5: Confidence Scoring

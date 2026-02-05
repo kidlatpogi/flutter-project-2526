@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routing/route_names.dart';
-import '../widgets/script_list_item.dart';
 import '../../dashboard/widgets/dashboard_navbar.dart';
 
 class ScriptScreen extends StatefulWidget {

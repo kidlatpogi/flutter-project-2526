@@ -35,13 +35,19 @@ def count_words(text: str) -> int:
     return len(words)
 
 
-def detect_fillers(text: str, filler_words: list[str] | None = None) -> FillerAnalysis:
+def detect_fillers(
+    text: str, 
+    filler_words: list[str] | None = None,
+    expected_script: str | None = None
+) -> FillerAnalysis:
     """
     Detect filler words in transcribed text.
     
     Args:
         text: Transcribed text to analyze.
         filler_words: Optional custom list of filler words.
+        expected_script: Optional expected script to compare against.
+                        Words not in the script are also considered fillers.
         
     Returns:
         FillerAnalysis with count and positions of fillers.
@@ -56,14 +62,47 @@ def detect_fillers(text: str, filler_words: list[str] | None = None) -> FillerAn
     found_fillers = []
     positions = []
     
+    # Build set of expected words from script if provided
+    expected_words_set = set()
+    if expected_script:
+        # Normalize script words: lowercase, remove punctuation
+        script_lower = expected_script.lower()
+        script_words = re.sub(r'[^\w\s]', '', script_lower).split()
+        expected_words_set = set(script_words)
+    
     for i, word in enumerate(words):
         # Clean punctuation from word for matching
         clean_word = re.sub(r'[^\w\s]', '', word)
         
-        # Check single-word fillers
+        if not clean_word:
+            continue
+        
+        # Check if it's a known filler word
         if clean_word in filler_words:
             found_fillers.append(clean_word)
             positions.append(i)
+        # If script is provided, check if word is off-script (but not a common word)
+        elif expected_script and expected_words_set:
+            # Skip very short words (likely particles) and common function words
+            common_words = {'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been',
+                          'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+                          'would', 'could', 'should', 'may', 'might', 'must', 'shall',
+                          'can', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
+                          'from', 'as', 'into', 'through', 'during', 'before', 'after',
+                          'above', 'below', 'between', 'under', 'again', 'further',
+                          'then', 'once', 'here', 'there', 'when', 'where', 'why',
+                          'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some',
+                          'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'than',
+                          'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because',
+                          'until', 'while', 'although', 'though', 'this', 'that',
+                          'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+                          'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its',
+                          'our', 'their', 'what', 'which', 'who', 'whom', 'whose'}
+            
+            if len(clean_word) >= 2 and clean_word not in expected_words_set and clean_word not in common_words:
+                # This is an off-script word - treat as filler
+                found_fillers.append(f"[off-script: {clean_word}]")
+                positions.append(i)
     
     # Check multi-word fillers (like "you know")
     for filler in filler_words:
@@ -116,7 +155,8 @@ def calculate_wpm(
 def analyze_fluency(
     text: str,
     total_duration: float,
-    speech_duration: float | None = None
+    speech_duration: float | None = None,
+    expected_script: str | None = None
 ) -> FluencyMetrics:
     """
     Perform complete fluency analysis.
@@ -125,6 +165,7 @@ def analyze_fluency(
         text: Transcribed text.
         total_duration: Total audio duration in seconds.
         speech_duration: Duration of actual speech in seconds.
+        expected_script: Optional expected script for off-script word detection.
         
     Returns:
         FluencyMetrics with all fluency measurements.
@@ -134,8 +175,8 @@ def analyze_fluency(
     # Count words
     total_words = count_words(text)
     
-    # Detect fillers
-    filler_analysis = detect_fillers(text)
+    # Detect fillers (including off-script words if script provided)
+    filler_analysis = detect_fillers(text, expected_script=expected_script)
     
     # Calculate speaking rates
     wpm, articulation_rate = calculate_wpm(total_words, total_duration, speech_duration)

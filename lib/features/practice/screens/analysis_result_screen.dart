@@ -38,7 +38,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     _apiService = ApiService();
     _audioService = AudioService();
     _audioPlayer = AudioPlayer();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
 
     // Listen to player state changes
     _audioPlayer.onPlayerStateChanged.listen((state) {
@@ -89,20 +91,20 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
   Future<void> _ensureRecordingPath(String? sessionId) async {
     if (sessionId == null) return;
-    
+
     // Skip if we've already loaded this session
     if (_recordingSessionId == sessionId && _recordingPath != null) return;
-    
+
     // Skip if already loading
     if (_isRecordingLoading && _recordingSessionId == sessionId) return;
-    
+
     if (!mounted) return;
-    
+
     setState(() {
       _isRecordingLoading = true;
       _recordingSessionId = sessionId;
     });
-    
+
     try {
       final path = await _audioService.getRecordingPathForSession(sessionId);
       if (mounted && _recordingSessionId == sessionId) {
@@ -133,13 +135,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       try {
         // Stop any existing playback first
         await _audioPlayer.stop();
-        
+
         // On web, _recordingPath is a URL path like /sessions/{id}/recording
         // On native, it's a file path
-        if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
+        if (_recordingPath!.startsWith('/') ||
+            _recordingPath!.startsWith('http')) {
           // Play from URL (web or network)
-          final fullUrl = _recordingPath!.startsWith('http') 
-              ? _recordingPath! 
+          final fullUrl = _recordingPath!.startsWith('http')
+              ? _recordingPath!
               : 'https://kidlatpogi17-bigkas-backend.hf.space${_recordingPath!}';
           await _audioPlayer.play(UrlSource(fullUrl));
         } else {
@@ -151,7 +154,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         if (mounted) {
           // Check if it's a 404 or network error indicating deleted recording
           final errorString = e.toString().toLowerCase();
-          if (errorString.contains('404') || 
+          if (errorString.contains('404') ||
               errorString.contains('not found') ||
               errorString.contains('failed to load') ||
               errorString.contains('unable to connect')) {
@@ -175,11 +178,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: Icon(
-          Icons.audio_file,
-          color: AppColors.inactive,
-          size: 48,
-        ),
+        icon: Icon(Icons.audio_file, color: AppColors.inactive, size: 48),
         title: Text(
           'Recording Not Available',
           style: GoogleFonts.inter(
@@ -202,10 +201,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             const SizedBox(height: 12),
             Text(
               'You may have cleared your cache and recordings from Settings.',
-              style: GoogleFonts.inter(
-                color: AppColors.inactive,
-                fontSize: 12,
-              ),
+              style: GoogleFonts.inter(color: AppColors.inactive, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -247,6 +243,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         (routeArgs is Map<String, dynamic>
             ? routeArgs['sessionId'] as String?
             : null);
+    final bool fromProgress = routeArgs is Map<String, dynamic>
+        ? routeArgs['fromProgress'] as bool? ?? false
+        : false;
 
     final resolvedSessionId = directResult?.sessionId ?? routeSessionId;
     if (resolvedSessionId != null && resolvedSessionId != _recordingSessionId) {
@@ -262,7 +261,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
 
     if (directResult != null) {
-      return _buildContent(context, directResult);
+      return _buildContent(context, directResult, fromProgress: fromProgress);
     }
 
     if (_analysisFuture != null) {
@@ -279,7 +278,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           if (result == null) {
             return _buildError(context, 'No analysis data available');
           }
-          return _buildContent(context, result);
+          return _buildContent(context, result, fromProgress: fromProgress);
         },
       );
     }
@@ -344,7 +343,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context, AnalysisModel result) {
+  Widget _buildContent(
+    BuildContext context,
+    AnalysisModel result, {
+    bool fromProgress = false,
+  }) {
     // Trigger confetti for good scores (>= 65) only once
     if (result.overallScore >= 65 && !_confettiPlayed) {
       _confettiPlayed = true;
@@ -352,7 +355,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         _confettiController.play();
       });
     }
-    
+
     // Helper to get score label and color
     String getScoreLabel(double score) {
       if (score >= 80) return 'EXCELLENT';
@@ -384,302 +387,308 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                       IconButton(
                         icon: Icon(Icons.close, color: AppColors.primary),
                         onPressed: () {
-                          Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            RouteNames.dashboard,
-                            (route) => false,
-                          );
+                          if (fromProgress) {
+                            // Go back to progress screen
+                            Navigator.pop(context);
+                          } else {
+                            // Go to dashboard (original behavior for new recordings)
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              RouteNames.dashboard,
+                              (route) => false,
+                            );
+                          }
                         },
                       ),
                       Text(
                         'ANALYSIS RESULT',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 48), // Balance
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-
-                    // Score Display
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: result.overallScore.toInt().toString(),
-                            style: GoogleFonts.inter(
-                              fontSize: 72,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                              height: 1,
-                            ),
-                          ),
-                          TextSpan(
-                            text: '/100',
-                            style: GoogleFonts.inter(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Score Label
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: getScoreColor(result.overallScore),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        getScoreLabel(result.overallScore),
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 1,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 48), // Balance
+                    ],
+                  ),
+                ),
 
-                    const SizedBox(height: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
 
-                    Text(
-                      'VOCAL CONFIDENCE SCORE',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Feedback Message
-                    Text(
-                      _getFeedbackMessage(result.overallScore),
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Listen to Voice Button (all platforms)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.inactive.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        // Score Display
+                        RichText(
+                          text: TextSpan(
                             children: [
-                              Text(
-                                'Listen to Your Voice',
+                              TextSpan(
+                                text: result.overallScore.toInt().toString(),
                                 style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 72,
+                                  fontWeight: FontWeight.bold,
                                   color: AppColors.primary,
+                                  height: 1,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _recordingPath != null
-                                    ? 'Available for 14 days'
-                                    : 'Not available',
+                              TextSpan(
+                                text: '/100',
                                 style: GoogleFonts.inter(
-                                  fontSize: 12,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w600,
                                   color: AppColors.textSecondary,
+                                  height: 1,
                                 ),
                               ),
                             ],
                           ),
-                          if (_isRecordingLoading)
-                            const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Score Label
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: getScoreColor(result.overallScore),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            getScoreLabel(result.overallScore),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'VOCAL CONFIDENCE SCORE',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Feedback Message
+                        Text(
+                          _getFeedbackMessage(result.overallScore),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Listen to Voice Button (all platforms)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.inactive.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Listen to Your Voice',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _recordingPath != null
+                                        ? 'Available for 14 days'
+                                        : 'Not available',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            )
-                          else
-                            ElevatedButton.icon(
-                              onPressed: _recordingPath != null
-                                  ? _togglePlayback
-                                  : null,
-                              icon: Icon(
-                                _isPlaying ? Icons.pause : Icons.play_arrow,
-                                size: 18,
-                              ),
-                              label: Text(
-                                _isPlaying ? 'Pause' : 'Play',
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
+                              if (_isRecordingLoading)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              else
+                                ElevatedButton.icon(
+                                  onPressed: _recordingPath != null
+                                      ? _togglePlayback
+                                      : null,
+                                  icon: Icon(
+                                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    _isPlaying ? 'Pause' : 'Play',
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                  ),
                                 ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        // Pitch Stability Card
+                        _buildMetricCard(
+                          title: 'PITCH STABILITY',
+                          score: result.confidenceScore.pitchScore,
+                          value:
+                              '${result.audioMetrics.pitchMean.toStringAsFixed(1)} Hz',
+                          subtitle: 'Mean pitch frequency',
+                          getLabel: getScoreLabel,
+                          getColor: getScoreColor,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Voice Quality Card
+                        _buildMetricCard(
+                          title: 'VOICE QUALITY',
+                          score: result.confidenceScore.voiceQualityScore,
+                          value:
+                              'Jitter: ${result.audioMetrics.jitterLocal.toStringAsFixed(2)}%',
+                          subtitle:
+                              'Shimmer: ${result.audioMetrics.shimmerLocal.toStringAsFixed(2)}%',
+                          getLabel: getScoreLabel,
+                          getColor: getScoreColor,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Speaking Pace Card
+                        _buildPaceCard(
+                          wpm: result.wpm,
+                          score: result.confidenceScore.paceScore,
+                          getLabel: getScoreLabel,
+                          getColor: getScoreColor,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Fluency Card
+                        _buildFluencyCard(
+                          fillerCount: result.fillerCount,
+                          totalWords: result.fluencyMetrics.totalWords,
+                          score: result.confidenceScore.fluencyScore,
+                          fillerWords: result.fluencyMetrics.fillerWordsFound,
+                          getLabel: getScoreLabel,
+                          getColor: getScoreColor,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Transcription Card
+                        _buildTranscriptionCard(result.transcription),
+
+                        const SizedBox(height: 32),
+
+                        // Practice Again Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                RouteNames.practiceSetup,
+                                (route) => false,
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Practice again',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Pitch Stability Card
-                    _buildMetricCard(
-                      title: 'PITCH STABILITY',
-                      score: result.confidenceScore.pitchScore,
-                      value:
-                          '${result.audioMetrics.pitchMean.toStringAsFixed(1)} Hz',
-                      subtitle: 'Mean pitch frequency',
-                      getLabel: getScoreLabel,
-                      getColor: getScoreColor,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Voice Quality Card
-                    _buildMetricCard(
-                      title: 'VOICE QUALITY',
-                      score: result.confidenceScore.voiceQualityScore,
-                      value:
-                          'Jitter: ${result.audioMetrics.jitterLocal.toStringAsFixed(2)}%',
-                      subtitle:
-                          'Shimmer: ${result.audioMetrics.shimmerLocal.toStringAsFixed(2)}%',
-                      getLabel: getScoreLabel,
-                      getColor: getScoreColor,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Speaking Pace Card
-                    _buildPaceCard(
-                      wpm: result.wpm,
-                      score: result.confidenceScore.paceScore,
-                      getLabel: getScoreLabel,
-                      getColor: getScoreColor,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Fluency Card
-                    _buildFluencyCard(
-                      fillerCount: result.fillerCount,
-                      totalWords: result.fluencyMetrics.totalWords,
-                      score: result.confidenceScore.fluencyScore,
-                      fillerWords: result.fluencyMetrics.fillerWordsFound,
-                      getLabel: getScoreLabel,
-                      getColor: getScoreColor,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Transcription Card
-                    _buildTranscriptionCard(result.transcription),
-
-                    const SizedBox(height: 32),
-
-                    // Practice Again Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            RouteNames.practiceSetup,
-                            (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.surface,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Practice again',
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
-                    // View Detailed Feedback Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            RouteNames.detailedFeedback,
-                            arguments: result,
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                        ),
-                        child: Text(
-                          'View detailed feedback',
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                        // View Detailed Feedback Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                RouteNames.detailedFeedback,
+                                arguments: result,
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                            ),
+                            child: Text(
+                              'View detailed feedback',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 24),
-                  ],
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
         ),
         // Confetti Widget - centered at top
         Align(

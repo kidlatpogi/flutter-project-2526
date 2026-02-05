@@ -18,6 +18,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   final AuthService _authService = AuthService();
   bool _isSending = false;
   String? _email;
+  DateTime? _lastEmailSent;
 
   @override
   void didChangeDependencies() {
@@ -36,23 +37,75 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       return;
     }
 
+    // Check cooldown
+    if (_lastEmailSent != null) {
+      final secondsSinceLastSend = DateTime.now().difference(_lastEmailSent!).inSeconds;
+      if (secondsSinceLastSend < 60) {
+        final remainingSeconds = 60 - secondsSinceLastSend;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please wait $remainingSeconds seconds before resending.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isSending = true);
     try {
       await _authService.resendConfirmationEmail(_email!);
+      _lastEmailSent = DateTime.now();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Verification email sent.'),
+            content: Text('Verification email sent. Please check your inbox and wait 60 seconds before resending.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        // Check for rate limit error
+        final errorMsg = e.message.toLowerCase();
+        String displayMessage;
+        
+        if (errorMsg.contains('rate') || 
+            errorMsg.contains('too many') || 
+            errorMsg.contains('limit') ||
+            errorMsg.contains('email rate limit exceeded')) {
+          displayMessage = 'Too many requests. Please wait a few minutes before trying again.';
+        } else {
+          displayMessage = e.message;
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(displayMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final errorStr = e.toString().toLowerCase();
+        String displayMessage;
+        
+        if (errorStr.contains('rate') || 
+            errorStr.contains('too many') || 
+            errorStr.contains('limit')) {
+          displayMessage = 'Too many requests. Please wait a few minutes before trying again.';
+        } else {
+          displayMessage = 'Failed to resend email. Please try again later.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to resend email: $e'),
+            content: Text(displayMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

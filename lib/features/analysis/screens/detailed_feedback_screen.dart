@@ -102,20 +102,24 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   }
 
   Future<void> _togglePlayback() async {
-    if (_recordingPath == null) return;
+    if (_recordingPath == null) {
+      _showRecordingNotFoundDialog();
+      return;
+    }
     if (_isPlaying) {
       await _audioPlayer.pause();
     } else {
       try {
         // Stop any existing playback first
         await _audioPlayer.stop();
-        
+
         // On web, _recordingPath is a URL path like /sessions/{id}/recording
         // On native, it's a file path
-        if (_recordingPath!.startsWith('/') || _recordingPath!.startsWith('http')) {
+        if (_recordingPath!.startsWith('/') ||
+            _recordingPath!.startsWith('http')) {
           // Play from URL (web or network)
-          final fullUrl = _recordingPath!.startsWith('http') 
-              ? _recordingPath! 
+          final fullUrl = _recordingPath!.startsWith('http')
+              ? _recordingPath!
               : 'https://kidlatpogi17-bigkas-backend.hf.space${_recordingPath!}';
           await _audioPlayer.play(UrlSource(fullUrl));
         } else {
@@ -125,12 +129,74 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
       } catch (e) {
         print('Error playing recording: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error playing recording: $e')),
-          );
+          // Check if it's a 404 or network error indicating deleted recording
+          final errorString = e.toString().toLowerCase();
+          if (errorString.contains('404') ||
+              errorString.contains('not found') ||
+              errorString.contains('failed to load') ||
+              errorString.contains('unable to connect')) {
+            _showRecordingNotFoundDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error playing recording'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     }
+  }
+
+  void _showRecordingNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(Icons.audio_file, color: AppColors.inactive, size: 48),
+        title: Text(
+          'Recording Not Available',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'This recording has been deleted or is no longer available.',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You may have cleared your cache and recordings from Settings.',
+              style: GoogleFonts.inter(color: AppColors.inactive, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1021,7 +1087,7 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   Widget _buildMispronunciationsCard(AnalysisModel result) {
     // Check if this is a scripted speech (has accuracy score)
     final isScriptedSpeech = result.confidenceScore.overallScore > 0;
-    
+
     // Show empty state if no mispronunciations
     if (result.mispronunciations.isEmpty) {
       return Container(
@@ -1040,11 +1106,7 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
         ),
         child: Column(
           children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: Colors.green,
-              size: 48,
-            ),
+            Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
             const SizedBox(height: 12),
             Text(
               'Perfect Pronunciation!',
@@ -1117,7 +1179,10 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
                   children: [
                     // Timestamp
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -1167,17 +1232,17 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
                                 ),
                               ),
                               Text(
-                                mispronunciation.spokenWord.isEmpty 
+                                mispronunciation.spokenWord.isEmpty
                                     ? '(omitted)'
                                     : '"${mispronunciation.spokenWord}"',
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: mispronunciation.spokenWord.isEmpty 
+                                  color: mispronunciation.spokenWord.isEmpty
                                       ? AppColors.textSecondary
                                       : Colors.red.shade700,
-                                  fontStyle: mispronunciation.spokenWord.isEmpty 
-                                      ? FontStyle.italic 
+                                  fontStyle: mispronunciation.spokenWord.isEmpty
+                                      ? FontStyle.italic
                                       : FontStyle.normal,
                                 ),
                               ),

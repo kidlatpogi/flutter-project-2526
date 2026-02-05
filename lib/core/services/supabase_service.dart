@@ -15,7 +15,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('user_profiles')
-          .select()
+          .select('id,nickname,full_name,custom_full_name,is_active,account_status,created_at,updated_at')
           .eq('id', _userId!)
           .maybeSingle();
 
@@ -27,6 +27,7 @@ class SupabaseService {
   }
 
   /// Create user profile
+  /// Creates initial profile with Google account data
   Future<Map<String, dynamic>?> createUserProfile({
     required String nickname,
     String? fullName,
@@ -34,10 +35,17 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
+      // Get user metadata from Supabase auth (contains Google full name if signed in via Google)
+      final authUser = _supabase.auth.currentUser;
+      final googleFullName = authUser?.userMetadata?['full_name'] as String?;
+      
       final data = {
         'id': _userId,
         'nickname': nickname,
-        'full_name': fullName,
+        // full_name will be synced from Google OAuth by Supabase
+        'full_name': fullName ?? googleFullName,
+        // custom_full_name stores user's preference (separate from Google sync)
+        'custom_full_name': fullName,
         'is_active': true,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       };
@@ -56,6 +64,8 @@ class SupabaseService {
   }
 
   /// Update user profile
+  /// Note: Only updates fields that are explicitly provided (not null)
+  /// This allows preserving existing values when updating just one field
   Future<Map<String, dynamic>?> updateUserProfile({
     String? nickname,
     String? fullName,
@@ -65,7 +75,8 @@ class SupabaseService {
     try {
       final data = <String, dynamic>{};
       if (nickname != null) data['nickname'] = nickname;
-      if (fullName != null) data['full_name'] = fullName;
+      // Update custom_full_name (user's preference, not synced from Google)
+      if (fullName != null) data['custom_full_name'] = fullName;
 
       if (data.isEmpty) return null;
 
