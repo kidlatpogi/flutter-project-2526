@@ -289,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       elevation: 0,
                     ),
                     child: Text(
-                      'DELETE ACCOUNT',
+                      'DEACTIVATE ACCOUNT',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -677,86 +677,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Deactivate Account',
+          'Delete Account',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
             color: AppColors.primary,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'To deactivate your account, confirm your password and type DELETE ACCOUNT.',
-              style: GoogleFonts.inter(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Type your password to Deactivate',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'To delete your account, confirm your identity and type DELETE ACCOUNT.',
+                style: GoogleFonts.inter(color: AppColors.textSecondary),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _deactivatePasswordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: 'Password',
-                hintStyle: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppColors.inactive,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.inactive),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.inactive),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+              const SizedBox(height: 16),
+              Text(
+                'Enter your password (optional for Google accounts)',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Type DELETE ACCOUNT',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _confirmDeactivateController,
-              decoration: InputDecoration(
-                hintText: 'DELETE ACCOUNT',
-                hintStyle: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppColors.inactive,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.inactive),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.inactive),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _deactivatePasswordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  hintText: 'Password (optional for Google accounts)',
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AppColors.inactive,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.inactive),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.inactive),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'Type DELETE ACCOUNT',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _confirmDeactivateController,
+                decoration: InputDecoration(
+                  hintText: 'DELETE ACCOUNT',
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AppColors.inactive,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.inactive),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.inactive),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -777,16 +779,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final confirmation = _confirmDeactivateController.text
                         .trim();
 
-                    if (password.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter your password'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-
                     if (confirmation != 'DELETE ACCOUNT') {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -801,7 +793,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     setState(() => _isDeactivating = true);
                     try {
-                      await _authService.verifyPassword(password);
+                      final user = _authService.currentUser;
+                      final providers = user?.appMetadata['providers'] as List? ?? [];
+                      final isPasswordUser = providers.contains('email');
+
+                      // Only verify password if user has email/password auth
+                      if (isPasswordUser && password.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter your password'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        if (mounted) setState(() => _isDeactivating = false);
+                        return;
+                      }
+
+                      // Verify password only if user has password-based auth
+                      if (isPasswordUser && password.isNotEmpty) {
+                        await _authService.verifyPassword(password);
+                      }
+                      // For Google-only accounts, skip password verification
+                      
                       // Soft delete: mark account_status as 'Deleted' instead of actually deleting
                       await _userProfileService.updateUserProfile(
                         isActive: false,

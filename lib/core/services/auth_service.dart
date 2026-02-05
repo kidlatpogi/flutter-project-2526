@@ -47,6 +47,22 @@ class AuthService {
   /// Get the current access token (JWT) for API calls
   String? get accessToken => currentSession?.accessToken;
 
+  /// Check if user signed up with Google only (no password)
+  bool get isGoogleOnlyUser {
+    final user = currentUser;
+    if (user == null) return false;
+    final providers = user.appMetadata['providers'] as List? ?? [];
+    return providers.length == 1 && providers.contains('google');
+  }
+
+  /// Check if user has password authentication
+  bool get hasPasswordAuth {
+    final user = currentUser;
+    if (user == null) return false;
+    final providers = user.appMetadata['providers'] as List? ?? [];
+    return providers.contains('email');
+  }
+
   /// Stream of auth state changes
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
 
@@ -70,7 +86,6 @@ class AuthService {
         await _supabase.auth.refreshSession();
       } catch (e) {
         // Ignore refresh errors to avoid breaking flow on web implicit auth
-        print('Session refresh failed: $e');
       }
     }
   }
@@ -87,7 +102,6 @@ class AuthService {
         // Web: Use Supabase OAuth flow (more reliable for web)
         // Use the current page origin for redirect
         final redirectTo = Uri.base.origin;
-        print('OAuth redirect URL: $redirectTo');
         
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
@@ -345,7 +359,6 @@ class AuthService {
     try {
       await _supabase.auth.refreshSession();
     } catch (e) {
-      print('Failed to refresh user data: $e');
     }
   }
 

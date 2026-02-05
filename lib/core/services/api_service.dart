@@ -57,7 +57,6 @@ class ApiService {
       try {
         await supabase.auth.refreshSession();
       } catch (e) {
-        print('Session refresh failed: $e');
       }
       return;
     }
@@ -71,7 +70,6 @@ class ApiService {
       try {
         await supabase.auth.refreshSession();
       } catch (e) {
-        print('Session refresh failed: $e');
       }
     }
   }

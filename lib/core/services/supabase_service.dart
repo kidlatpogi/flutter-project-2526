@@ -21,7 +21,6 @@ class SupabaseService {
 
       return response;
     } catch (e) {
-      print('Error fetching user profile: $e');
       return null;
     }
   }
@@ -58,7 +57,6 @@ class SupabaseService {
 
       return response;
     } catch (e) {
-      print('Error creating user profile: $e');
       return null;
     }
   }
@@ -89,7 +87,6 @@ class SupabaseService {
 
       return response;
     } catch (e) {
-      print('Error updating user profile: $e');
       return null;
     }
   }
@@ -108,7 +105,6 @@ class SupabaseService {
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      print('Error fetching sessions: $e');
       return [];
     }
   }
@@ -125,7 +121,6 @@ class SupabaseService {
 
       return response.length;
     } catch (e) {
-      print('Error fetching sessions count: $e');
       return 0;
     }
   }
@@ -144,7 +139,6 @@ class SupabaseService {
 
       return response;
     } catch (e) {
-      print('Error fetching session: $e');
       return null;
     }
   }
@@ -162,7 +156,6 @@ class SupabaseService {
 
       return response;
     } catch (e) {
-      print('Error fetching analysis: $e');
       return null;
     }
   }
@@ -194,7 +187,6 @@ class SupabaseService {
               .delete()
               .eq('session_id', sessionId);
         } catch (e) {
-          print('Error deleting analysis for $sessionId: $e');
         }
       }
 
@@ -214,7 +206,6 @@ class SupabaseService {
               .remove([cleanPath]);
           deletedFiles++;
         } catch (e) {
-          print('Error deleting recording $path: $e');
         }
       }
 
@@ -225,7 +216,6 @@ class SupabaseService {
         'message': 'All user data cleared successfully'
       };
     } catch (e) {
-      print('Error clearing user data: $e');
       return {
         'success': false,
         'message': 'Failed to clear user data: ${e.toString()}'

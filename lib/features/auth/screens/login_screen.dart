@@ -59,14 +59,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('Attempting login...');
       await _authService.signInWithEmail(email, password);
-      
-      print('Login successful, checking for nickname...');
       
       // Check if widget is still mounted before proceeding
       if (!mounted) {
-        print('Widget unmounted, aborting navigation');
         return;
       }
       
@@ -74,33 +70,26 @@ class _LoginScreenState extends State<LoginScreen> {
       bool hasNickname = false;
       try {
         hasNickname = await _userProfileService.hasNickname();
-        print('Has nickname: $hasNickname');
       } catch (e) {
-        print('Error checking nickname (backend might be down): $e');
         // If backend is down, skip nickname check and go to dashboard
         // The dashboard will handle the error gracefully
         hasNickname = true;
       }
       
       if (!mounted) {
-        print('Widget unmounted after nickname check, aborting navigation');
         return;
       }
       
       if (!hasNickname) {
-        print('Navigating to nickname setup...');
         Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
       } else {
-        print('Navigating to dashboard...');
         Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } on AuthException catch (e) {
-      print('Auth exception: ${e.message}');
       if (mounted) {
         setState(() => _errorMessage = e.message);
       }
     } catch (e) {
-      print('Unexpected error during login: $e');
       if (mounted) {
         setState(() => _errorMessage = 'Login failed. Please try again.');
       }
@@ -139,10 +128,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return WillPopScope(
+      onWillPop: () async {
+        // Prevent back button during OAuth flow
+        if (_isLoading) {
+          return false; // Don't allow back while login is in progress
+        }
+        return true; // Allow back otherwise
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        body: SafeArea(
+          child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(AppConstants.defaultPadding),
             child: Column(
@@ -441,6 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -35,8 +35,6 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
 
   Future<void> _loadProgressData() async {
     try {
-      print('Loading progress data...');
-
       // Fetch more sessions to support Year view (up to 365 days of data)
       // Limit based on period: Week=20, Month=50, Year=200
       final limit = _selectedPeriod == 'Year'
@@ -50,8 +48,6 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
       final results = await Future.wait([sessionsFuture, countFuture]);
       final response = results[0] as List<Map<String, dynamic>>;
       final totalCount = results[1] as int;
-
-      print('Progress: got ${response.length} sessions, total: $totalCount');
 
       final sessions = response.map((session) {
         final createdAt = DateTime.parse(session['created_at']);
@@ -86,10 +82,8 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
           _recommendations = recs;
           _isLoading = false;
         });
-        print('Progress loaded: $_totalSessions total, $_avgScore avg');
       }
     } catch (e) {
-      print('Progress load error: $e');
       if (mounted) {
         setState(() {
           _totalSessions = 0;
@@ -743,7 +737,7 @@ class _ProgressAnalyticsScreenState extends State<ProgressAnalyticsScreen> {
       onTap: () {
         Navigator.pushNamed(
           context,
-          RouteNames.analysis,
+          '${RouteNames.analysis}?sessionId=$sessionId',
           arguments: {'sessionId': sessionId, 'fromProgress': true},
         );
       },

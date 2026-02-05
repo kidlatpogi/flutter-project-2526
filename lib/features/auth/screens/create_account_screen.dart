@@ -87,50 +87,37 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   /// Handle account creation
   Future<void> _handleCreateAccount() async {
-    print('Create Account button clicked');
-    
     final fullName = _fullNameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    print('Full Name: $fullName');
-    print('Email: $email');
-    print('Password length: ${password.length}');
-
     // Validation
     if (fullName.isEmpty) {
-      print('Validation failed: Full name is empty');
       setState(() => _errorMessage = 'Please enter your full name');
       return;
     }
 
     if (email.isEmpty) {
-      print('Validation failed: Email is empty');
       setState(() => _errorMessage = 'Please enter your email');
       return;
     }
 
     if (!_isValidEmail(email)) {
-      print('Validation failed: Invalid email format');
       setState(() => _errorMessage = 'Please enter a valid email address');
       return;
     }
 
     final passwordError = _validatePassword(password);
     if (passwordError != null) {
-      print('Validation failed: $passwordError');
       setState(() => _errorMessage = passwordError);
       return;
     }
 
     if (password != confirmPassword) {
-      print('Validation failed: Passwords do not match');
       setState(() => _errorMessage = 'Passwords do not match');
       return;
     }
-
-    print('All validations passed, attempting signup...');
     
     setState(() {
       _isLoading = true;
@@ -138,7 +125,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     });
 
     try {
-      print('Calling signUpWithEmail...');
       final user = await _authService.signUpWithEmail(
         email,
         password,
@@ -162,7 +148,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         return;
       }
 
-      print('Signup successful, prompting email confirmation...');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,7 +164,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         );
       }
     } on AuthException catch (e) {
-      print('AuthException caught: ${e.message}');
       
       // Special handling for duplicate email error
       if (e.code == 'email_exists' || 
@@ -241,11 +225,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         setState(() => _errorMessage = e.message);
       }
     } catch (e) {
-      print('Unexpected error caught: $e');
       setState(() => _errorMessage = 'Failed to create account. Please try again.');
     } finally {
       if (mounted) {
-        print('Setting loading to false');
         setState(() => _isLoading = false);
       }
     }

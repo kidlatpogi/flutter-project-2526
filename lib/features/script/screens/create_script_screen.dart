@@ -41,18 +41,12 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
 
       if (currentUser == null) throw Exception('Not authenticated');
 
-      print('Saving script for user: ${currentUser.id}');
-      print('Title: ${_titleController.text}');
-      print('Content length: ${_contentController.text.length}');
-
       // Insert script into database - let database handle created_at
-      final response = await supabase.from('scripts').insert({
+      await supabase.from('scripts').insert({
         'user_id': currentUser.id,
         'title': _titleController.text,
         'content': _contentController.text,
       }).select();
-
-      print('Insert response: $response');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -65,7 +59,6 @@ class _CreateScriptScreenState extends State<CreateScriptScreen> {
         Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
-      print('Error saving script: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

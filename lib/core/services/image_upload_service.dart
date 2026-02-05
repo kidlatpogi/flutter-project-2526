@@ -29,7 +29,6 @@ class ImageUploadService {
         imageQuality: 75,
       );
     } catch (e) {
-      print('Error picking image on mobile: $e');
       return null;
     }
   }
@@ -43,7 +42,6 @@ class ImageUploadService {
       // This code uses dart:html when available (only on web)
       return await _webFilePickerImpl();
     } catch (e) {
-      print('Error picking image on web: $e');
       return null;
     }
   }

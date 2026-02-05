@@ -330,7 +330,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
         // TODO: Navigate to session details
         Navigator.pushNamed(
           context,
-          RouteNames.analysis,
+          '${RouteNames.analysis}?sessionId=${session['id']}',
           arguments: {'sessionId': session['id']},
         );
       },
