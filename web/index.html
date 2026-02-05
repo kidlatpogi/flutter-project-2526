@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -20,8 +21,14 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
 
+  <!-- Prevent aggressive caching - DEVELOPMENT ONLY -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <!-- Google Sign-In Configuration for Web -->
-  <meta name="google-signin-client_id" content="224611722969-cegepmde5ctvv1f8llu07qt17t6d8l7q.apps.googleusercontent.com">
+  <meta name="google-signin-client_id"
+    content="224611722969-cegepmde5ctvv1f8llu07qt17t6d8l7q.apps.googleusercontent.com">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -30,25 +37,33 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
-  <title>flutter_project2526</title>
+  <title>Bigkas</title>
   <link rel="manifest" href="manifest.json">
-  
+
   <script>
+    // DEVELOPMENT: Unregister all service workers to prevent caching issues
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('Service worker unregistered for development');
+        }
+      });
+    }
+
     // Prevent back button during OAuth flow
-    // When user is redirected back from OAuth provider, add a history entry
-    // so the back button doesn't return to the OAuth provider's page
-    window.addEventListener('load', function() {
+    window.addEventListener('load', function () {
       // Check if this is an OAuth redirect (has token in URL)
-      if (window.location.hash.includes('access_token') || 
-          window.location.hash.includes('code=') ||
-          window.location.search.includes('code=')) {
+      if (window.location.hash.includes('access_token') ||
+        window.location.hash.includes('code=') ||
+        window.location.search.includes('code=')) {
         // Push a new state so back button goes to app root, not OAuth provider
         window.history.pushState(null, null, window.location.href);
-        
+
         // Listen for pop state (back button pressed)
-        window.addEventListener('popstate', function() {
+        window.addEventListener('popstate', function () {
           // Redirect to home instead of going back to OAuth provider
           window.history.pushState(null, null, window.location.pathname);
         });
@@ -56,7 +71,9 @@
     });
   </script>
 </head>
+
 <body>
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>
