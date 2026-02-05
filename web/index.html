@@ -34,6 +34,27 @@
 
   <title>flutter_project2526</title>
   <link rel="manifest" href="manifest.json">
+  
+  <script>
+    // Prevent back button during OAuth flow
+    // When user is redirected back from OAuth provider, add a history entry
+    // so the back button doesn't return to the OAuth provider's page
+    window.addEventListener('load', function() {
+      // Check if this is an OAuth redirect (has token in URL)
+      if (window.location.hash.includes('access_token') || 
+          window.location.hash.includes('code=') ||
+          window.location.search.includes('code=')) {
+        // Push a new state so back button goes to app root, not OAuth provider
+        window.history.pushState(null, null, window.location.href);
+        
+        // Listen for pop state (back button pressed)
+        window.addEventListener('popstate', function() {
+          // Redirect to home instead of going back to OAuth provider
+          window.history.pushState(null, null, window.location.pathname);
+        });
+      }
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

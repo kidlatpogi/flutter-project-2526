@@ -99,7 +99,7 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     try {
       if (kIsWeb) {
-        // Web: Use Supabase OAuth flow (more reliable for web)
+        // Web: Use Supabase OAuth flow with in-app browser (popup window)
         // Use the current page origin for redirect
         final redirectTo = Uri.base.origin;
         
