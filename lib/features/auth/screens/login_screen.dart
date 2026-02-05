@@ -128,10 +128,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return WillPopScope(
+      onWillPop: () async {
+        // Prevent back button during OAuth flow
+        if (_isLoading) {
+          return false; // Don't allow back while login is in progress
+        }
+        return true; // Allow back otherwise
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        body: SafeArea(
+          child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(AppConstants.defaultPadding),
             child: Column(
@@ -430,6 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
