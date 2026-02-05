@@ -3,7 +3,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/page_transitions.dart';
-import '../../../routing/route_names.dart';
 import 'splash_screen3.dart';
 
 class SplashScreen2 extends StatelessWidget {
