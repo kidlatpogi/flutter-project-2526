@@ -91,7 +91,6 @@ class AudioService {
         bitRate: 256000,    // 256 kbps for good quality
         numChannels: 1,     // Mono for speech
       );
-      print('AudioService: Starting recording with WAV encoder, sampleRate: 16000, channels: 1');
       await _recorder.start(config, path: path);
       _isRecording = true;
       return _currentRecordingPath ?? '';
@@ -128,7 +127,6 @@ class AudioService {
     }
 
     try {
-      print('AudioService: Stopping recording...');
       final path = await _recorder.stop();
       _isRecording = false;
 
@@ -144,15 +142,12 @@ class AudioService {
           // Verify file exists and has content
           final file = File(path);
           if (!await file.exists()) {
-            print('AudioService: ERROR - Recording file was not created at $path');
             throw AudioException('Recording file was not created');
           }
           
           final fileSize = await file.length();
-          print('AudioService: Recording file created, size: $fileSize bytes, path: $path');
           
           if (fileSize == 0) {
-            print('AudioService: ERROR - Recording file is empty');
             throw AudioException('Recording file is empty');
           }
           
@@ -161,12 +156,9 @@ class AudioService {
           // Web platform: The pre-stop delay in the recording screen
           // ensures audio buffers are flushed before we reach here.
           // Just read the audio bytes directly.
-          print('AudioService: Web platform, reading audio bytes...');
           final bytes = await readWebFileBytes(path);
-          print('AudioService: Web audio data size: ${bytes.length} bytes (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
           
           if (bytes.isEmpty) {
-            print('AudioService: ERROR - No audio data recorded on web');
             throw AudioException('No audio data recorded');
           }
           
@@ -176,7 +168,6 @@ class AudioService {
       return null;
     } catch (e) {
       _isRecording = false;
-      print('AudioService: ERROR stopping recording: $e');
       throw AudioException('Failed to stop recording: $e');
     }
   }

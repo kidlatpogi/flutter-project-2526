@@ -10,7 +10,6 @@ class UserProfileService {
     try {
       return await _supabaseService.getUserProfile();
     } catch (e) {
-      print('Error fetching user profile: $e');
       return null;
     }
   }
@@ -43,7 +42,6 @@ class UserProfileService {
         return updatedProfile ?? existingProfile;
       }
     } catch (e) {
-      print('Error updating profile: $e');
       throw Exception('Failed to update profile: ${e.toString()}');
     }
   }
@@ -85,7 +83,6 @@ class UserProfileService {
 
       return null;
     } catch (e) {
-      print('Error getting nickname or display name: $e');
       return null;
     }
   }

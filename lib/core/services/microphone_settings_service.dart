@@ -39,7 +39,6 @@ class MicrophoneSettingsService {
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
       return MicrophoneSettings.fromJson(json);
     } catch (e) {
-      print('Error loading microphone settings: $e');
       return null;
     }
   }
@@ -49,9 +48,7 @@ class MicrophoneSettingsService {
     try {
       final jsonString = jsonEncode(settings.toJson());
       await _storage.write(_storageKey, jsonString);
-      print('Microphone settings saved: ${settings.selectedMicrophoneName}');
     } catch (e) {
-      print('Error saving microphone settings: $e');
     }
   }
 
@@ -68,9 +65,7 @@ class MicrophoneSettingsService {
   Future<void> clearSettings() async {
     try {
       await _storage.delete(_storageKey);
-      print('Microphone settings cleared');
     } catch (e) {
-      print('Error clearing microphone settings: $e');
     }
   }
 }

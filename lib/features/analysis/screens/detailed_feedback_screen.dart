@@ -127,7 +127,6 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
           await _audioPlayer.play(DeviceFileSource(_recordingPath!));
         }
       } catch (e) {
-        print('Error playing recording: $e');
         if (mounted) {
           // Check if it's a 404 or network error indicating deleted recording
           final errorString = e.toString().toLowerCase();

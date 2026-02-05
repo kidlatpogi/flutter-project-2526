@@ -114,7 +114,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         });
       }
     } catch (e) {
-      print('Error loading recording path: $e');
       if (mounted && _recordingSessionId == sessionId) {
         setState(() {
           _recordingPath = null;
@@ -150,7 +149,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           await _audioPlayer.play(DeviceFileSource(_recordingPath!));
         }
       } catch (e) {
-        print('Error playing recording: $e');
         if (mounted) {
           // Check if it's a 404 or network error indicating deleted recording
           final errorString = e.toString().toLowerCase();

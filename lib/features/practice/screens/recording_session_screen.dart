@@ -335,8 +335,6 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
   Future<void> _stopAndAnalyze() async {
     if (!_isRecording) return;
-
-    print('RecordingSession: Stopping and analyzing...');
     
     setState(() {
       _isRecording = false;
@@ -351,23 +349,19 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
     // to flush its internal audio buffers. This prevents audio cutoff
     // at the end of longer recordings (30+ seconds).
     if (kIsWeb) {
-      print('RecordingSession: Web platform - waiting for audio buffers to flush...');
       // Wait 3 seconds to ensure all audio data is captured
       // The browser's AudioWorklet has internal buffering that needs time to flush
       await Future.delayed(const Duration(milliseconds: 3000));
-      print('RecordingSession: Buffer flush delay complete');
     }
 
     try {
       // Stop recording and get the file
-      print('RecordingSession: Calling stopRecording()...');
       final RecordedAudio? recorded = await _audioService.stopRecording();
 
       if (recorded == null) {
         throw Exception('No audio file was recorded');
       }
 
-      print('RecordingSession: Recording stopped, fileName: ${recorded.fileName}');
 
       // Validate recorded audio on web
       if (kIsWeb) {
@@ -377,18 +371,15 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
         if (recorded.bytes!.isEmpty) {
           throw Exception('Recorded audio data is empty - recording may not have captured audio');
         }
-        print('RecordingSession: Web audio bytes size: ${recorded.bytes!.length} bytes');
         
         // If audio is very small, warn user
         if (recorded.bytes!.length < 10000) {
-          print('RecordingSession: WARNING - Audio file is suspiciously small (${recorded.bytes!.length} bytes)');
         }
       }
       
       // Validate recorded audio on native
       if (!kIsWeb && recorded.file != null) {
         final fileSize = await recorded.file!.length();
-        print('RecordingSession: File size: $fileSize bytes');
         if (fileSize < 1024) { // Less than 1KB is suspicious
           throw Exception('Recording file is too small ($fileSize bytes). Please check your microphone and try again.');
         }
@@ -396,9 +387,6 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
 
       // Use the elapsed stopwatch time as the recorded duration
       final recordedSeconds = _elapsedSeconds;
-      print('RecordingSession: Recorded duration: $recordedSeconds seconds');
-
-      print('RecordingSession: Uploading audio to backend...');
       final AnalysisModel result = kIsWeb
           ? await _apiService.uploadAudioBytes(
               recorded.bytes ?? Uint8List(0),
@@ -415,7 +403,6 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
               recordedDurationSeconds: recordedSeconds,
             );
 
-      print('RecordingSession: Analysis complete, sessionId: ${result.sessionId}');
 
       // Cache recording locally for playback (non-web)
       if (!kIsWeb && recorded.file != null) {
@@ -434,13 +421,11 @@ class _RecordingSessionScreenState extends State<RecordingSessionScreen>
         );
       }
     } on ApiException catch (e) {
-      print('RecordingSession: ApiException - ${e.message}');
       setState(() {
         _isAnalyzing = false;
         _errorMessage = e.message;
       });
     } catch (e) {
-      print('RecordingSession: Exception - $e');
       setState(() {
         _isAnalyzing = false;
         _errorMessage = 'Analysis failed: $e';

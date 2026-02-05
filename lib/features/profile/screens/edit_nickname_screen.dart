@@ -53,9 +53,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     });
 
     try {
-      print('Attempting to save nickname: $nickname');
       await _userProfileService.updateUserProfile(nickname: nickname);
-      print('Nickname saved successfully');
 
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success
@@ -67,7 +65,6 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
         );
       }
     } catch (e) {
-      print('Error saving nickname: $e');
       if (mounted) {
         setState(() {
           // Show the actual error message from backend

@@ -51,7 +51,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Use custom_full_name from database (user's preference)
       // Falls back to full_name if custom_full_name not set
       if (!profile.containsKey('custom_full_name')) {
-        print('WARNING: custom_full_name not returned from API. Run: select pg_notify(\'pgrst\', \'reload schema\');');
       }
       final displayName = profile['custom_full_name'] ?? profile['full_name'] ?? '';
       

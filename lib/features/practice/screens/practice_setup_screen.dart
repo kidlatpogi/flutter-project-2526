@@ -28,7 +28,6 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
       final currentUser = supabase.auth.currentUser;
       
       if (currentUser == null) {
-        print('User not authenticated');
         return;
       }
       
@@ -51,7 +50,6 @@ class _PracticeSetupScreenState extends State<PracticeSetupScreen> {
         });
       }
     } catch (e) {
-      print('Error loading scripts: $e');
       // Keep empty list if error occurs
       if (mounted) {
         setState(() {

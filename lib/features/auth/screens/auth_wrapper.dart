@@ -34,13 +34,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void _listenToAuthChanges() {
     _authSubscription = _authService.authStateChanges.listen((authState) {
       final event = authState.event;
-      print('AuthWrapper: Auth event received: $event');
       
       if (!mounted) return;
       
       // Handle sign out immediately - don't wait for _checkAuthStatus
       if (event == AuthChangeEvent.signedOut) {
-        print('AuthWrapper: User signed out, showing login screen');
         setState(() {
           _targetWidget = const LoginScreen();
           _isLoading = false;
@@ -70,14 +68,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       
       if (_authService.isLoggedIn) {
         // User is logged in, check if they have a profile
-        print('AuthWrapper: User is logged in, checking profile...');
         
         // Check if user has nickname
         bool hasNickname = false;
         try {
           final profile = await _userProfileService.getUserProfile();
           if (profile != null && profile['is_active'] == false) {
-            print('AuthWrapper: Account deactivated, signing out');
             await _authService.signOut();
             if (!mounted) return;
             _targetWidget = const LoginScreen();
@@ -87,9 +83,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           hasNickname = profile != null &&
               profile['nickname'] != null &&
               (profile['nickname'] as String).isNotEmpty;
-          print('AuthWrapper: Has nickname: $hasNickname');
         } catch (e) {
-          print('AuthWrapper: Error checking nickname: $e');
           // If there's an error, assume no profile exists yet
           hasNickname = false;
         }
@@ -105,11 +99,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       } else {
         // User is not logged in, go directly to login screen
-        print('AuthWrapper: User is not logged in, showing login screen');
         _targetWidget = const LoginScreen();
       }
     } catch (e) {
-      print('AuthWrapper: Error checking auth status: $e');
       _targetWidget = const LoginScreen();
     }
 

@@ -45,11 +45,9 @@ class MyApp extends StatelessWidget {
       onUnknownRoute: (settings) {
         // Handle unknown routes - OAuth redirects have access_token in URL fragment
         final routeName = settings.name ?? '';
-        print('Unknown route: $routeName');
         
         // Check for password reset type parameter (type=recovery)
         if (routeName.contains('type=recovery') || routeName.contains('recovery')) {
-          print('Password recovery callback detected');
           // Import and navigate to reset password screen
           return MaterialPageRoute(
             builder: (_) => const ResetPasswordScreen(),
@@ -69,13 +67,11 @@ class MyApp extends StatelessWidget {
             routeName.contains('error=') ||
             routeName.startsWith('#') ||
             routeName.startsWith('access_token=')) {
-          print('OAuth callback detected, routing to AuthWrapper');
           // Return AuthWrapper which will check auth state and route accordingly
           return MaterialPageRoute(builder: (_) => const AuthWrapper());
         }
         
         // For other unknown routes, show error
-        print('Showing error for unknown route: $routeName');
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             backgroundColor: Colors.white,

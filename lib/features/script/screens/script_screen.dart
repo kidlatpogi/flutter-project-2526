@@ -52,7 +52,6 @@ class _ScriptScreenState extends State<ScriptScreen> {
         });
       }
     } catch (e) {
-      print('Error loading scripts: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -123,7 +122,6 @@ class _ScriptScreenState extends State<ScriptScreen> {
         );
       }
     } catch (e) {
-      print('Error deleting script: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

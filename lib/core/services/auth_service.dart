@@ -70,7 +70,6 @@ class AuthService {
         await _supabase.auth.refreshSession();
       } catch (e) {
         // Ignore refresh errors to avoid breaking flow on web implicit auth
-        print('Session refresh failed: $e');
       }
     }
   }
@@ -87,7 +86,6 @@ class AuthService {
         // Web: Use Supabase OAuth flow (more reliable for web)
         // Use the current page origin for redirect
         final redirectTo = Uri.base.origin;
-        print('OAuth redirect URL: $redirectTo');
         
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
@@ -345,7 +343,6 @@ class AuthService {
     try {
       await _supabase.auth.refreshSession();
     } catch (e) {
-      print('Failed to refresh user data: $e');
     }
   }
 

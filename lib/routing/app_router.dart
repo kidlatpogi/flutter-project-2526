@@ -135,6 +135,14 @@ class AppRouter {
       default:
         // Check if this is an OAuth callback route (contains token parameters)
         final routeName = settings.name ?? '';
+        if (routeName.startsWith(RouteNames.analysis)) {
+          final uri = Uri.parse(routeName);
+          final sessionId = uri.queryParameters['sessionId'];
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => AnalysisResultScreen(sessionId: sessionId),
+          );
+        }
         if (routeName.contains('access_token') ||
             routeName.contains('provider_token') ||
             routeName.contains('refresh_token') ||
@@ -142,7 +150,6 @@ class AppRouter {
             routeName.contains('expires_in') ||
             routeName.contains('token_type') ||
             routeName.startsWith('access_token=')) {
-          print('AppRouter: OAuth callback detected, routing to AuthWrapper');
           return MaterialPageRoute(builder: (_) => const AuthWrapper());
         }
 
@@ -150,7 +157,6 @@ class AppRouter {
         if (routeName.contains('error=') ||
             routeName.contains('error_code=') ||
             routeName.contains('error_description=')) {
-          print('AppRouter: Auth error detected: $routeName');
           // Parse error details for user-friendly message
           String errorMessage =
               'The password reset link has expired or is invalid.';
@@ -226,7 +232,6 @@ class AppRouter {
         }
 
         // Unknown route - show error
-        print('AppRouter: Unknown route: ${settings.name}');
         return MaterialPageRoute(
           builder: (context) => Scaffold(
             backgroundColor: Colors.white,

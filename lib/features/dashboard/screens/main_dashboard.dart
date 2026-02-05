@@ -114,9 +114,6 @@ class _MainDashboardState extends State<MainDashboard> {
           _streakDays = streakDays;
           _isStatsLoading = false;
         });
-        print(
-          'Dashboard loaded: $streakDays day streak, $avgScore avg score, ${_recentSessions.length} recent sessions',
-        );
       }
     } catch (e) {
       if (mounted) {
