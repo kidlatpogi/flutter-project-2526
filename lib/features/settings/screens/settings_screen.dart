@@ -671,6 +671,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showDeleteAccountDialog() {
+    final user = _authService.currentUser;
+    final providers = user?.appMetadata['providers'] as List? ?? [];
+    final isGoogleOnly = !providers.contains('email') && providers.contains('google');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -693,39 +697,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: GoogleFonts.inter(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Enter your password (optional for Google accounts)',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _deactivatePasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  hintText: 'Password (optional for Google accounts)',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.inactive,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.inactive),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.inactive),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+              // Only show password field for email/password users
+              if (!isGoogleOnly) ...[
+                Text(
+                  'Enter your password',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _deactivatePasswordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Password',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppColors.inactive,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.inactive),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.inactive),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                Text(
+                  'You\'re signed in with Google. Click Delete Account to confirm.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               Text(
                 'Type DELETE ACCOUNT',
                 style: GoogleFonts.inter(
@@ -776,15 +792,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ? null
                 : () async {
                     final password = _deactivatePasswordController.text;
-                    final confirmation = _confirmDeactivateController.text
-                        .trim();
+                    final confirmation = _confirmDeactivateController.text.trim();
+                    final user = _authService.currentUser;
+                    final providers = user?.appMetadata['providers'] as List? ?? [];
+                    final isGoogleOnly = !providers.contains('email') && providers.contains('google');
 
                     if (confirmation != 'DELETE ACCOUNT') {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Please type DELETE ACCOUNT to confirm',
-                          ),
+                          content: Text('Please type DELETE ACCOUNT to confirm'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    // For email users, require password
+                    if (!isGoogleOnly && password.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter your password'),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -793,29 +820,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     setState(() => _isDeactivating = true);
                     try {
-                      final user = _authService.currentUser;
-                      final providers = user?.appMetadata['providers'] as List? ?? [];
-                      final isPasswordUser = providers.contains('email');
-
-                      // Only verify password if user has email/password auth
-                      if (isPasswordUser && password.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter your password'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        if (mounted) setState(() => _isDeactivating = false);
-                        return;
-                      }
-
-                      // Verify password only if user has password-based auth
-                      if (isPasswordUser && password.isNotEmpty) {
+                      // Only verify password for email/password users
+                      if (!isGoogleOnly) {
                         await _authService.verifyPassword(password);
                       }
-                      // For Google-only accounts, skip password verification
-                      
-                      // Soft delete: mark account_status as 'Deleted' instead of actually deleting
+
+                      // Soft delete: mark account_status as 'Deleted'
                       await _userProfileService.updateUserProfile(
                         isActive: false,
                         accountStatus: 'Deleted',
@@ -842,7 +852,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Failed to deactivate account: $e'),
+                          content: Text('Failed to delete account: $e'),
                           backgroundColor: Colors.red,
                         ),
                       );

@@ -106,7 +106,7 @@ class AuthService {
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
           redirectTo: redirectTo,
-          authScreenLaunchMode: LaunchMode.platformDefault,
+          authScreenLaunchMode: LaunchMode.externalApplication,
         );
         // OAuth flow redirects, so we return null here
         // The auth state change listener will handle the session
