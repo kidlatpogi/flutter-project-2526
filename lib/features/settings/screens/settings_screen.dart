@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       elevation: 0,
                     ),
                     child: Text(
-                      'Clear Cache & Recordings',
+                      'Clear Cache',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -526,7 +526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Clear Cache & Recordings',
+          'Clear Cache',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
             color: AppColors.primary,
