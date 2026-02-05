@@ -122,7 +122,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final user = await _authService.signInWithGoogle();
       if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+        // Check if account is deactivated
+        final isActive = await _authService.checkAccountActive(user.id);
+        if (!isActive) {
+          await _authService.signOut();
+          setState(() => _errorMessage = 'Your account has been deactivated. Please contact support if you believe this is an error.');
+          return;
+        }
+        
+        // Check if Google user has password set
+        final hasPassword = _authService.hasPasswordAuth;
+        
+        if (!hasPassword) {
+          // Google-only user needs to set password first
+          Navigator.pushReplacementNamed(context, RouteNames.passwordSetup);
+          return;
+        }
+        
+        // Check if user has nickname
+        bool hasNickname = false;
+        try {
+          hasNickname = await _userProfileService.hasNickname();
+        } catch (e) {
+          // If backend is down, skip nickname check and go to dashboard
+          hasNickname = true;
+        }
+        
+        if (!hasNickname) {
+          Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+        } else {
+          Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+        }
       }
     } on AuthException catch (e) {
       if (e.code != 'cancelled') {

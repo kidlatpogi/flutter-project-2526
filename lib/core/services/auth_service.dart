@@ -106,7 +106,7 @@ class AuthService {
         await _supabase.auth.signInWithOAuth(
           OAuthProvider.google,
           redirectTo: redirectTo,
-          authScreenLaunchMode: LaunchMode.platformDefault,
+          authScreenLaunchMode: LaunchMode.inAppWebView,
         );
         // OAuth flow redirects, so we return null here
         // The auth state change listener will handle the session
@@ -177,6 +177,14 @@ class AuthService {
         await _supabase.auth.signOut();
         throw AuthException('Please verify your email before logging in.');
       }
+      
+      // Check if account is deactivated
+      final isActive = await checkAccountActive(response.user!.id);
+      if (!isActive) {
+        await _supabase.auth.signOut();
+        throw AuthException('Your account has been deactivated. Please contact support if you believe this is an error.');
+      }
+      
       return response.user;
     } on AuthApiException catch (e) {
       final message = e.message.toLowerCase();
@@ -368,4 +376,43 @@ class AuthService {
   /// Get user's avatar URL
   String? get avatarUrl =>
       userMetadata?['avatar_url'] ?? userMetadata?['picture'];
+
+  /// Check if account is active (not deactivated)
+  Future<bool> checkAccountActive(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_profiles')
+          .select('is_active, account_status')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      if (response == null) {
+        // No profile yet, account is active by default
+        return true;
+      }
+      
+      final isActive = response['is_active'] as bool? ?? true;
+      final accountStatus = response['account_status'] as String? ?? 'Active';
+      
+      // Account is active if is_active is true AND status is not 'Deleted'
+      return isActive && accountStatus != 'Deleted';
+    } catch (e) {
+      // If we can't check, assume active to avoid blocking legitimate users
+      return true;
+    }
+  }
+
+  /// Set password for Google-only users
+  /// This allows Google users to create a password for account deactivation
+  Future<void> setPasswordForGoogleUser(String password) async {
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(password: password),
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to set password: ${e.toString()}');
+    }
+  }
 }

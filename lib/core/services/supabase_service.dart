@@ -67,6 +67,8 @@ class SupabaseService {
   Future<Map<String, dynamic>?> updateUserProfile({
     String? nickname,
     String? fullName,
+    bool? isActive,
+    String? accountStatus,
   }) async {
     if (_userId == null) return null;
 
@@ -75,6 +77,8 @@ class SupabaseService {
       if (nickname != null) data['nickname'] = nickname;
       // Update custom_full_name (user's preference, not synced from Google)
       if (fullName != null) data['custom_full_name'] = fullName;
+      if (isActive != null) data['is_active'] = isActive;
+      if (accountStatus != null) data['account_status'] = accountStatus;
 
       if (data.isEmpty) return null;
 
