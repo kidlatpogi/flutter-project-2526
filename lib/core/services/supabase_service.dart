@@ -34,13 +34,23 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
-      // Get user metadata from Supabase auth (contains Google full name if signed in via Google)
+      // Get user metadata from Supabase auth (contains Google data if signed in via Google)
       final authUser = _supabase.auth.currentUser;
-      final googleFullName = authUser?.userMetadata?['full_name'] as String?;
+      final userMetadata = authUser?.userMetadata;
+      
+      // Extract name data from Google OAuth (multiple possible keys)
+      final googleFullName = userMetadata?['full_name'] 
+          ?? userMetadata?['name'] as String?;
+      final givenName = userMetadata?['given_name'] as String?;
+      
+      // Use given_name as fallback for empty nickname
+      final effectiveNickname = nickname.isNotEmpty 
+          ? nickname 
+          : (givenName ?? '');
       
       final data = {
         'id': _userId,
-        'nickname': nickname,
+        'nickname': effectiveNickname,
         // full_name will be synced from Google OAuth by Supabase
         'full_name': fullName ?? googleFullName,
         // custom_full_name stores user's preference (separate from Google sync)
