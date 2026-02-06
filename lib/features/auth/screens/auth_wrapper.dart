@@ -70,34 +70,42 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (_authService.isLoggedIn) {
         // User is logged in
         
-        // Step 1: Check if Google-only user needs password setup
-        final hasPassword = _authService.hasPasswordAuth;
-        if (!hasPassword) {
-          // Google-only user needs to set up a password first
-          _targetWidget = const PasswordSetupScreen();
-          return;
-        }
-        
-        // Step 2: Check if user has nickname
-        bool hasNickname = false;
+        // Get user profile first
+        Map<String, dynamic>? profile;
         try {
-          final profile = await _userProfileService.getUserProfile();
+          profile = await _userProfileService.getUserProfile();
+          
+          // Check if account is deactivated
           if (profile != null && profile['is_active'] == false) {
             await _authService.signOut();
             if (!mounted) return;
             _targetWidget = const LoginScreen();
             return;
           }
-          // Profile exists if it's not null and has a non-empty nickname
-          hasNickname = profile != null &&
-              profile['nickname'] != null &&
-              (profile['nickname'] as String).isNotEmpty;
         } catch (e) {
-          // If there's an error, assume no profile exists yet
-          hasNickname = false;
+          profile = null;
         }
-
+        
         if (!mounted) return;
+        
+        // Step 1: Check if user needs password setup
+        // A user needs password if:
+        // - They signed up with Google only (no email provider) AND
+        // - They haven't set a password yet (has_password is false or null)
+        final isGoogleOnly = _authService.isGoogleOnlyUser;
+        final hasPasswordInProfile = profile?['has_password'] == true;
+        final hasEmailProvider = _authService.hasPasswordAuth;
+        
+        if (isGoogleOnly && !hasPasswordInProfile && !hasEmailProvider) {
+          // Google-only user needs to set up a password first
+          _targetWidget = const PasswordSetupScreen();
+          return;
+        }
+        
+        // Step 2: Check if user has nickname
+        final hasNickname = profile != null &&
+            profile['nickname'] != null &&
+            (profile['nickname'] as String).isNotEmpty;
         
         if (hasNickname) {
           // User has profile, go to dashboard

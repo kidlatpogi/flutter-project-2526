@@ -15,7 +15,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('user_profiles')
-          .select('id,nickname,full_name,custom_full_name,is_active,account_status,created_at,updated_at')
+          .select('id,nickname,full_name,custom_full_name,is_active,account_status,has_password,created_at,updated_at')
           .eq('id', _userId!)
           .maybeSingle();
 
@@ -30,6 +30,7 @@ class SupabaseService {
   Future<Map<String, dynamic>?> createUserProfile({
     required String nickname,
     String? fullName,
+    bool? hasPassword,
   }) async {
     if (_userId == null) return null;
 
@@ -56,6 +57,7 @@ class SupabaseService {
         // custom_full_name stores user's preference (separate from Google sync)
         'custom_full_name': fullName,
         'is_active': true,
+        'has_password': hasPassword ?? false,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       };
 
@@ -79,6 +81,7 @@ class SupabaseService {
     String? fullName,
     bool? isActive,
     String? accountStatus,
+    bool? hasPassword,
   }) async {
     if (_userId == null) return null;
 
@@ -89,6 +92,7 @@ class SupabaseService {
       if (fullName != null) data['custom_full_name'] = fullName;
       if (isActive != null) data['is_active'] = isActive;
       if (accountStatus != null) data['account_status'] = accountStatus;
+      if (hasPassword != null) data['has_password'] = hasPassword;
 
       if (data.isEmpty) return null;
 
