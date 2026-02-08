@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
@@ -120,14 +121,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
           
           // Step 1: Check if user needs password setup
-          // A user needs password if:
-          // - They signed up with Google only (no email/password provider) AND
-          // - They haven't set a password yet (has_password is false/null in profile)
+          // On web, skip password setup for Google users (422 reauthentication issue)
+          // They can set password later from profile settings
           final isGoogleOnly = _authService.isGoogleOnlyUser;
           final hasPasswordInProfile = profile?['has_password'] == true;
           
-          if (isGoogleOnly && !hasPasswordInProfile) {
-            // Google-only user needs to set up a password first
+          if (!kIsWeb && isGoogleOnly && !hasPasswordInProfile) {
+            // Mobile only: Google-only user needs to set up a password first
             _targetWidget = const PasswordSetupScreen();
           } else {
             // Step 2: Check if user has nickname

@@ -8,20 +8,27 @@ class SupabaseService {
   /// Get the current user's ID
   String? get _userId => _supabase.auth.currentUser?.id;
 
-  /// Fetch user profile
+  /// Fetch user profile using RPC function (bypasses RLS)
   Future<Map<String, dynamic>?> getUserProfile() async {
     if (_userId == null) return null;
 
     try {
-      final response = await _supabase
-          .from('user_profiles')
-          .select('id,nickname,full_name,custom_full_name,is_active,account_status,has_password,created_at,updated_at')
-          .eq('id', _userId!)
-          .maybeSingle();
+      final response = await _supabase.rpc('get_my_profile');
 
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
-      return null;
+      // Fallback to direct query if RPC doesn't exist yet
+      try {
+        final response = await _supabase
+            .from('user_profiles')
+            .select('id,nickname,full_name,custom_full_name,is_active,account_status,has_password,created_at,updated_at')
+            .eq('id', _userId!)
+            .maybeSingle();
+        return response;
+      } catch (e2) {
+        return null;
+      }
     }
   }
 
@@ -61,13 +68,16 @@ class SupabaseService {
         'created_at': DateTime.now().toUtc().toIso8601String(),
       };
 
-      final response = await _supabase
-          .from('user_profiles')
-          .upsert(data)
-          .select()
-          .single();
+      final response = await _supabase.rpc('upsert_my_profile', params: {
+        'p_nickname': effectiveNickname,
+        'p_full_name': fullName ?? googleFullName,
+        'p_custom_full_name': fullName,
+        'p_is_active': true,
+        'p_has_password': hasPassword ?? false,
+      });
 
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       return null;
     }
@@ -86,24 +96,17 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
-      final data = <String, dynamic>{};
-      if (nickname != null) data['nickname'] = nickname;
-      // Update custom_full_name (user's preference, not synced from Google)
-      if (fullName != null) data['custom_full_name'] = fullName;
-      if (isActive != null) data['is_active'] = isActive;
-      if (accountStatus != null) data['account_status'] = accountStatus;
-      if (hasPassword != null) data['has_password'] = hasPassword;
+      final response = await _supabase.rpc('upsert_my_profile', params: {
+        'p_nickname': nickname,
+        'p_full_name': fullName,
+        'p_custom_full_name': fullName,
+        'p_is_active': isActive,
+        'p_account_status': accountStatus,
+        'p_has_password': hasPassword,
+      });
 
-      if (data.isEmpty) return null;
-
-      final response = await _supabase
-          .from('user_profiles')
-          .update(data)
-          .eq('id', _userId!)
-          .select()
-          .single();
-
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       return null;
     }
