@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
@@ -33,8 +34,9 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
     if (userMetadata != null) {
       // Try given_name first (first name), then fall back to full_name's first word
       final givenName = userMetadata['given_name'] as String?;
-      final fullName = userMetadata['full_name'] ?? userMetadata['name'] as String?;
-      
+      final fullName =
+          userMetadata['full_name'] ?? userMetadata['name'] as String?;
+
       if (givenName != null && givenName.isNotEmpty) {
         _nicknameController.text = givenName;
       } else if (fullName != null && fullName.isNotEmpty) {
@@ -68,25 +70,33 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
     });
 
     try {
+      developer.log('Saving nickname: $nickname');
+
       // Save nickname and Google full name if available
       final userMetadata = _authService.userMetadata;
-      final googleFullName = userMetadata?['full_name'] 
-          ?? userMetadata?['name'] as String?;
-      
+      final googleFullName =
+          userMetadata?['full_name'] ?? userMetadata?['name'] as String?;
+
+      developer.log('Google full name: $googleFullName');
+
       // Update profile with nickname (and full name if not already set)
-      await _userProfileService.updateUserProfile(
+      final result = await _userProfileService.updateUserProfile(
         nickname: nickname,
         fullName: googleFullName, // Will only update if provided
       );
-      
+
+      developer.log('Save result: $result');
+
       // Wait a moment to ensure the database write completes
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       if (mounted) {
+        developer.log('Navigating to dashboard');
         // Navigate to dashboard - this creates a new instance that will load the updated profile
         Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } catch (e) {
+      developer.log('Error saving nickname: $e');
       setState(() {
         _errorMessage = 'Failed to save nickname. Please try again.';
         _isLoading = false;
@@ -197,7 +207,7 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
               ),
 
               // Error Message
-              if (_errorMessage != null) ...[ 
+              if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -208,7 +218,11 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(

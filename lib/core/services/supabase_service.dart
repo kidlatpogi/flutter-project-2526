@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Service for direct Supabase database operations
@@ -13,17 +14,29 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
+      developer.log('Fetching user profile for user: $_userId');
       final response = await _supabase.rpc('get_my_profile');
+
+      if (response == null) {
+        developer.log('RPC returned null, trying direct query');
+      } else {
+        developer.log('RPC response: $response');
+      }
 
       if (response == null) return null;
       if (response is List && response.isNotEmpty) {
-        return Map<String, dynamic>.from(response.first as Map);
+        final profile = Map<String, dynamic>.from(response.first as Map);
+        developer.log('User profile fetched (from list): $profile');
+        return profile;
       }
       if (response is Map) {
-        return Map<String, dynamic>.from(response);
+        final profile = Map<String, dynamic>.from(response);
+        developer.log('User profile fetched (from map): $profile');
+        return profile;
       }
       return null;
     } catch (e) {
+      developer.log('RPC error: $e, trying direct query fallback');
       // Fallback to direct query if RPC doesn't exist yet
       try {
         final response = await _supabase
@@ -33,8 +46,10 @@ class SupabaseService {
             )
             .eq('id', _userId!)
             .maybeSingle();
+        developer.log('Direct query succeeded: $response');
         return response;
       } catch (e2) {
+        developer.log('Direct query also failed: $e2');
         return null;
       }
     }
@@ -64,26 +79,56 @@ class SupabaseService {
           ? nickname
           : (givenName ?? '');
 
-      final response = await _supabase.rpc(
-        'upsert_my_profile',
-        params: {
-          'p_nickname': effectiveNickname,
-          'p_full_name': fullName ?? googleFullName,
-          'p_custom_full_name': fullName,
-          'p_is_active': true,
-          'p_has_password': hasPassword ?? false,
-        },
+      developer.log(
+        'Creating profile for user $_userId with nickname: $effectiveNickname',
       );
 
-      if (response == null) return null;
-      if (response is List && response.isNotEmpty) {
-        return Map<String, dynamic>.from(response.first as Map);
-      }
-      if (response is Map) {
-        return Map<String, dynamic>.from(response);
+      // Try RPC first
+      try {
+        final response = await _supabase.rpc(
+          'upsert_my_profile',
+          params: {
+            'p_nickname': effectiveNickname,
+            'p_full_name': fullName ?? googleFullName,
+            'p_custom_full_name': fullName,
+            'p_is_active': true,
+            'p_has_password': hasPassword ?? false,
+          },
+        );
+
+        developer.log('RPC upsert_my_profile succeeded: $response');
+        if (response == null) return null;
+        if (response is List && response.isNotEmpty) {
+          return Map<String, dynamic>.from(response.first as Map);
+        }
+        if (response is Map) {
+          return Map<String, dynamic>.from(response);
+        }
+      } catch (rpcError) {
+        developer.log('RPC failed, trying direct insert: $rpcError');
+        // Fallback: Direct insert if RPC fails
+        try {
+          final response = await _supabase
+              .from('user_profiles')
+              .insert({
+                'id': _userId,
+                'nickname': effectiveNickname,
+                'full_name': fullName ?? googleFullName,
+                'custom_full_name': fullName,
+                'is_active': true,
+                'has_password': hasPassword ?? false,
+              })
+              .select()
+              .maybeSingle();
+          developer.log('Direct insert succeeded: $response');
+          return response;
+        } catch (insertError) {
+          developer.log('Direct insert also failed: $insertError');
+        }
       }
       return null;
     } catch (e) {
+      developer.log('createUserProfile error: $e');
       return null;
     }
   }
@@ -101,27 +146,61 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
-      final response = await _supabase.rpc(
-        'upsert_my_profile',
-        params: {
-          'p_nickname': nickname,
-          'p_full_name': fullName,
-          'p_custom_full_name': fullName,
-          'p_is_active': isActive,
-          'p_account_status': accountStatus,
-          'p_has_password': hasPassword,
-        },
+      developer.log(
+        'Updating profile for user $_userId: nickname=$nickname, fullName=$fullName',
       );
 
-      if (response == null) return null;
-      if (response is List && response.isNotEmpty) {
-        return Map<String, dynamic>.from(response.first as Map);
-      }
-      if (response is Map) {
-        return Map<String, dynamic>.from(response);
+      // Try RPC first
+      try {
+        final response = await _supabase.rpc(
+          'upsert_my_profile',
+          params: {
+            'p_nickname': nickname,
+            'p_full_name': fullName,
+            'p_custom_full_name': fullName,
+            'p_is_active': isActive,
+            'p_account_status': accountStatus,
+            'p_has_password': hasPassword,
+          },
+        );
+
+        developer.log('RPC update succeeded: $response');
+        if (response == null) return null;
+        if (response is List && response.isNotEmpty) {
+          return Map<String, dynamic>.from(response.first as Map);
+        }
+        if (response is Map) {
+          return Map<String, dynamic>.from(response);
+        }
+      } catch (rpcError) {
+        developer.log('RPC failed, trying direct update: $rpcError');
+        // Fallback: Direct update if RPC fails
+        try {
+          final updateData = <String, dynamic>{};
+          if (nickname != null) updateData['nickname'] = nickname;
+          if (fullName != null) updateData['full_name'] = fullName;
+          if (fullName != null) updateData['custom_full_name'] = fullName;
+          if (isActive != null) updateData['is_active'] = isActive;
+          if (accountStatus != null)
+            updateData['account_status'] = accountStatus;
+          if (hasPassword != null) updateData['has_password'] = hasPassword;
+
+          final response = await _supabase
+              .from('user_profiles')
+              .update(updateData)
+              .eq('id', _userId!)
+              .select()
+              .maybeSingle();
+
+          developer.log('Direct update succeeded: $response');
+          return response;
+        } catch (updateError) {
+          developer.log('Direct update also failed: $updateError');
+        }
       }
       return null;
     } catch (e) {
+      developer.log('updateUserProfile error: $e');
       return null;
     }
   }
