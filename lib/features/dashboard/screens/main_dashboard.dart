@@ -40,12 +40,43 @@ class _MainDashboardState extends State<MainDashboard> {
     try {
       _avatarUrl = _authService.avatarUrl;
 
-      // Try to get nickname or display name from service
-      final nickname = await _userProfileService.getNicknameOrDisplayName();
+      // Get the full profile first
+      final profile = await _userProfileService.getUserProfile();
+      
+      // Try to get nickname or display name from profile
+      String? displayName;
+      
+      if (profile != null) {
+        // First try nickname
+        if (profile['nickname'] != null && (profile['nickname'] as String).isNotEmpty) {
+          displayName = profile['nickname'] as String;
+        }
+        // Fall back to custom_full_name first name
+        else if (profile['custom_full_name'] != null && (profile['custom_full_name'] as String).isNotEmpty) {
+          displayName = (profile['custom_full_name'] as String).split(' ').first;
+        }
+        // Fall back to full_name first name
+        else if (profile['full_name'] != null && (profile['full_name'] as String).isNotEmpty) {
+          displayName = (profile['full_name'] as String).split(' ').first;
+        }
+      }
+      
+      // If still no display name, try user metadata (for Google users)
+      if (displayName == null) {
+        final userMetadata = _authService.userMetadata;
+        final googleGivenName = userMetadata?['given_name'] as String?;
+        final googleFullName = userMetadata?['full_name'] ?? userMetadata?['name'] as String?;
+        
+        if (googleGivenName != null && googleGivenName.isNotEmpty) {
+          displayName = googleGivenName;
+        } else if (googleFullName != null && googleFullName.isNotEmpty) {
+          displayName = googleFullName.split(' ').first;
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _nickname = nickname ?? 'there';
+          _nickname = displayName ?? 'there';
           _isLoading = false;
         });
       }

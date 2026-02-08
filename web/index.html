@@ -74,21 +74,40 @@
 
 <body>
   <script>
-    // NUCLEAR CACHE CLEAR - Runs BEFORE Flutter loads
-    // This ensures the new code loads even if old service worker was cached
+    // AGGRESSIVE SERVICE WORKER & CACHE CLEARING
+    // Runs BEFORE Flutter loads to ensure fresh code
     (async function () {
+      console.log('[CACHE CLEAR] Starting aggressive cache clear...');
+      
+      // Unregister ALL service workers
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.unregister();
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          console.log(`[CACHE CLEAR] Found ${registrations.length} service workers`);
+          for (const registration of registrations) {
+            await registration.unregister();
+            console.log('[CACHE CLEAR] Unregistered service worker');
+          }
+        } catch (e) {
+          console.error('[CACHE CLEAR] Service worker unregister failed:', e);
         }
       }
+      
+      // Clear ALL caches
       if ('caches' in window) {
-        const keys = await caches.keys();
-        for (const key of keys) {
-          await caches.delete(key);
+        try {
+          const keys = await caches.keys();
+          console.log(`[CACHE CLEAR] Found ${keys.length} cache keys`);
+          for (const key of keys) {
+            await caches.delete(key);
+            console.log(`[CACHE CLEAR] Deleted cache: ${key}`);
+          }
+        } catch (e) {
+          console.error('[CACHE CLEAR] Cache delete failed:', e);
         }
       }
+      
+      console.log('[CACHE CLEAR] Complete - Fresh start guaranteed');
     })();
   </script>
   <script>

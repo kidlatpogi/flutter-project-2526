@@ -122,7 +122,11 @@ class AuthService {
         final res = await _supabase.auth.getOAuthSignInUrl(
           provider: OAuthProvider.google,
           redirectTo: redirectTo,
-          queryParams: {'access_type': 'offline', 'prompt': 'select_account'},
+          queryParams: {
+            'access_type': 'offline', 
+            'prompt': 'select_account',
+            'scope': 'openid email profile', // Explicitly request profile data
+          },
         );
         
         // Open the OAuth URL in a popup window

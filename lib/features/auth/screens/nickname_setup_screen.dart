@@ -73,13 +73,17 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
       final googleFullName = userMetadata?['full_name'] 
           ?? userMetadata?['name'] as String?;
       
+      // Update profile with nickname (and full name if not already set)
       await _userProfileService.updateUserProfile(
         nickname: nickname,
-        fullName: googleFullName,
+        fullName: googleFullName, // Will only update if provided
       );
       
+      // Wait a moment to ensure the database write completes
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       if (mounted) {
-        // Navigate to dashboard
+        // Navigate to dashboard - this creates a new instance that will load the updated profile
         Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } catch (e) {

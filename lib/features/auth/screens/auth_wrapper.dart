@@ -96,15 +96,36 @@ class _AuthWrapperState extends State<AuthWrapper> {
         
         // Only continue if not deactivated (check was not triggered above)
         if (_targetWidget is! LoginScreen) {
+          // Determine if this is a brand new user (no profile exists)
+          final bool isNewUser = profile == null;
+          
+          // For new users, create initial profile with Google data
+          if (isNewUser) {
+            try {
+              // Create profile with Google full name if available
+              final userMetadata = _authService.userMetadata;
+              final googleFullName = userMetadata?['full_name'] 
+                  ?? userMetadata?['name'] as String?;
+              
+              profile = await _userProfileService.updateUserProfile(
+                nickname: '', // Empty nickname - user will set it later
+                fullName: googleFullName,
+                hasPassword: false, // New Google user has no password yet
+              );
+            } catch (e) {
+              // Profile creation failed, treat as new user
+              profile = null;
+            }
+          }
+          
           // Step 1: Check if user needs password setup
           // A user needs password if:
-          // - They signed up with Google only (no email provider) AND
-          // - They haven't set a password yet (has_password is false or null)
+          // - They signed up with Google only (no email/password provider) AND
+          // - They haven't set a password yet (has_password is false/null in profile)
           final isGoogleOnly = _authService.isGoogleOnlyUser;
           final hasPasswordInProfile = profile?['has_password'] == true;
-          final hasEmailProvider = _authService.hasPasswordAuth;
           
-          if (isGoogleOnly && !hasPasswordInProfile && !hasEmailProvider) {
+          if (isGoogleOnly && !hasPasswordInProfile) {
             // Google-only user needs to set up a password first
             _targetWidget = const PasswordSetupScreen();
           } else {
