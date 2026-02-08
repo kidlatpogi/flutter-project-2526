@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
@@ -133,38 +134,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
           // Determine if this is a brand new user (no profile exists)
           final bool isNewUser = profile == null;
 
-          // For new users, create initial profile with Google data
+          // For new users, don't auto-create profile - let them set nickname first
           if (isNewUser) {
-            try {
-              // Create profile with Google full name if available
-              final userMetadata = _authService.userMetadata;
-              final googleFullName =
-                  userMetadata?['full_name'] ??
-                  userMetadata?['name'] as String?;
-
-              profile = await _userProfileService.updateUserProfile(
-                nickname: '', // Empty nickname - user will set it later
-                fullName: googleFullName,
-                hasPassword: false, // New Google user has no password yet
-              );
-            } catch (e) {
-              // Profile creation failed, treat as new user
-              profile = null;
-            }
-          }
-
-          // Check if user has nickname
-          final hasNickname =
-              profile != null &&
-              profile['nickname'] != null &&
-              (profile['nickname'] as String).isNotEmpty;
-
-          if (hasNickname) {
-            // User has profile, go to dashboard
-            _targetWidget = const MainDashboard();
-          } else {
-            // User needs to set up nickname
+            developer.log(
+              'New user detected (no profile) - showing nickname setup',
+            );
             _targetWidget = const NicknameSetupScreen();
+          } else {
+            developer.log('Existing user found - checking if nickname is set');
+            // Check if user has nickname (for existing users)
+            final hasNickname =
+                profile['nickname'] != null &&
+                (profile['nickname'] as String).isNotEmpty;
+
+            if (hasNickname) {
+              // User has profile with nickname, go to dashboard
+              developer.log('Nickname found, navigating to dashboard');
+              _targetWidget = const MainDashboard();
+            } else {
+              // User has profile but needs to set/update nickname
+              developer.log('No nickname found, showing nickname setup');
+              _targetWidget = const NicknameSetupScreen();
+            }
           }
         }
       } else {
@@ -172,6 +163,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         _targetWidget = const LoginScreen();
       }
     } catch (e) {
+      developer.log('_checkAuthStatus error: $e');
       _targetWidget = const LoginScreen();
     } finally {
       _isCheckingAuth = false;
