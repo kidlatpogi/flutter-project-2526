@@ -586,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     isGoogleOnly
-                        ? 'To deactivate your account, re-authenticate with Google and type DEACTIVATE ACCOUNT to confirm.'
+                        ? 'To deactivate your account, type DEACTIVATE ACCOUNT to confirm.'
                         : 'To deactivate your account, confirm your identity and type DEACTIVATE ACCOUNT.',
                     style: GoogleFonts.inter(color: AppColors.textSecondary),
                   ),
@@ -700,19 +700,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         setDialogState(() => isProcessing = true);
 
                         try {
-                          if (isGoogleOnly) {
-                            // Re-authenticate with Google to verify identity
-                            final currentUserId = _authService.currentUser?.id;
-                            final reAuthUser = await _authService
-                                .reAuthenticateWithGoogle();
-
-                            if (reAuthUser == null ||
-                                reAuthUser.id != currentUserId) {
-                              throw AuthException(
-                                'Re-authentication failed. The Google account does not match.',
-                              );
-                            }
-                          } else {
+                          // For Google-only accounts, no additional verification needed
+                          // User is already authenticated to access settings
+                          if (!isGoogleOnly) {
                             // Verify password for email/password users
                             final password = _deactivatePasswordController.text;
                             if (password.isEmpty) {
