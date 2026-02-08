@@ -38,10 +38,25 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _authSubscription = _authService.authStateChanges.listen((authState) {
       final event = authState.event;
 
+      developer.log('Auth state changed - Event: $event');
+
       if (!mounted) return;
+
+      // Handle password recovery event - user clicked reset link from email
+      if (event == AuthChangeEvent.passwordRecovery) {
+        developer.log(
+          'Password recovery event detected - showing reset screen',
+        );
+        setState(() {
+          _targetWidget = const ResetPasswordScreen();
+          _isLoading = false;
+        });
+        return;
+      }
 
       // Check for recovery mode - user clicked password reset link
       if (_isInRecoveryMode()) {
+        developer.log('Recovery mode detected via URL - showing reset screen');
         setState(() {
           _targetWidget = const ResetPasswordScreen();
           _isLoading = false;
@@ -73,9 +88,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
     try {
       // Check by looking for recovery type in the URL
       // Supabase sends links like: https://app.com/path#access_token=...&type=recovery
+      // Check both the full URL string and the fragment
       final url = Uri.base.toString();
-      return url.contains('type=recovery');
+      final fragment = Uri.base.fragment;
+
+      final hasRecoveryInUrl = url.contains('type=recovery');
+      final hasRecoveryInFragment = fragment.contains('type=recovery');
+
+      developer.log(
+        'Checking recovery mode - URL: $hasRecoveryInUrl, Fragment: $hasRecoveryInFragment',
+      );
+
+      return hasRecoveryInUrl || hasRecoveryInFragment;
     } catch (e) {
+      developer.log('Error checking recovery mode: $e');
       return false;
     }
   }
@@ -94,6 +120,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
       // Check if we're in a password recovery flow
       // This happens when user clicks "Set Password" link from email
       if (_isInRecoveryMode()) {
+        developer.log(
+          'Recovery mode detected in checkAuthStatus - showing reset screen',
+        );
         if (mounted) {
           setState(() => _targetWidget = const ResetPasswordScreen());
           return;
