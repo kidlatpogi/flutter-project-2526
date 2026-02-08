@@ -8,20 +8,29 @@ class SupabaseService {
   /// Get the current user's ID
   String? get _userId => _supabase.auth.currentUser?.id;
 
-  /// Fetch user profile
+  /// Fetch user profile using RPC function (bypasses RLS)
   Future<Map<String, dynamic>?> getUserProfile() async {
     if (_userId == null) return null;
 
     try {
-      final response = await _supabase
-          .from('user_profiles')
-          .select('id,nickname,full_name,custom_full_name,is_active,account_status,has_password,created_at,updated_at')
-          .eq('id', _userId!)
-          .maybeSingle();
+      final response = await _supabase.rpc('get_my_profile');
 
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
-      return null;
+      // Fallback to direct query if RPC doesn't exist yet
+      try {
+        final response = await _supabase
+            .from('user_profiles')
+            .select(
+              'id,nickname,full_name,custom_full_name,is_active,account_status,has_password,created_at,updated_at',
+            )
+            .eq('id', _userId!)
+            .maybeSingle();
+        return response;
+      } catch (e2) {
+        return null;
+      }
     }
   }
 
@@ -38,36 +47,30 @@ class SupabaseService {
       // Get user metadata from Supabase auth (contains Google data if signed in via Google)
       final authUser = _supabase.auth.currentUser;
       final userMetadata = authUser?.userMetadata;
-      
+
       // Extract name data from Google OAuth (multiple possible keys)
-      final googleFullName = userMetadata?['full_name'] 
-          ?? userMetadata?['name'] as String?;
+      final googleFullName =
+          userMetadata?['full_name'] ?? userMetadata?['name'] as String?;
       final givenName = userMetadata?['given_name'] as String?;
-      
+
       // Use given_name as fallback for empty nickname
-      final effectiveNickname = nickname.isNotEmpty 
-          ? nickname 
+      final effectiveNickname = nickname.isNotEmpty
+          ? nickname
           : (givenName ?? '');
-      
-      final data = {
-        'id': _userId,
-        'nickname': effectiveNickname,
-        // full_name will be synced from Google OAuth by Supabase
-        'full_name': fullName ?? googleFullName,
-        // custom_full_name stores user's preference (separate from Google sync)
-        'custom_full_name': fullName,
-        'is_active': true,
-        'has_password': hasPassword ?? false,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      };
 
-      final response = await _supabase
-          .from('user_profiles')
-          .insert(data)
-          .select()
-          .single();
+      final response = await _supabase.rpc(
+        'upsert_my_profile',
+        params: {
+          'p_nickname': effectiveNickname,
+          'p_full_name': fullName ?? googleFullName,
+          'p_custom_full_name': fullName,
+          'p_is_active': true,
+          'p_has_password': hasPassword ?? false,
+        },
+      );
 
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       return null;
     }
@@ -86,24 +89,20 @@ class SupabaseService {
     if (_userId == null) return null;
 
     try {
-      final data = <String, dynamic>{};
-      if (nickname != null) data['nickname'] = nickname;
-      // Update custom_full_name (user's preference, not synced from Google)
-      if (fullName != null) data['custom_full_name'] = fullName;
-      if (isActive != null) data['is_active'] = isActive;
-      if (accountStatus != null) data['account_status'] = accountStatus;
-      if (hasPassword != null) data['has_password'] = hasPassword;
+      final response = await _supabase.rpc(
+        'upsert_my_profile',
+        params: {
+          'p_nickname': nickname,
+          'p_full_name': fullName,
+          'p_custom_full_name': fullName,
+          'p_is_active': isActive,
+          'p_account_status': accountStatus,
+          'p_has_password': hasPassword,
+        },
+      );
 
-      if (data.isEmpty) return null;
-
-      final response = await _supabase
-          .from('user_profiles')
-          .update(data)
-          .eq('id', _userId!)
-          .select()
-          .single();
-
-      return response;
+      if (response == null) return null;
+      return Map<String, dynamic>.from(response as Map);
     } catch (e) {
       return null;
     }
@@ -204,39 +203,35 @@ class SupabaseService {
               .from('analysis_results')
               .delete()
               .eq('session_id', sessionId);
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       // Delete sessions
-      await _supabase
-          .from('sessions')
-          .delete()
-          .eq('user_id', _userId!);
+      await _supabase.from('sessions').delete().eq('user_id', _userId!);
 
       // Delete recordings from storage
       int deletedFiles = 0;
       for (final path in recordingPaths) {
         try {
-          final cleanPath = path.toString().replaceAll('/storage/v1/object/public/recordings/', '');
-          await _supabase.storage
-              .from('recordings')
-              .remove([cleanPath]);
+          final cleanPath = path.toString().replaceAll(
+            '/storage/v1/object/public/recordings/',
+            '',
+          );
+          await _supabase.storage.from('recordings').remove([cleanPath]);
           deletedFiles++;
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       return {
         'success': true,
         'deleted_sessions': sessions.length,
         'deleted_files': deletedFiles,
-        'message': 'All user data cleared successfully'
+        'message': 'All user data cleared successfully',
       };
     } catch (e) {
       return {
         'success': false,
-        'message': 'Failed to clear user data: ${e.toString()}'
+        'message': 'Failed to clear user data: ${e.toString()}',
       };
     }
   }

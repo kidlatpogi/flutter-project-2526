@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,7 +12,8 @@ class AuthException implements Exception {
   AuthException(this.message, {this.code});
 
   @override
-  String toString() => 'AuthException: $message${code != null ? ' (code: $code)' : ''}';
+  String toString() =>
+      'AuthException: $message${code != null ? ' (code: $code)' : ''}';
 }
 
 /// Service handling all authentication operations with Supabase + Google Sign-In
@@ -55,7 +57,7 @@ class AuthService {
     // Check both 'providers' list and 'provider' string for robustness
     final providersList = user.appMetadata['providers'] as List? ?? [];
     final singleProvider = user.appMetadata['provider'] as String? ?? '';
-    
+
     // User is Google-only if:
     // 1. providers list has exactly 'google' OR
     // 2. provider string is 'google' and 'email' is not in providers list
@@ -71,7 +73,7 @@ class AuthService {
     if (user == null) return false;
     final providersList = user.appMetadata['providers'] as List? ?? [];
     final singleProvider = user.appMetadata['provider'] as String? ?? '';
-    
+
     if (providersList.isNotEmpty) {
       return providersList.contains('email');
     }
@@ -118,20 +120,20 @@ class AuthService {
         // Web: Get OAuth URL and open in a popup window
         // This keeps the original tab intact (no redirect)
         final redirectTo = Uri.base.origin;
-        
+
         final res = await _supabase.auth.getOAuthSignInUrl(
           provider: OAuthProvider.google,
           redirectTo: redirectTo,
           queryParams: {
-            'access_type': 'offline', 
+            'access_type': 'offline',
             'prompt': 'select_account',
             'scope': 'openid email profile', // Explicitly request profile data
           },
         );
-        
+
         // Open the OAuth URL in a popup window
         web_oauth.openOAuthPopup(res.url);
-        
+
         // Return null - the auth state change listener in AuthWrapper
         // will detect the session from the popup via BroadcastChannel/localStorage
         return null;
@@ -140,7 +142,10 @@ class AuthService {
         final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
         if (googleUser == null) {
-          throw AuthException('Google sign-in was cancelled', code: 'cancelled');
+          throw AuthException(
+            'Google sign-in was cancelled',
+            code: 'cancelled',
+          );
         }
 
         final GoogleSignInAuthentication googleAuth =
@@ -150,10 +155,7 @@ class AuthService {
         final String? accessToken = googleAuth.accessToken;
 
         if (idToken == null) {
-          throw AuthException(
-            'Missing ID Token',
-            code: 'missing_id_token',
-          );
+          throw AuthException('Missing ID Token', code: 'missing_id_token');
         }
 
         final AuthResponse response = await _supabase.auth.signInWithIdToken(
@@ -176,10 +178,7 @@ class AuthService {
       rethrow;
     } on AuthApiException catch (e) {
       // Handle Supabase-specific errors
-      throw AuthException(
-        e.message,
-        code: e.statusCode,
-      );
+      throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       // Handle any other errors
       throw AuthException(
@@ -201,28 +200,30 @@ class AuthService {
         await _supabase.auth.signOut();
         throw AuthException('Please verify your email before logging in.');
       }
-      
+
       // Check if account is deactivated
       final isActive = await checkAccountActive(response.user!.id);
       if (!isActive) {
         await _supabase.auth.signOut();
-        throw AuthException('Your account has been deactivated. Please contact support if you believe this is an error.');
+        throw AuthException(
+          'Your account has been deactivated. Please contact support if you believe this is an error.',
+        );
       }
-      
+
       return response.user;
     } on AuthApiException catch (e) {
       final message = e.message.toLowerCase();
-      
+
       // Check for invalid credentials
-      if (message.contains('invalid') || 
-          message.contains('wrong') || 
+      if (message.contains('invalid') ||
+          message.contains('wrong') ||
           message.contains('incorrect')) {
         throw AuthException(
           'Invalid email or password. If you signed up with Google, please use the Google Sign-In button.',
           code: 'invalid_credentials',
         );
       }
-      
+
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       if (e is AuthException) rethrow;
@@ -231,8 +232,11 @@ class AuthService {
   }
 
   /// Register with email and password
-  Future<User?> signUpWithEmail(String email, String password,
-      {String? name}) async {
+  Future<User?> signUpWithEmail(
+    String email,
+    String password, {
+    String? name,
+  }) async {
     try {
       final emailRedirectTo = kIsWeb ? Uri.base.origin : null;
       final AuthResponse response = await _supabase.auth.signUp(
@@ -247,10 +251,10 @@ class AuthService {
       return response.user;
     } on AuthApiException catch (e) {
       final message = e.message.toLowerCase();
-      
+
       // Check for duplicate email error
-      if (message.contains('already') || 
-          message.contains('registered') || 
+      if (message.contains('already') ||
+          message.contains('registered') ||
           message.contains('exists') ||
           message.contains('duplicate') ||
           message.contains('user with this email already exists')) {
@@ -259,8 +263,9 @@ class AuthService {
           code: 'email_exists',
         );
       }
-      
-      final isRedirectError = message.contains('redirect') || message.contains('url');
+
+      final isRedirectError =
+          message.contains('redirect') || message.contains('url');
 
       if (kIsWeb && isRedirectError) {
         try {
@@ -275,10 +280,10 @@ class AuthService {
           return fallbackResponse.user;
         } on AuthApiException catch (fallbackError) {
           final fallbackMessage = fallbackError.message.toLowerCase();
-          
+
           // Check for duplicate email in fallback as well
-          if (fallbackMessage.contains('already') || 
-              fallbackMessage.contains('registered') || 
+          if (fallbackMessage.contains('already') ||
+              fallbackMessage.contains('registered') ||
               fallbackMessage.contains('exists') ||
               fallbackMessage.contains('duplicate') ||
               fallbackMessage.contains('user with this email already exists')) {
@@ -287,9 +292,11 @@ class AuthService {
               code: 'email_exists',
             );
           }
-          
-          throw AuthException(fallbackError.message,
-              code: fallbackError.statusCode);
+
+          throw AuthException(
+            fallbackError.message,
+            code: fallbackError.statusCode,
+          );
         }
       }
 
@@ -302,10 +309,7 @@ class AuthService {
   /// Resend email confirmation link
   Future<void> resendConfirmationEmail(String email) async {
     try {
-      await _supabase.auth.resend(
-        type: OtpType.signup,
-        email: email,
-      );
+      await _supabase.auth.resend(type: OtpType.signup, email: email);
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
@@ -317,10 +321,7 @@ class AuthService {
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       final redirectTo = kIsWeb ? '${Uri.base.origin}/#/reset-password' : null;
-      await _supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo: redirectTo,
-      );
+      await _supabase.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
@@ -336,10 +337,7 @@ class AuthService {
     }
 
     try {
-      await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      await _supabase.auth.signInWithPassword(email: email, password: password);
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
@@ -350,9 +348,7 @@ class AuthService {
   /// Update password for current user (used for reset flow)
   Future<void> updatePassword(String newPassword) async {
     try {
-      await _supabase.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
     } on AuthApiException catch (e) {
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
@@ -361,7 +357,10 @@ class AuthService {
   }
 
   /// Change password with old password verification
-  Future<void> changePassword({required String oldPassword, required String newPassword}) async {
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
     await verifyPassword(oldPassword);
     await updatePassword(newPassword);
   }
@@ -384,14 +383,15 @@ class AuthService {
 
   /// Get user's display name
   String? get displayName =>
-      userMetadata?['full_name'] ?? userMetadata?['display_name'] ?? userMetadata?['name'];
+      userMetadata?['full_name'] ??
+      userMetadata?['display_name'] ??
+      userMetadata?['name'];
 
   /// Refresh current user data from Supabase
   Future<void> refreshUserData() async {
     try {
       await _supabase.auth.refreshSession();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Get user's email
@@ -409,15 +409,15 @@ class AuthService {
           .select('is_active, account_status')
           .eq('id', userId)
           .maybeSingle();
-      
+
       if (response == null) {
         // No profile yet, account is active by default
         return true;
       }
-      
+
       final isActive = response['is_active'] as bool? ?? true;
       final accountStatus = response['account_status'] as String? ?? 'Active';
-      
+
       // Account is active if is_active is true AND status is not 'Deleted'
       return isActive && accountStatus != 'Deleted';
     } catch (e) {
@@ -438,23 +438,33 @@ class AuthService {
         );
       }
 
-      // On web with OAuth implicit flow, direct password updates require reauthentication
-      // Try refreshing the session first to get a fresh token
+      // On web with OAuth implicit flow, direct password updates don't work (422 error)
+      // Use email-based password reset instead for web
+      if (kIsWeb && currentUser?.email != null) {
+        await sendPasswordSetupEmail();
+        throw AuthException(
+          'For security, we need to send you an email to set your password. Please check your inbox.',
+          code: 'email_verification_required',
+        );
+      }
+
+      // On mobile, try direct password update
+      // First try refreshing session for a fresh token
       if (kIsWeb) {
         try {
           await _supabase.auth.refreshSession();
         } catch (e) {
-          // If refresh fails, continue anyway - the update might still work
+          // If refresh fails, continue anyway
         }
       }
 
-      await _supabase.auth.updateUser(
-        UserAttributes(password: password),
-      );
+      await _supabase.auth.updateUser(UserAttributes(password: password));
     } on AuthApiException catch (e) {
-      // Handle "Password update requires reauthentication" (400 error)
-      if (e.statusCode == '400' && e.message.contains('reauthentication')) {
-        // On web, we need to use email-based password reset instead
+      // Handle password update failures
+      if ((e.statusCode == '400' || e.statusCode == '422') &&
+          (e.message.contains('reauthentication') ||
+              e.message.contains('OAuth'))) {
+        // On web, offer email-based password reset
         if (kIsWeb && currentUser?.email != null) {
           throw AuthException(
             'For security, we need to send you an email to set your password. Please check your inbox.',
@@ -466,8 +476,8 @@ class AuthService {
           code: 'reauthentication_required',
         );
       }
-      
-      if (e.statusCode == '400') {
+
+      if (e.statusCode == '400' || e.statusCode == '422') {
         throw AuthException(
           'Failed to set password. ${e.message}',
           code: 'password_update_failed',
@@ -475,10 +485,12 @@ class AuthService {
       }
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
+      // If it's already our custom AuthException, re-throw it
+      if (e is AuthException) rethrow;
       throw AuthException('Failed to set password: ${e.toString()}');
     }
   }
-  
+
   /// Send password setup email for Google OAuth users (web-safe alternative)
   Future<void> sendPasswordSetupEmail() async {
     try {
@@ -486,15 +498,115 @@ class AuthService {
       if (email == null || email.isEmpty) {
         throw AuthException('No email address found for current user.');
       }
-      
+
       await _supabase.auth.resetPasswordForEmail(
         email,
         redirectTo: kIsWeb ? Uri.base.toString() : null,
       );
     } on AuthApiException catch (e) {
+      // Capture rate limiting errors with proper code
+      if (e.statusCode == '429') {
+        throw AuthException(
+          'Too many requests. Please wait before requesting another email.',
+          code: '429',
+        );
+      }
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
-      throw AuthException('Failed to send password setup email: ${e.toString()}');
+      // If it's already our custom AuthException, re-throw it
+      if (e is AuthException) rethrow;
+      throw AuthException(
+        'Failed to send password setup email: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Re-authenticate with Google for sensitive actions (e.g., account deletion).
+  /// Returns the User if re-auth succeeds, throws [AuthException] if cancelled or failed.
+  /// On web, uses popup OAuth flow. On mobile, uses native Google Sign-In.
+  Future<User?> reAuthenticateWithGoogle() async {
+    try {
+      if (kIsWeb) {
+        // Web: Use OAuth popup and wait for auth state change
+        final redirectTo = Uri.base.origin;
+
+        final res = await _supabase.auth.getOAuthSignInUrl(
+          provider: OAuthProvider.google,
+          redirectTo: redirectTo,
+          queryParams: {
+            'prompt': 'select_account',
+            'scope': 'openid email profile',
+          },
+        );
+
+        // Open the OAuth URL in a popup window
+        web_oauth.openOAuthPopup(res.url);
+
+        // Wait for the auth state to update (popup will trigger this)
+        // The session should already match the current user
+        final completer = Completer<User?>();
+        late StreamSubscription<AuthState> sub;
+        sub = _supabase.auth.onAuthStateChange.listen((authState) {
+          if (authState.event == AuthChangeEvent.signedIn ||
+              authState.event == AuthChangeEvent.tokenRefreshed) {
+            sub.cancel();
+            completer.complete(authState.session?.user);
+          }
+        });
+
+        // Timeout after 2 minutes
+        return await completer.future.timeout(
+          const Duration(minutes: 2),
+          onTimeout: () {
+            sub.cancel();
+            throw AuthException(
+              'Re-authentication timed out. Please try again.',
+              code: 'timeout',
+            );
+          },
+        );
+      } else {
+        // Mobile: Use native Google Sign-In
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+        if (googleUser == null) {
+          throw AuthException(
+            'Google re-authentication was cancelled.',
+            code: 'cancelled',
+          );
+        }
+
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+
+        final String? idToken = googleAuth.idToken;
+        final String? accessToken = googleAuth.accessToken;
+
+        if (idToken == null) {
+          throw AuthException(
+            'Missing ID Token during re-authentication.',
+            code: 'missing_id_token',
+          );
+        }
+
+        final AuthResponse response = await _supabase.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+
+        return response.user;
+      }
+    } on AuthException {
+      rethrow;
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      throw AuthException(
+        'Google re-authentication failed: ${e.toString()}',
+        code: 'unknown',
+      );
     }
   }
 }
