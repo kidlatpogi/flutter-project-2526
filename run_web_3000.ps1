@@ -15,4 +15,9 @@ if ($processes) {
     Start-Sleep -Seconds 2
 }
 
+# Clean build artifacts to ensure fresh build
+Write-Host "Cleaning build artifacts..."
+flutter clean
+flutter pub get
+
 flutter run -d edge --web-port=3000 --web-hostname=localhost

@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart';
 import 'features/auth/screens/auth_wrapper.dart';
 import 'features/auth/screens/reset_password_screen.dart';
+import 'core/utils/web_oauth_utils.dart' as web_oauth;
 
 /// Supabase configuration
 const String supabaseUrl = 'https://krbcgixttxxdofdmevyj.supabase.co';
@@ -37,6 +38,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Check if running in OAuth popup window
+    if (kIsWeb && web_oauth.isPopupWindow()) {
+      return MaterialApp(
+        title: 'Bigkas',
+        theme: AppTheme.theme,
+        debugShowCheckedModeBanner: false,
+        home: const OAuthPopupHandler(),
+      );
+    }
+    
     return MaterialApp(
       title: 'Bigkas',
       theme: AppTheme.theme,
@@ -94,6 +105,36 @@ class MyApp extends StatelessWidget {
         );
       },
       debugShowCheckedModeBanner: false,
+    );
+  }
+}
+/// Minimal widget shown in OAuth popup window
+/// Closes the popup immediately after Supabase handles the auth callback
+class OAuthPopupHandler extends StatefulWidget {
+  const OAuthPopupHandler({super.key});
+
+  @override
+  State<OAuthPopupHandler> createState() => _OAuthPopupHandlerState();
+}
+
+class _OAuthPopupHandlerState extends State<OAuthPopupHandler> {
+  @override
+  void initState() {
+    super.initState();
+    // Close popup immediately - Supabase has already processed the OAuth tokens
+    // via localStorage/BroadcastChannel, so we just need to close this window
+    Future.microtask(() {
+      web_oauth.closePopupWindow();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Ultra-minimal UI - just a white screen to avoid any app content showing
+    // This displays for <100ms before the window closes
+    return const Scaffold(
+      backgroundColor: Colors.white,
+      body: SizedBox.shrink(), // Empty widget - no content
     );
   }
 }

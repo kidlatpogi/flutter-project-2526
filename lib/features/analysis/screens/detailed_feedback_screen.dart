@@ -31,8 +31,6 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
   String? _recordingSessionId;
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
-  Duration _currentPosition = Duration.zero;
-  Duration _totalDuration = Duration.zero;
 
   @override
   void initState() {
@@ -53,25 +51,10 @@ class _DetailedFeedbackScreenState extends State<DetailedFeedbackScreen> {
       if (!mounted) return;
       setState(() {
         _isPlaying = false;
-        _currentPosition = Duration.zero;
       });
     });
 
-    // Listen to duration changes
-    _audioPlayer.onDurationChanged.listen((duration) {
-      if (!mounted) return;
-      setState(() {
-        _totalDuration = duration;
-      });
-    });
 
-    // Listen to position changes
-    _audioPlayer.onPositionChanged.listen((position) {
-      if (!mounted) return;
-      setState(() {
-        _currentPosition = position;
-      });
-    });
 
     if (widget.analysisResult == null && widget.sessionId != null) {
       _analysisFuture = _apiService.getAnalysis(widget.sessionId!);

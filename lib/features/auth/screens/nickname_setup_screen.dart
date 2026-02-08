@@ -68,8 +68,15 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
     });
 
     try {
-      // Only set nickname, preserve existing full_name if it exists
-      await _userProfileService.updateUserProfile(nickname: nickname);
+      // Save nickname and Google full name if available
+      final userMetadata = _authService.userMetadata;
+      final googleFullName = userMetadata?['full_name'] 
+          ?? userMetadata?['name'] as String?;
+      
+      await _userProfileService.updateUserProfile(
+        nickname: nickname,
+        fullName: googleFullName,
+      );
       
       if (mounted) {
         // Navigate to dashboard

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/web_oauth_utils.dart' as web_oauth;
 
 /// Exception thrown when authentication fails
 class AuthException implements Exception {
@@ -51,16 +52,31 @@ class AuthService {
   bool get isGoogleOnlyUser {
     final user = currentUser;
     if (user == null) return false;
-    final providers = user.appMetadata['providers'] as List? ?? [];
-    return providers.length == 1 && providers.contains('google');
+    // Check both 'providers' list and 'provider' string for robustness
+    final providersList = user.appMetadata['providers'] as List? ?? [];
+    final singleProvider = user.appMetadata['provider'] as String? ?? '';
+    
+    // User is Google-only if:
+    // 1. providers list has exactly 'google' OR
+    // 2. provider string is 'google' and 'email' is not in providers list
+    if (providersList.isNotEmpty) {
+      return providersList.length == 1 && providersList.contains('google');
+    }
+    return singleProvider == 'google';
   }
 
   /// Check if user has password authentication
   bool get hasPasswordAuth {
     final user = currentUser;
     if (user == null) return false;
-    final providers = user.appMetadata['providers'] as List? ?? [];
-    return providers.contains('email');
+    final providersList = user.appMetadata['providers'] as List? ?? [];
+    final singleProvider = user.appMetadata['provider'] as String? ?? '';
+    
+    if (providersList.isNotEmpty) {
+      return providersList.contains('email');
+    }
+    // If providers list is empty, check if the single provider is email
+    return singleProvider == 'email';
   }
 
   /// Stream of auth state changes
@@ -92,24 +108,28 @@ class AuthService {
 
   /// Sign in with Google
   ///
-  /// On Web: Uses Supabase OAuth flow (opens popup)
+  /// On Web: Uses Supabase OAuth flow (opens popup window)
   /// On Mobile: Uses native Google Sign-In flow
   ///
   /// Throws [AuthException] if sign-in fails or is cancelled
   Future<User?> signInWithGoogle() async {
     try {
       if (kIsWeb) {
-        // Web: Use Supabase OAuth flow with in-app browser (popup window)
-        // Use the current page origin for redirect
+        // Web: Get OAuth URL and open in a popup window
+        // This keeps the original tab intact (no redirect)
         final redirectTo = Uri.base.origin;
         
-        await _supabase.auth.signInWithOAuth(
-          OAuthProvider.google,
+        final res = await _supabase.auth.getOAuthSignInUrl(
+          provider: OAuthProvider.google,
           redirectTo: redirectTo,
-          authScreenLaunchMode: LaunchMode.externalApplication,
+          queryParams: {'access_type': 'offline', 'prompt': 'select_account'},
         );
-        // OAuth flow redirects, so we return null here
-        // The auth state change listener will handle the session
+        
+        // Open the OAuth URL in a popup window
+        web_oauth.openOAuthPopup(res.url);
+        
+        // Return null - the auth state change listener in AuthWrapper
+        // will detect the session from the popup via BroadcastChannel/localStorage
         return null;
       } else {
         // Mobile: Use native Google Sign-In flow

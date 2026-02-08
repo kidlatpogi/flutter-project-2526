@@ -91,7 +91,40 @@
       }
     })();
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Check if this window is an OAuth popup callback
+    if (window.opener && window.name === 'google_oauth_popup') {
+      // This is the OAuth popup window. Don't load Flutter app!
+      // Show minimal feedback - just blank white screen
+      document.body.innerHTML = '<div style="background:white;height:100vh;"></div>';
+
+      // Extract tokens from URL hash and send to parent window
+      var hash = window.location.hash;
+      if (hash && hash.length > 1) {
+        try {
+          window.opener.postMessage({
+            type: 'supabase_oauth_callback',
+            url: window.location.href
+          }, window.location.origin);
+          console.log('OAuth callback sent to parent window');
+        } catch (e) {
+          console.error('Failed to send OAuth callback to parent:', e);
+        }
+      }
+
+      // Close popup immediately after sending callback (no delay needed)
+      // Supabase uses localStorage which is already shared with parent window
+      setTimeout(function () {
+        window.close();
+      }, 100); // Minimal delay to ensure message is sent
+    } else {
+      // Normal app load - load Flutter
+      var script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  </script>
 </body>
 
 </html>

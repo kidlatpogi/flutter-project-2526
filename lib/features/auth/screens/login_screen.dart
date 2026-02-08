@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/web_oauth_utils.dart' as web_oauth;
 import '../../../routing/route_names.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    web_oauth.cancelOAuthListener();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -114,13 +117,42 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // On web, prevent back button during OAuth flow
-      if (kIsWeb) {
-        // Disable back button by preventing browser history navigation
-        _preventBrowserBackButton();
-      }
-
       final user = await _authService.signInWithGoogle();
+      
+      if (kIsWeb) {
+        // On web, OAuth opens in a popup window.
+        // The popup sends the OAuth callback URL back via postMessage.
+        // We listen for that message, extract the refresh_token, and
+        // call setSession() which triggers the auth state change.
+        web_oauth.listenForOAuthCallback((url) async {
+          try {
+            final uri = Uri.parse(url);
+            final fragment = uri.fragment;
+            if (fragment.isNotEmpty) {
+              final params = Uri.splitQueryString(fragment);
+              final refreshToken = params['refresh_token'];
+              if (refreshToken != null && refreshToken.isNotEmpty) {
+                // This will store the session and fire AuthChangeEvent.signedIn
+                // which AuthWrapper listens to and navigates accordingly
+                await Supabase.instance.client.auth.setSession(refreshToken);
+              }
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _errorMessage = 'Google sign-in failed. Please try again.';
+                _isLoading = false;
+              });
+            }
+          }
+        });
+        // Stop loading spinner so user can interact while popup is open
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+      
       if (user != null && mounted) {
         // Check if account is deactivated
         final isActive = await _authService.checkAccountActive(user.id);
@@ -160,20 +192,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  /// Prevent browser back button on web during OAuth
-  void _preventBrowserBackButton() {
-    if (kIsWeb) {
-      // Add a history entry so pressing back doesn't leave the app
-      // This is a web-specific approach to prevent OAuth flow interruption
-      try {
-        // Via dart:html we could do: html.window.history.pushState(null, '', '');
-        // But we'll just rely on the fact that the OAuth popup handles this
-      } catch (e) {
-        // Ignore errors
-      }
     }
   }
 

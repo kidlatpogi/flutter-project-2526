@@ -61,7 +61,15 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
       await _authService.setPasswordForGoogleUser(password);
       
       // Update profile to mark that password has been set
-      await _userProfileService.updateUserProfile(hasPassword: true);
+      // Also fetch Google profile data to store full name
+      final userMetadata = _authService.userMetadata;
+      final googleFullName = userMetadata?['full_name'] 
+          ?? userMetadata?['name'] as String?;
+      
+      await _userProfileService.updateUserProfile(
+        hasPassword: true,
+        fullName: googleFullName,
+      );
       
       if (mounted) {
         // Navigate to nickname setup

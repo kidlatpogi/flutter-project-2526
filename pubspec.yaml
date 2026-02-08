@@ -57,6 +57,9 @@ dependencies:
   flutter_riverpod: ^2.4.9
   path: ^1.9.0
   
+  # URL Launcher (for OAuth popup)
+  url_launcher: ^6.2.0
+  
   # Celebrations
   confetti: ^0.7.0
   
