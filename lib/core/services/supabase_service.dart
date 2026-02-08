@@ -16,7 +16,13 @@ class SupabaseService {
       final response = await _supabase.rpc('get_my_profile');
 
       if (response == null) return null;
-      return Map<String, dynamic>.from(response as Map);
+      if (response is List && response.isNotEmpty) {
+        return Map<String, dynamic>.from(response.first as Map);
+      }
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return null;
     } catch (e) {
       // Fallback to direct query if RPC doesn't exist yet
       try {
@@ -70,7 +76,13 @@ class SupabaseService {
       );
 
       if (response == null) return null;
-      return Map<String, dynamic>.from(response as Map);
+      if (response is List && response.isNotEmpty) {
+        return Map<String, dynamic>.from(response.first as Map);
+      }
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -102,7 +114,13 @@ class SupabaseService {
       );
 
       if (response == null) return null;
-      return Map<String, dynamic>.from(response as Map);
+      if (response is List && response.isNotEmpty) {
+        return Map<String, dynamic>.from(response.first as Map);
+      }
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return null;
     } catch (e) {
       return null;
     }
