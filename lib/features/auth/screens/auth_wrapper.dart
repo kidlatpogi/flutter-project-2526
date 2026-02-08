@@ -7,7 +7,6 @@ import '../../splash/screens/splash_screen1.dart';
 import '../../dashboard/screens/main_dashboard.dart';
 import 'login_screen.dart';
 import 'nickname_setup_screen.dart';
-import 'password_setup_screen.dart';
 
 /// Wrapper that handles authentication state and routing
 class AuthWrapper extends StatefulWidget {
@@ -122,27 +121,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
             }
           }
 
-          // Step 1: Check if user needs password setup
-          final isGoogleOnly = _authService.isGoogleOnlyUser;
-          final hasPasswordInProfile = profile?['has_password'] == true;
+          // Check if user has nickname
+          final hasNickname =
+              profile != null &&
+              profile['nickname'] != null &&
+              (profile['nickname'] as String).isNotEmpty;
 
-          if (isGoogleOnly && !hasPasswordInProfile) {
-            // Google-only user needs to set up a password first
-            _targetWidget = const PasswordSetupScreen();
+          if (hasNickname) {
+            // User has profile, go to dashboard
+            _targetWidget = const MainDashboard();
           } else {
-            // Step 2: Check if user has nickname
-            final hasNickname =
-                profile != null &&
-                profile['nickname'] != null &&
-                (profile['nickname'] as String).isNotEmpty;
-
-            if (hasNickname) {
-              // User has profile, go to dashboard
-              _targetWidget = const MainDashboard();
-            } else {
-              // User needs to set up nickname
-              _targetWidget = const NicknameSetupScreen();
-            }
+            // User needs to set up nickname
+            _targetWidget = const NicknameSetupScreen();
           }
         }
       } else {

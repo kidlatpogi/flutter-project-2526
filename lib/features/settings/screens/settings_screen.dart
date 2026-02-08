@@ -29,7 +29,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _microphoneSettingsService = MicrophoneSettingsService();
   final _deactivatePasswordController = TextEditingController();
   final _confirmDeactivateController = TextEditingController();
-  bool _isDeactivating = false;
 
   @override
   void initState() {
@@ -564,197 +563,228 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Delete Account',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isGoogleOnly
-                    ? 'To delete your account, type DELETE ACCOUNT to confirm.'
-                    : 'To delete your account, confirm your identity and type DELETE ACCOUNT.',
-                style: GoogleFonts.inter(color: AppColors.textSecondary),
+      builder: (dialogContext) {
+        bool isProcessing = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Delete Account',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
               ),
-              const SizedBox(height: 16),
-              // Only show password field if user has a password
-              if (!isGoogleOnly) ...[
-                Text(
-                  'Enter your password',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isGoogleOnly
+                        ? 'To delete your account, re-authenticate with Google and type DELETE ACCOUNT to confirm.'
+                        : 'To delete your account, confirm your identity and type DELETE ACCOUNT.',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _deactivatePasswordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    hintStyle: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppColors.inactive,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.inactive),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.inactive),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
+                  const SizedBox(height: 16),
+                  // Only show password field if user has a password
+                  if (!isGoogleOnly) ...[
+                    Text(
+                      'Enter your password',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.primary,
-                        width: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _deactivatePasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: 'Password',
+                        hintStyle: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppColors.inactive,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.inactive),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.inactive),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    'Type DELETE ACCOUNT',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _confirmDeactivateController,
+                    decoration: InputDecoration(
+                      hintText: 'DELETE ACCOUNT',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: AppColors.inactive,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: AppColors.inactive),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: AppColors.inactive),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Text(
-                'Type DELETE ACCOUNT',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.inter(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _confirmDeactivateController,
-                decoration: InputDecoration(
-                  hintText: 'DELETE ACCOUNT',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.inactive,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.inactive),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.inactive),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () async {
+                        final confirmation = _confirmDeactivateController.text
+                            .trim();
+
+                        if (confirmation != 'DELETE ACCOUNT') {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Please type DELETE ACCOUNT to confirm',
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isProcessing = true);
+
+                        try {
+                          if (isGoogleOnly) {
+                            // Re-authenticate with Google to verify identity
+                            final currentUserId = _authService.currentUser?.id;
+                            final reAuthUser = await _authService
+                                .reAuthenticateWithGoogle();
+
+                            if (reAuthUser == null ||
+                                reAuthUser.id != currentUserId) {
+                              throw AuthException(
+                                'Re-authentication failed. The Google account does not match.',
+                              );
+                            }
+                          } else {
+                            // Verify password for email/password users
+                            final password = _deactivatePasswordController.text;
+                            if (password.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please enter your password'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              setDialogState(() => isProcessing = false);
+                              return;
+                            }
+                            await _authService.verifyPassword(password);
+                          }
+
+                          // Soft delete: mark account_status as 'Deleted'
+                          await _userProfileService.updateUserProfile(
+                            isActive: false,
+                            accountStatus: 'Deleted',
+                          );
+
+                          if (!mounted) return;
+                          Navigator.pop(dialogContext);
+                          await _authService.signOut();
+                          if (!mounted) return;
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            RouteNames.login,
+                            (route) => false,
+                          );
+                        } on AuthException catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.message),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } on supabase.AuthException catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.message),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to delete account: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setDialogState(() => isProcessing = false);
+                          }
+                        }
+                      },
+                child: Text(
+                  isProcessing ? 'Deactivating...' : 'Deactivate',
+                  style: GoogleFonts.inter(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _isDeactivating
-                ? null
-                : () async {
-                    final password = _deactivatePasswordController.text;
-                    final confirmation = _confirmDeactivateController.text
-                        .trim();
-
-                    if (confirmation != 'DELETE ACCOUNT') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Please type DELETE ACCOUNT to confirm',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // Only verify password if user has one
-                    if (!isGoogleOnly) {
-                      if (password.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter your password'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-                    }
-
-                    setState(() => _isDeactivating = true);
-                    try {
-                      // Verify password only if user has one
-                      if (!isGoogleOnly) {
-                        await _authService.verifyPassword(password);
-                      }
-
-                      // Soft delete: mark account_status as 'Deleted'
-                      await _userProfileService.updateUserProfile(
-                        isActive: false,
-                        accountStatus: 'Deleted',
-                      );
-
-                      if (!mounted) return;
-                      Navigator.pop(context);
-                      await _authService.signOut();
-                      if (!mounted) return;
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        RouteNames.login,
-                        (route) => false,
-                      );
-                    } on supabase.AuthException catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(e.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to delete account: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => _isDeactivating = false);
-                    }
-                  },
-            child: Text(
-              _isDeactivating ? 'Deactivating...' : 'Deactivate',
-              style: GoogleFonts.inter(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

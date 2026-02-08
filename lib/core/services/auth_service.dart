@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -503,10 +504,108 @@ class AuthService {
         redirectTo: kIsWeb ? Uri.base.toString() : null,
       );
     } on AuthApiException catch (e) {
+      // Capture rate limiting errors with proper code
+      if (e.statusCode == '429') {
+        throw AuthException(
+          'Too many requests. Please wait before requesting another email.',
+          code: '429',
+        );
+      }
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
+      // If it's already our custom AuthException, re-throw it
+      if (e is AuthException) rethrow;
       throw AuthException(
         'Failed to send password setup email: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Re-authenticate with Google for sensitive actions (e.g., account deletion).
+  /// Returns the User if re-auth succeeds, throws [AuthException] if cancelled or failed.
+  /// On web, uses popup OAuth flow. On mobile, uses native Google Sign-In.
+  Future<User?> reAuthenticateWithGoogle() async {
+    try {
+      if (kIsWeb) {
+        // Web: Use OAuth popup and wait for auth state change
+        final redirectTo = Uri.base.origin;
+
+        final res = await _supabase.auth.getOAuthSignInUrl(
+          provider: OAuthProvider.google,
+          redirectTo: redirectTo,
+          queryParams: {
+            'prompt': 'select_account',
+            'scope': 'openid email profile',
+          },
+        );
+
+        // Open the OAuth URL in a popup window
+        web_oauth.openOAuthPopup(res.url);
+
+        // Wait for the auth state to update (popup will trigger this)
+        // The session should already match the current user
+        final completer = Completer<User?>();
+        late StreamSubscription<AuthState> sub;
+        sub = _supabase.auth.onAuthStateChange.listen((authState) {
+          if (authState.event == AuthChangeEvent.signedIn ||
+              authState.event == AuthChangeEvent.tokenRefreshed) {
+            sub.cancel();
+            completer.complete(authState.session?.user);
+          }
+        });
+
+        // Timeout after 2 minutes
+        return await completer.future.timeout(
+          const Duration(minutes: 2),
+          onTimeout: () {
+            sub.cancel();
+            throw AuthException(
+              'Re-authentication timed out. Please try again.',
+              code: 'timeout',
+            );
+          },
+        );
+      } else {
+        // Mobile: Use native Google Sign-In
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+        if (googleUser == null) {
+          throw AuthException(
+            'Google re-authentication was cancelled.',
+            code: 'cancelled',
+          );
+        }
+
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+
+        final String? idToken = googleAuth.idToken;
+        final String? accessToken = googleAuth.accessToken;
+
+        if (idToken == null) {
+          throw AuthException(
+            'Missing ID Token during re-authentication.',
+            code: 'missing_id_token',
+          );
+        }
+
+        final AuthResponse response = await _supabase.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+
+        return response.user;
+      }
+    } on AuthException {
+      rethrow;
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      throw AuthException(
+        'Google re-authentication failed: ${e.toString()}',
+        code: 'unknown',
       );
     }
   }

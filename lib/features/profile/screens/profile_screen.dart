@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
@@ -40,20 +40,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       // Load profile from database (single source of truth)
       final profile = await _userProfileService.getUserProfile();
-      
+
       if (profile == null) {
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
-      
+
       // Use custom_full_name from database (user's preference)
       // Falls back to full_name if custom_full_name not set
-      if (!profile.containsKey('custom_full_name')) {
-      }
-      final displayName = profile['custom_full_name'] ?? profile['full_name'] ?? '';
-      
+      if (!profile.containsKey('custom_full_name')) {}
+      final displayName =
+          profile['custom_full_name'] ?? profile['full_name'] ?? '';
+
       // Load email and avatar from auth
       final authEmail = _authService.email ?? '';
       final authAvatarUrl = _authService.avatarUrl;
@@ -201,22 +201,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _showSetPasswordDialog() async {
+    final shouldSend = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Set Password',
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+          ),
+        ),
+        content: Text(
+          'Since you signed in with Google, you don\'t have a password yet.\n\n'
+          'We\'ll send a link to your email so you can set a password. This lets you also sign in with email and password.',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.surface,
+            ),
+            child: Text(
+              'Send Email',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSend == true && mounted) {
+      setState(() => _isLoading = true);
+      try {
+        await _authService.sendPasswordSetupEmail();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password setup email sent! Check your inbox.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      } on AuthException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send email: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
 
     try {
       final fullName = _fullNameController.text.trim();
-      
+
       // Update custom_full_name in database only (NOT auth metadata)
       // Database column persists across OAuth logins
       await _userProfileService.updateUserProfile(fullName: fullName);
-      
+
       // Update local state
       if (mounted) {
         setState(() {
           _originalFullName = fullName;
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile updated successfully'),
@@ -506,10 +585,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 20),
 
-                // Change Password
+                // Change Password / Set Password
                 InkWell(
                   onTap: () {
-                    Navigator.pushNamed(context, RouteNames.changePassword);
+                    if (_authService.hasPasswordAuth) {
+                      // Has password — navigate to change password screen
+                      Navigator.pushNamed(context, RouteNames.changePassword);
+                    } else {
+                      // Google-only user — offer to send password setup email
+                      _showSetPasswordDialog();
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -524,7 +609,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Change Password',
+                          _authService.hasPasswordAuth
+                              ? 'Change Password'
+                              : 'Set Password',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             color: AppColors.primary,

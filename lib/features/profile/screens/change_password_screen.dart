@@ -22,6 +22,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _isLoading = false;
   bool _isSettingInitialPassword =
       false; // True if Google user without password
+  int _emailCooldownSeconds = 0; // Cooldown timer for email requests
 
   bool get _hasMinLength => _newPasswordController.text.length >= 8;
   bool get _hasUppercase =>
@@ -98,12 +99,42 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _sendPasswordSetupEmail() async {
+    // Check if cooldown is still active
+    if (_emailCooldownSeconds > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please wait $_emailCooldownSeconds seconds before requesting another email',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       await _authService.sendPasswordSetupEmail();
+
+      // Start cooldown timer (60 seconds)
+      setState(() {
+        _emailCooldownSeconds = 60;
+      });
+
+      // Count down the cooldown
+      while (_emailCooldownSeconds > 0) {
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          setState(() {
+            _emailCooldownSeconds--;
+          });
+        }
+      }
 
       if (!mounted) return;
 
@@ -149,7 +180,26 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
       );
     } on AuthException catch (e) {
-      if (mounted) {
+      // Handle rate limiting
+      if (e.code == '429' ||
+          e.message.contains('Too Many Requests') ||
+          e.message.contains('try again in')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Too many requests. Please wait a minute before trying again.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        // Start a longer cooldown for rate limiting
+        setState(() {
+          _emailCooldownSeconds = 60;
+        });
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send email: ${e.message}'),
@@ -160,8 +210,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to send email. Please try again.'),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
