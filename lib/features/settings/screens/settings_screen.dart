@@ -573,7 +573,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             title: Text(
-              'Delete Account',
+              'Deactivate Account',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: AppColors.primary,
@@ -586,8 +586,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     isGoogleOnly
-                        ? 'To delete your account, re-authenticate with Google and type DELETE ACCOUNT to confirm.'
-                        : 'To delete your account, confirm your identity and type DELETE ACCOUNT.',
+                        ? 'To deactivate your account, re-authenticate with Google and type DEACTIVATE ACCOUNT to confirm.'
+                        : 'To deactivate your account, confirm your identity and type DEACTIVATE ACCOUNT.',
                     style: GoogleFonts.inter(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 16),
@@ -631,7 +631,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 16),
                   ],
                   Text(
-                    'Type DELETE ACCOUNT',
+                    'Type DEACTIVATE ACCOUNT',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -642,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(
                     controller: _confirmDeactivateController,
                     decoration: InputDecoration(
-                      hintText: 'DELETE ACCOUNT',
+                      hintText: 'DEACTIVATE ACCOUNT',
                       hintStyle: GoogleFonts.inter(
                         fontSize: 14,
                         color: AppColors.inactive,
@@ -685,11 +685,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         final confirmation = _confirmDeactivateController.text
                             .trim();
 
-                        if (confirmation != 'DELETE ACCOUNT') {
+                        if (confirmation != 'DEACTIVATE ACCOUNT') {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Please type DELETE ACCOUNT to confirm',
+                                'Please type DEACTIVATE ACCOUNT to confirm',
                               ),
                               backgroundColor: Colors.red,
                             ),
@@ -728,14 +728,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             await _authService.verifyPassword(password);
                           }
 
-                          // Soft delete: mark account_status as 'Deleted'
+                          // Soft deactivate: mark account_status as 'Deactivated'
                           await _userProfileService.updateUserProfile(
                             isActive: false,
-                            accountStatus: 'Deleted',
+                            accountStatus: 'Deactivated',
                           );
 
                           if (!mounted) return;
                           Navigator.pop(dialogContext);
+                          // Log out the user after deactivation
                           await _authService.signOut();
                           if (!mounted) return;
                           Navigator.pushNamedAndRemoveUntil(
@@ -763,7 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Failed to delete account: $e'),
+                              content: Text('Failed to deactivate account: $e'),
                               backgroundColor: Colors.red,
                             ),
                           );
