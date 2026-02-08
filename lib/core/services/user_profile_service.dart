@@ -20,6 +20,7 @@ class UserProfileService {
     String? fullName,
     bool? isActive,
     String? accountStatus,
+    bool? hasPassword,
   }) async {
     try {
       // Get existing profile
@@ -31,6 +32,7 @@ class UserProfileService {
         final newProfile = await _supabaseService.createUserProfile(
           nickname: nickname ?? '',
           fullName: fullName, // Can be null - SupabaseService will use Google name
+          hasPassword: hasPassword,
         );
         return newProfile ?? {};
       } else {
@@ -40,6 +42,7 @@ class UserProfileService {
           fullName: fullName, // Only updates if not null
           isActive: isActive,
           accountStatus: accountStatus,
+          hasPassword: hasPassword,
         );
         return updatedProfile ?? existingProfile;
       }

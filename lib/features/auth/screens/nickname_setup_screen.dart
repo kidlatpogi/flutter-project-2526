@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -16,8 +17,31 @@ class NicknameSetupScreen extends StatefulWidget {
 class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
   final _nicknameController = TextEditingController();
   final _userProfileService = UserProfileService();
+  final _authService = AuthService();
   bool _isLoading = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillNickname();
+  }
+
+  /// Pre-fill nickname with Google's given_name if available
+  void _prefillNickname() {
+    final userMetadata = _authService.userMetadata;
+    if (userMetadata != null) {
+      // Try given_name first (first name), then fall back to full_name's first word
+      final givenName = userMetadata['given_name'] as String?;
+      final fullName = userMetadata['full_name'] ?? userMetadata['name'] as String?;
+      
+      if (givenName != null && givenName.isNotEmpty) {
+        _nicknameController.text = givenName;
+      } else if (fullName != null && fullName.isNotEmpty) {
+        _nicknameController.text = fullName.split(' ').first;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -44,11 +68,22 @@ class _NicknameSetupScreenState extends State<NicknameSetupScreen> {
     });
 
     try {
-      // Only set nickname, preserve existing full_name if it exists
-      await _userProfileService.updateUserProfile(nickname: nickname);
+      // Save nickname and Google full name if available
+      final userMetadata = _authService.userMetadata;
+      final googleFullName = userMetadata?['full_name'] 
+          ?? userMetadata?['name'] as String?;
+      
+      // Update profile with nickname (and full name if not already set)
+      await _userProfileService.updateUserProfile(
+        nickname: nickname,
+        fullName: googleFullName, // Will only update if provided
+      );
+      
+      // Wait a moment to ensure the database write completes
+      await Future.delayed(const Duration(milliseconds: 500));
       
       if (mounted) {
-        // Navigate to dashboard
+        // Navigate to dashboard - this creates a new instance that will load the updated profile
         Navigator.pushReplacementNamed(context, RouteNames.dashboard);
       }
     } catch (e) {

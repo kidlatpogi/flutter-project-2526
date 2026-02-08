@@ -7,6 +7,7 @@ import '../../splash/screens/splash_screen1.dart';
 import '../../dashboard/screens/main_dashboard.dart';
 import 'login_screen.dart';
 import 'nickname_setup_screen.dart';
+import 'password_setup_screen.dart';
 
 /// Wrapper that handles authentication state and routing
 class AuthWrapper extends StatefulWidget {
@@ -22,6 +23,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _isLoading = true;
   Widget _targetWidget = const SplashScreen1();
   StreamSubscription<AuthState>? _authSubscription;
+  bool _isCheckingAuth = false; // Debounce flag to prevent concurrent checks
 
   @override
   void initState() {
@@ -58,6 +60,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
   /// Check current authentication status and route accordingly
   Future<void> _checkAuthStatus() async {
     if (!mounted) return;
+    
+    // Debounce: if already checking, skip this call
+    if (_isCheckingAuth) return;
+    _isCheckingAuth = true;
 
     setState(() => _isLoading = true);
 
@@ -67,35 +73,75 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (!mounted) return;
       
       if (_authService.isLoggedIn) {
-        // User is logged in, check if they have a profile
+        // User is logged in
         
-        // Check if user has nickname
-        bool hasNickname = false;
+        // Get user profile with a timeout to prevent hanging
+        Map<String, dynamic>? profile;
         try {
-          final profile = await _userProfileService.getUserProfile();
+          profile = await _userProfileService.getUserProfile()
+              .timeout(const Duration(seconds: 10), onTimeout: () => null);
+          
+          // Check if account is deactivated
           if (profile != null && profile['is_active'] == false) {
             await _authService.signOut();
             if (!mounted) return;
             _targetWidget = const LoginScreen();
-            return;
+            // Don't return here - let finally block handle isLoading
           }
-          // Profile exists if it's not null and has a non-empty nickname
-          hasNickname = profile != null &&
-              profile['nickname'] != null &&
-              (profile['nickname'] as String).isNotEmpty;
         } catch (e) {
-          // If there's an error, assume no profile exists yet
-          hasNickname = false;
+          profile = null;
         }
-
+        
         if (!mounted) return;
         
-        if (hasNickname) {
-          // User has profile, go to dashboard
-          _targetWidget = const MainDashboard();
-        } else {
-          // User needs to set up nickname
-          _targetWidget = const NicknameSetupScreen();
+        // Only continue if not deactivated (check was not triggered above)
+        if (_targetWidget is! LoginScreen) {
+          // Determine if this is a brand new user (no profile exists)
+          final bool isNewUser = profile == null;
+          
+          // For new users, create initial profile with Google data
+          if (isNewUser) {
+            try {
+              // Create profile with Google full name if available
+              final userMetadata = _authService.userMetadata;
+              final googleFullName = userMetadata?['full_name'] 
+                  ?? userMetadata?['name'] as String?;
+              
+              profile = await _userProfileService.updateUserProfile(
+                nickname: '', // Empty nickname - user will set it later
+                fullName: googleFullName,
+                hasPassword: false, // New Google user has no password yet
+              );
+            } catch (e) {
+              // Profile creation failed, treat as new user
+              profile = null;
+            }
+          }
+          
+          // Step 1: Check if user needs password setup
+          // A user needs password if:
+          // - They signed up with Google only (no email/password provider) AND
+          // - They haven't set a password yet (has_password is false/null in profile)
+          final isGoogleOnly = _authService.isGoogleOnlyUser;
+          final hasPasswordInProfile = profile?['has_password'] == true;
+          
+          if (isGoogleOnly && !hasPasswordInProfile) {
+            // Google-only user needs to set up a password first
+            _targetWidget = const PasswordSetupScreen();
+          } else {
+            // Step 2: Check if user has nickname
+            final hasNickname = profile != null &&
+                profile['nickname'] != null &&
+                (profile['nickname'] as String).isNotEmpty;
+            
+            if (hasNickname) {
+              // User has profile, go to dashboard
+              _targetWidget = const MainDashboard();
+            } else {
+              // User needs to set up nickname
+              _targetWidget = const NicknameSetupScreen();
+            }
+          }
         }
       } else {
         // User is not logged in, go directly to login screen
@@ -103,10 +149,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
     } catch (e) {
       _targetWidget = const LoginScreen();
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } finally {
+      _isCheckingAuth = false;
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

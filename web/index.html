@@ -73,7 +73,77 @@
 </head>
 
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // AGGRESSIVE SERVICE WORKER & CACHE CLEARING
+    // Runs BEFORE Flutter loads to ensure fresh code
+    (async function () {
+      console.log('[CACHE CLEAR] Starting aggressive cache clear...');
+      
+      // Unregister ALL service workers
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          console.log(`[CACHE CLEAR] Found ${registrations.length} service workers`);
+          for (const registration of registrations) {
+            await registration.unregister();
+            console.log('[CACHE CLEAR] Unregistered service worker');
+          }
+        } catch (e) {
+          console.error('[CACHE CLEAR] Service worker unregister failed:', e);
+        }
+      }
+      
+      // Clear ALL caches
+      if ('caches' in window) {
+        try {
+          const keys = await caches.keys();
+          console.log(`[CACHE CLEAR] Found ${keys.length} cache keys`);
+          for (const key of keys) {
+            await caches.delete(key);
+            console.log(`[CACHE CLEAR] Deleted cache: ${key}`);
+          }
+        } catch (e) {
+          console.error('[CACHE CLEAR] Cache delete failed:', e);
+        }
+      }
+      
+      console.log('[CACHE CLEAR] Complete - Fresh start guaranteed');
+    })();
+  </script>
+  <script>
+    // Check if this window is an OAuth popup callback
+    if (window.opener && window.name === 'google_oauth_popup') {
+      // This is the OAuth popup window. Don't load Flutter app!
+      // Show minimal feedback - just blank white screen
+      document.body.innerHTML = '<div style="background:white;height:100vh;"></div>';
+
+      // Extract tokens from URL hash and send to parent window
+      var hash = window.location.hash;
+      if (hash && hash.length > 1) {
+        try {
+          window.opener.postMessage({
+            type: 'supabase_oauth_callback',
+            url: window.location.href
+          }, window.location.origin);
+          console.log('OAuth callback sent to parent window');
+        } catch (e) {
+          console.error('Failed to send OAuth callback to parent:', e);
+        }
+      }
+
+      // Close popup immediately after sending callback (no delay needed)
+      // Supabase uses localStorage which is already shared with parent window
+      setTimeout(function () {
+        window.close();
+      }, 100); // Minimal delay to ensure message is sent
+    } else {
+      // Normal app load - load Flutter
+      var script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  </script>
 </body>
 
 </html>

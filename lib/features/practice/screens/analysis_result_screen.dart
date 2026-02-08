@@ -29,8 +29,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   bool _isRecordingLoading = false;
   bool _isPlaying = false;
   bool _confettiPlayed = false;
-  Duration _currentPosition = Duration.zero;
-  Duration _totalDuration = Duration.zero;
 
   @override
   void initState() {
@@ -55,25 +53,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       if (!mounted) return;
       setState(() {
         _isPlaying = false;
-        _currentPosition = Duration.zero;
       });
     });
 
-    // Listen to duration changes
-    _audioPlayer.onDurationChanged.listen((duration) {
-      if (!mounted) return;
-      setState(() {
-        _totalDuration = duration;
-      });
-    });
 
-    // Listen to position changes
-    _audioPlayer.onPositionChanged.listen((position) {
-      if (!mounted) return;
-      setState(() {
-        _currentPosition = position;
-      });
-    });
 
     if (widget.analysisResult == null && widget.sessionId != null) {
       _analysisFuture = _apiService.getAnalysis(widget.sessionId!);
@@ -218,16 +201,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _stopPlayback() async {
-    await _audioPlayer.stop();
-    if (mounted) {
-      setState(() {
-        _isPlaying = false;
-        _currentPosition = Duration.zero;
-      });
-    }
   }
 
   @override

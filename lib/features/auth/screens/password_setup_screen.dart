@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/constants.dart';
@@ -17,6 +18,7 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
+  final _userProfileService = UserProfileService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -55,7 +57,19 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
     });
 
     try {
+      // Set password in Supabase Auth
       await _authService.setPasswordForGoogleUser(password);
+      
+      // Update profile to mark that password has been set
+      // Also fetch Google profile data to store full name
+      final userMetadata = _authService.userMetadata;
+      final googleFullName = userMetadata?['full_name'] 
+          ?? userMetadata?['name'] as String?;
+      
+      await _userProfileService.updateUserProfile(
+        hasPassword: true,
+        fullName: googleFullName,
+      );
       
       if (mounted) {
         // Navigate to nickname setup
