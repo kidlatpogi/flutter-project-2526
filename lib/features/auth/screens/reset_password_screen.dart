@@ -19,7 +19,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
-  
+
   bool _hasMinLength = false;
   bool _hasUppercase = false;
   bool _hasLowercase = false;
@@ -46,10 +46,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   String? _validateFullPassword(String password) {
     if (password.isEmpty) return 'Password is required';
     if (!_hasMinLength) return 'Password must be at least 8 characters';
-    if (!_hasUppercase) return 'Password must contain at least one uppercase letter';
-    if (!_hasLowercase) return 'Password must contain at least one lowercase letter';
+    if (!_hasUppercase)
+      return 'Password must contain at least one uppercase letter';
+    if (!_hasLowercase)
+      return 'Password must contain at least one lowercase letter';
     if (!_hasNumber) return 'Password must contain at least one number';
-    if (!_hasSpecial) return 'Password must contain at least one special character';
+    if (!_hasSpecial)
+      return 'Password must contain at least one special character';
     return null;
   }
 
@@ -87,23 +90,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                
-                // Reset Password Title
-                Text(
-                  'Reset\nPassword',
-                  style: AppTextStyles.header,
-                ),
-                
+
+                // Set Password Title
+                Text('Set\nPassword', style: AppTextStyles.header),
+
                 const SizedBox(height: 8),
-                
+
                 // Subtitle
                 Text(
-                  'Create a new, strong password for your\naccount.',
+                  'Create a strong password for your\naccount.',
                   style: AppTextStyles.paragraph,
                 ),
-                
+
                 const SizedBox(height: 40),
-                
+
                 // New Password Field
                 Text(
                   'NEW PASSWORD',
@@ -134,7 +134,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide: BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -142,7 +145,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureNewPassword ? Icons.visibility_off : Icons.visibility,
+                        _obscureNewPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: AppColors.textSecondary,
                         size: 20,
                       ),
@@ -154,9 +159,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Password Requirements
                 Wrap(
                   spacing: 16,
@@ -169,9 +174,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     _buildRequirement('Special', _hasSpecial),
                   ],
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Confirm New Password Field
                 Text(
                   'CONFIRM PASSWORD',
@@ -202,7 +207,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide: BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -210,7 +218,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: AppColors.textSecondary,
                         size: 20,
                       ),
@@ -222,9 +232,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 40),
-                
+
                 // Reset Password Button
                 SizedBox(
                   width: double.infinity,
@@ -234,7 +244,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ? null
                         : () async {
                             final newPassword = _newPasswordController.text;
-                            final confirmPassword = _confirmPasswordController.text;
+                            final confirmPassword =
+                                _confirmPasswordController.text;
                             final error = _validateFullPassword(newPassword);
                             if (error != null) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -261,20 +272,28 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Password updated successfully! Please log in with your new password.'),
+                                  content: Text(
+                                    'Password set successfully! Going to dashboard...',
+                                  ),
                                   backgroundColor: Colors.green,
-                                  duration: Duration(seconds: 3),
+                                  duration: Duration(seconds: 2),
                                 ),
                               );
-                              // Sign out and redirect to login
-                              await _authService.signOut();
+
+                              // Clear recovery token from URL and navigate to home
+                              // This will trigger AuthWrapper to re-evaluate auth state
+                              // User will now be logged in with the new password
                               if (!mounted) return;
-                              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+
+                              // Navigate to root, which will trigger AuthWrapper auth check
+                              Navigator.of(
+                                context,
+                              ).pushNamedAndRemoveUntil('/', (route) => false);
                             } on AuthException catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(e.message),
+                                  content: Text('Error: ${e.message}'),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -282,7 +301,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Failed to reset password: $e'),
+                                  content: Text('Failed to set password: $e'),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -299,7 +318,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Reset Password'),
+                        : const Text('Set Password'),
                   ),
                 ),
               ],

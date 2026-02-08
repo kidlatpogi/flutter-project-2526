@@ -7,6 +7,7 @@ import '../../splash/screens/splash_screen1.dart';
 import '../../dashboard/screens/main_dashboard.dart';
 import 'login_screen.dart';
 import 'nickname_setup_screen.dart';
+import 'reset_password_screen.dart';
 
 /// Wrapper that handles authentication state and routing
 class AuthWrapper extends StatefulWidget {
@@ -38,6 +39,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
       if (!mounted) return;
 
+      // Check for recovery mode - user clicked password reset link
+      if (_isInRecoveryMode()) {
+        setState(() {
+          _targetWidget = const ResetPasswordScreen();
+          _isLoading = false;
+        });
+        return;
+      }
+
       // Handle sign out immediately - don't wait for _checkAuthStatus
       if (event == AuthChangeEvent.signedOut) {
         setState(() {
@@ -56,6 +66,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
     });
   }
 
+  /// Check if we're in password recovery mode
+  /// This happens when user clicks the "Set Password" link from email
+  bool _isInRecoveryMode() {
+    try {
+      // Check by looking for recovery type in the URL
+      // Supabase sends links like: https://app.com/path#access_token=...&type=recovery
+      final url = Uri.base.toString();
+      return url.contains('type=recovery');
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Check current authentication status and route accordingly
   Future<void> _checkAuthStatus() async {
     if (!mounted) return;
@@ -67,6 +90,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
     setState(() => _isLoading = true);
 
     try {
+      // Check if we're in a password recovery flow
+      // This happens when user clicks "Set Password" link from email
+      if (_isInRecoveryMode()) {
+        if (mounted) {
+          setState(() => _targetWidget = const ResetPasswordScreen());
+          return;
+        }
+      }
+
       await _authService.refreshSessionIfNeeded();
 
       if (!mounted) return;
