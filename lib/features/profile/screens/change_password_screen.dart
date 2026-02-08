@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -19,21 +20,37 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  bool _isSettingInitialPassword =
+      false; // True if Google user without password
 
   bool get _hasMinLength => _newPasswordController.text.length >= 8;
-  bool get _hasUppercase => _newPasswordController.text.contains(RegExp(r'[A-Z]'));
-  bool get _hasLowercase => _newPasswordController.text.contains(RegExp(r'[a-z]'));
+  bool get _hasUppercase =>
+      _newPasswordController.text.contains(RegExp(r'[A-Z]'));
+  bool get _hasLowercase =>
+      _newPasswordController.text.contains(RegExp(r'[a-z]'));
   bool get _hasNumber => _newPasswordController.text.contains(RegExp(r'[0-9]'));
-  bool get _hasSpecial => _newPasswordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+  bool get _hasSpecial =>
+      _newPasswordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
   String? _validatePassword(String password) {
     if (password.isEmpty) return 'Password is required';
     if (!_hasMinLength) return 'Password must be at least 8 characters';
-    if (!_hasUppercase) return 'Password must contain at least one uppercase letter';
-    if (!_hasLowercase) return 'Password must contain at least one lowercase letter';
+    if (!_hasUppercase)
+      return 'Password must contain at least one uppercase letter';
+    if (!_hasLowercase)
+      return 'Password must contain at least one lowercase letter';
     if (!_hasNumber) return 'Password must contain at least one number';
-    if (!_hasSpecial) return 'Password must contain at least one special character';
+    if (!_hasSpecial)
+      return 'Password must contain at least one special character';
     return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if user is Google-only without a password
+    _isSettingInitialPassword =
+        _authService.isGoogleOnlyUser && !_authService.hasPasswordAuth;
   }
 
   @override
@@ -56,7 +73,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'New Password',
+          _isSettingInitialPassword ? 'Set Password' : 'Change Password',
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -73,7 +90,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             children: [
               // Title
               Text(
-                'New Password',
+                _isSettingInitialPassword ? 'Set Password' : 'Change Password',
                 style: GoogleFonts.inter(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -85,7 +102,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
               // Subtitle
               Text(
-                'Create a new, strong password for your account.',
+                _isSettingInitialPassword
+                    ? 'Set a password to secure your account and enable password-based sign-in.'
+                    : 'Create a new, strong password for your account.',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -94,69 +113,72 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
               const SizedBox(height: 24),
 
-              // Enter old Password
-              Text(
-                'Enter old Password',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+              // Enter old Password (only show if user has existing password)
+              if (!_isSettingInitialPassword) ...[
+                Text(
+                  'Enter old Password',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _oldPasswordController,
-                obscureText: _obscureOldPassword,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: AppColors.primary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Enter old password',
-                  hintStyle: GoogleFonts.inter(
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _oldPasswordController,
+                  obscureText: _obscureOldPassword,
+                  style: GoogleFonts.inter(
                     fontSize: 15,
-                    color: AppColors.inactive,
+                    color: AppColors.primary,
                   ),
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.inactive.withOpacity(0.3),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.inactive.withOpacity(0.3),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.primary,
-                      width: 2,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureOldPassword ? Icons.visibility_off : Icons.visibility,
+                  decoration: InputDecoration(
+                    hintText: 'Enter old password',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 15,
                       color: AppColors.inactive,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscureOldPassword = !_obscureOldPassword;
-                      });
-                    },
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: AppColors.inactive.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureOldPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: AppColors.inactive,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureOldPassword = !_obscureOldPassword;
+                        });
+                      },
+                    ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
+              ],
 
               // New Password
               Text(
@@ -198,10 +220,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.primary,
-                      width: 2,
-                    ),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -209,7 +228,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscureNewPassword ? Icons.visibility_off : Icons.visibility,
+                      _obscureNewPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                       color: AppColors.inactive,
                     ),
                     onPressed: () {
@@ -277,10 +298,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.primary,
-                      width: 2,
-                    ),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -288,7 +306,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                      _obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                       color: AppColors.inactive,
                     ),
                     onPressed: () {
@@ -307,76 +327,97 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : () async {
-                    final oldPassword = _oldPasswordController.text;
-                    final newPassword = _newPasswordController.text;
-                    final confirmPassword = _confirmPasswordController.text;
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          final oldPassword = _oldPasswordController.text;
+                          final newPassword = _newPasswordController.text;
+                          final confirmPassword =
+                              _confirmPasswordController.text;
 
-                    if (oldPassword.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter your old password'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                          // Only validate old password if user has existing password
+                          if (!_isSettingInitialPassword &&
+                              oldPassword.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter your old password'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
-                    final passwordError = _validatePassword(newPassword);
-                    if (passwordError != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(passwordError),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                          final passwordError = _validatePassword(newPassword);
+                          if (passwordError != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(passwordError),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
-                    if (newPassword != confirmPassword) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Passwords do not match'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                          if (newPassword != confirmPassword) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Passwords do not match'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
-                    setState(() => _isLoading = true);
-                    try {
-                      await _authService.changePassword(
-                        oldPassword: oldPassword,
-                        newPassword: newPassword,
-                      );
-                      if (!mounted) return;
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Password changed successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    } on AuthException catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(e.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to change password: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => _isLoading = false);
-                    }
-                  },
+                          setState(() => _isLoading = true);
+                          try {
+                            if (_isSettingInitialPassword) {
+                              // For Google users without password, set initial password
+                              await _authService.setPasswordForGoogleUser(
+                                newPassword,
+                              );
+                            } else {
+                              // For existing password users, change password
+                              await _authService.changePassword(
+                                oldPassword: oldPassword,
+                                newPassword: newPassword,
+                              );
+                            }
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _isSettingInitialPassword
+                                      ? 'Password set successfully'
+                                      : 'Password changed successfully',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } on supabase.AuthException catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e.message),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _isSettingInitialPassword
+                                      ? 'Failed to set password: $e'
+                                      : 'Failed to change password: $e',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.surface,
@@ -395,7 +436,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           ),
                         )
                       : Text(
-                          'Save new password',
+                          _isSettingInitialPassword
+                              ? 'Set Password'
+                              : 'Save new password',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -414,7 +457,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isMet ? Colors.green.withOpacity(0.1) : AppColors.inactive.withOpacity(0.2),
+        color: isMet
+            ? Colors.green.withOpacity(0.1)
+            : AppColors.inactive.withOpacity(0.2),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
