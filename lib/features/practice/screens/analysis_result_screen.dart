@@ -56,8 +56,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       });
     });
 
-
-
     if (widget.analysisResult == null && widget.sessionId != null) {
       _analysisFuture = _apiService.getAnalysis(widget.sessionId!);
     }
@@ -126,31 +124,137 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           final fullUrl = _recordingPath!.startsWith('http')
               ? _recordingPath!
               : 'https://kidlatpogi17-bigkas-backend.hf.space${_recordingPath!}';
-          await _audioPlayer.play(UrlSource(fullUrl));
+
+          // Add retry logic with exponential backoff for network issues
+          bool playbackSuccess = false;
+          int retryCount = 0;
+          const maxRetries = 2;
+
+          while (!playbackSuccess && retryCount <= maxRetries) {
+            try {
+              await _audioPlayer.play(UrlSource(fullUrl));
+              playbackSuccess = true;
+            } catch (e) {
+              retryCount++;
+              final errorString = e.toString().toLowerCase();
+
+              // Don't retry for 404 or auth errors
+              if (errorString.contains('404') ||
+                  errorString.contains('not found') ||
+                  errorString.contains('unauthorized')) {
+                rethrow;
+              }
+
+              // Retry with delay for network errors
+              if (retryCount <= maxRetries) {
+                await Future.delayed(Duration(milliseconds: 500 * retryCount));
+              } else {
+                rethrow;
+              }
+            }
+          }
         } else {
           // Play from file (native)
           await _audioPlayer.play(DeviceFileSource(_recordingPath!));
         }
       } catch (e) {
         if (mounted) {
-          // Check if it's a 404 or network error indicating deleted recording
           final errorString = e.toString().toLowerCase();
+
+          // Check if it's a 404 or network error indicating deleted recording
           if (errorString.contains('404') ||
-              errorString.contains('not found') ||
+              errorString.contains('not found')) {
+            _showRecordingNotFoundDialog();
+          } else if (errorString.contains('network') ||
+              errorString.contains('timeout') ||
               errorString.contains('failed to load') ||
               errorString.contains('unable to connect')) {
-            _showRecordingNotFoundDialog();
+            // Network error - show helpful message with retry option
+            _showPlaybackErrorDialog(
+              title: 'Network Error',
+              message:
+                  'Could not load the recording. Please check your internet connection and try again.',
+            );
+          } else if (errorString.contains('permission') ||
+              errorString.contains('cors') ||
+              errorString.contains('blocked')) {
+            // Safari restrictions or CORS issue
+            _showPlaybackErrorDialog(
+              title: 'Playback Not Allowed',
+              message:
+                  'Safari is blocking audio playback. Try:\n\n'
+                  '• Disable Low Power Mode\n'
+                  '• Exit private/incognito browsing\n'
+                  '• Refresh the page (Cmd+R)\n'
+                  '• Check your internet connection\n\n'
+                  'If this persists, there may be a server issue.',
+            );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error playing recording'),
-                backgroundColor: Colors.red,
-              ),
+            // Generic error
+            _showPlaybackErrorDialog(
+              title: 'Playback Error',
+              message:
+                  'Failed to play the recording. Please try again.\n\n'
+                  'Error: ${e.toString().split('\n').first}',
             );
           }
         }
       }
     }
+  }
+
+  void _showPlaybackErrorDialog({
+    required String title,
+    required String message,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(Icons.error_outline, color: Colors.orange, size: 48),
+        title: Text(
+          title,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Retry playback
+              _togglePlayback();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(
+              'Retry',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showRecordingNotFoundDialog() {

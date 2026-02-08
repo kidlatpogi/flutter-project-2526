@@ -607,7 +607,11 @@ async def get_session_recording(
             headers={
                 "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
                 "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "public, max-age=3600"
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Range",
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=3600",
+                "Content-Type": "audio/wav"
             }
         )
     
