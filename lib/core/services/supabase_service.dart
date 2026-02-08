@@ -63,7 +63,7 @@ class SupabaseService {
 
       final response = await _supabase
           .from('user_profiles')
-          .insert(data)
+          .upsert(data)
           .select()
           .single();
 

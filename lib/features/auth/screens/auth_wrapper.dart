@@ -74,6 +74,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       
       if (_authService.isLoggedIn) {
         // User is logged in
+        bool isDeactivated = false;
         
         // Get user profile with a timeout to prevent hanging
         Map<String, dynamic>? profile;
@@ -86,7 +87,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             await _authService.signOut();
             if (!mounted) return;
             _targetWidget = const LoginScreen();
-            // Don't return here - let finally block handle isLoading
+            isDeactivated = true;
           }
         } catch (e) {
           profile = null;
@@ -94,8 +95,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
         
         if (!mounted) return;
         
-        // Only continue if not deactivated (check was not triggered above)
-        if (_targetWidget is! LoginScreen) {
+        // Only continue routing if account is not deactivated
+        if (!isDeactivated) {
           // Determine if this is a brand new user (no profile exists)
           final bool isNewUser = profile == null;
           

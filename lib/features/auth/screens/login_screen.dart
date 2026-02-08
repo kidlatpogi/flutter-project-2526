@@ -124,6 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // The popup sends the OAuth callback URL back via postMessage.
         // We listen for that message, extract the refresh_token, and
         // call setSession() which triggers the auth state change.
+        // AuthWrapper will detect the signedIn event and handle navigation.
         web_oauth.listenForOAuthCallback((url) async {
           try {
             final uri = Uri.parse(url);
@@ -139,57 +140,13 @@ class _LoginScreenState extends State<LoginScreen> {
               throw Exception('No refresh token in OAuth callback');
             }
             
-            // This will store the session and fire AuthChangeEvent.signedIn
-            final session = await Supabase.instance.client.auth.setSession(refreshToken);
+            // This stores the session and fires AuthChangeEvent.signedIn.
+            // AuthWrapper listens for this event and handles all navigation.
+            await Supabase.instance.client.auth.setSession(refreshToken);
             
-            if (session.user == null) {
-              throw Exception('Failed to establish Supabase session after OAuth');
-            }
-            
-            // Session is established - now navigate based on user state
-            if (!mounted) return;
-            
-            final currentUser = session.user!;
-            
-            // Check if account is deactivated
-            final isActive = await _authService.checkAccountActive(currentUser.id);
-            if (!isActive) {
-              await _authService.signOut();
-              if (!mounted) return;
-              setState(() {
-                _errorMessage = 'Your account has been deactivated. Please contact support if you believe this is an error.';
-                _isLoading = false;
-              });
-              return;
-            }
-            
-            // Check if Google user has password set
-            final hasPassword = _authService.hasPasswordAuth;
-            
-            if (!hasPassword) {
-              // Google-only user needs to set password first
-              if (!mounted) return;
-              Navigator.pushReplacementNamed(context, RouteNames.passwordSetup);
-              return;
-            }
-            
-            // Check if user has nickname
-            bool hasNickname = false;
-            try {
-              hasNickname = await _userProfileService.hasNickname();
-            } catch (e) {
-              // If backend is down, skip nickname check and go to dashboard
-              hasNickname = true;
-            }
-            
-            if (!mounted) return;
-            
-            if (!hasNickname) {
-              Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
-            } else {
-              Navigator.pushReplacementNamed(context, RouteNames.dashboard);
-            }
-            
+            // Navigation is handled by AuthWrapper's auth state listener.
+            // No need to navigate from here - LoginScreen will be swapped
+            // out by AuthWrapper automatically.
           } catch (e) {
             if (mounted) {
               setState(() {
