@@ -60,6 +60,8 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
       // Set password in Supabase Auth
       await _authService.setPasswordForGoogleUser(password);
       
+      if (!mounted) return;
+      
       // Update profile to mark that password has been set
       // Also fetch Google profile data to store full name
       final userMetadata = _authService.userMetadata;
@@ -71,17 +73,112 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
         fullName: googleFullName,
       );
       
-      if (mounted) {
-        // Navigate to nickname setup
-        Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
-      }
+      if (!mounted) return;
+      
+      // Navigate to nickname setup
+      Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
     } on AuthException catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      
+      // Handle reauthentication requirement on web OAuth
+      if (e.code == 'email_verification_required') {
+        // Show dialog offering to send password setup email
+        await _showEmailSetupDialog();
+      } else if (e.code == 'reauthentication_required') {
+        setState(() => _errorMessage = e.message);
+      } else {
         setState(() => _errorMessage = e.message);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _errorMessage = 'Failed to set password. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+  
+  Future<void> _showEmailSetupDialog() async {
+    final shouldSendEmail = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Email Verification Required',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'For security, we need to send you an email with a link to set your password. Would you like us to send this email now?',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Send Email', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    
+    if (shouldSendEmail == true && mounted) {
+      await _sendPasswordSetupEmail();
+    }
+  }
+  
+  Future<void> _sendPasswordSetupEmail() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    
+    try {
+      await _authService.sendPasswordSetupEmail();
+      
+      if (!mounted) return;
+      
+      // Show success dialog
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Email Sent!',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.success,
+            ),
+          ),
+          content: Text(
+            'We\'ve sent you an email with a link to set your password. Please check your inbox and click the link to continue.',
+            style: GoogleFonts.poppins(fontSize: 14),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // For now, skip to nickname setup since they can set password later
+                Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+              },
+              child: Text('Continue', style: GoogleFonts.poppins()),
+            ),
+          ],
+        ),
+      );
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = 'Failed to send email: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = 'Failed to send email. Please try again.');
       }
     } finally {
       if (mounted) {

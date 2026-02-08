@@ -430,13 +430,71 @@ class AuthService {
   /// This allows Google users to create a password for account deactivation
   Future<void> setPasswordForGoogleUser(String password) async {
     try {
+      final session = _supabase.auth.currentSession;
+      if (session == null || session.accessToken.isEmpty) {
+        throw AuthException(
+          'Your session has expired. Please sign in again.',
+          code: 'session_invalid',
+        );
+      }
+
+      // On web with OAuth implicit flow, direct password updates require reauthentication
+      // Try refreshing the session first to get a fresh token
+      if (kIsWeb) {
+        try {
+          await _supabase.auth.refreshSession();
+        } catch (e) {
+          // If refresh fails, continue anyway - the update might still work
+        }
+      }
+
       await _supabase.auth.updateUser(
         UserAttributes(password: password),
       );
     } on AuthApiException catch (e) {
+      // Handle "Password update requires reauthentication" (400 error)
+      if (e.statusCode == '400' && e.message.contains('reauthentication')) {
+        // On web, we need to use email-based password reset instead
+        if (kIsWeb && currentUser?.email != null) {
+          throw AuthException(
+            'For security, we need to send you an email to set your password. Please check your inbox.',
+            code: 'email_verification_required',
+          );
+        }
+        throw AuthException(
+          'Password update requires reauthentication. Please sign out and sign in again.',
+          code: 'reauthentication_required',
+        );
+      }
+      
+      if (e.statusCode == '400') {
+        throw AuthException(
+          'Failed to set password. ${e.message}',
+          code: 'password_update_failed',
+        );
+      }
       throw AuthException(e.message, code: e.statusCode);
     } catch (e) {
       throw AuthException('Failed to set password: ${e.toString()}');
+    }
+  }
+  
+  /// Send password setup email for Google OAuth users (web-safe alternative)
+  Future<void> sendPasswordSetupEmail() async {
+    try {
+      final email = currentUser?.email;
+      if (email == null || email.isEmpty) {
+        throw AuthException('No email address found for current user.');
+      }
+      
+      await _supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: kIsWeb ? Uri.base.toString() : null,
+      );
+    } on AuthApiException catch (e) {
+      throw AuthException(e.message, code: e.statusCode);
+    } catch (e) {
+      throw AuthException('Failed to send password setup email: ${e.toString()}');
     }
   }
 }
