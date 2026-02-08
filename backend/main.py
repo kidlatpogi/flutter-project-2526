@@ -7,6 +7,7 @@ and machine learning, and stores the results in Supabase.
 """
 
 import asyncio
+import io
 import logging
 import os
 import tempfile
@@ -15,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
+from pydub import AudioSegment
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -600,20 +602,50 @@ async def get_session_recording(
                 detail=f"Recording file not found. Make sure the 'recordings' bucket exists in Supabase Storage."
             )
         
-        # Return audio stream
-        return StreamingResponse(
-            io.BytesIO(file_data),
-            media_type="audio/wav",
-            headers={
-                "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Range",
-                "Accept-Ranges": "bytes",
-                "Cache-Control": "public, max-age=3600",
-                "Content-Type": "audio/wav"
-            }
-        )
+        # Convert WAV to MP3 for better browser compatibility
+        # Browsers have limited WAV support, but all support MP3
+        try:
+            logger.info(f"Converting WAV to MP3 for playback ({len(file_data)} bytes)")
+            audio = AudioSegment.from_wav(io.BytesIO(file_data))
+            
+            # Export as MP3 with good quality
+            mp3_buffer = io.BytesIO()
+            audio.export(mp3_buffer, format="mp3", bitrate="192k")
+            mp3_buffer.seek(0)
+            mp3_data = mp3_buffer.getvalue()
+            
+            logger.info(f"Conversion complete: {len(file_data)} bytes WAV -> {len(mp3_data)} bytes MP3")
+            
+            # Return MP3 stream
+            return StreamingResponse(
+                io.BytesIO(mp3_data),
+                media_type="audio/mpeg",
+                headers={
+                    "Content-Disposition": f"inline; filename=recording_{session_id}.mp3",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Range",
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "public, max-age=3600",
+                    "Content-Type": "audio/mpeg"
+                }
+            )
+        except Exception as conversion_error:
+            # If conversion fails, fall back to WAV
+            logger.warning(f"MP3 conversion failed: {conversion_error}. Falling back to WAV.")
+            return StreamingResponse(
+                io.BytesIO(file_data),
+                media_type="audio/wav",
+                headers={
+                    "Content-Disposition": f"inline; filename=recording_{session_id}.wav",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Range",
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "public, max-age=3600",
+                    "Content-Type": "audio/wav"
+                }
+            )
     
     except HTTPException:
         raise
