@@ -128,19 +128,72 @@ class _LoginScreenState extends State<LoginScreen> {
           try {
             final uri = Uri.parse(url);
             final fragment = uri.fragment;
-            if (fragment.isNotEmpty) {
-              final params = Uri.splitQueryString(fragment);
-              final refreshToken = params['refresh_token'];
-              if (refreshToken != null && refreshToken.isNotEmpty) {
-                // This will store the session and fire AuthChangeEvent.signedIn
-                // which AuthWrapper listens to and navigates accordingly
-                await Supabase.instance.client.auth.setSession(refreshToken);
-              }
+            if (fragment.isEmpty) {
+              throw Exception('No OAuth callback data received');
             }
+            
+            final params = Uri.splitQueryString(fragment);
+            final refreshToken = params['refresh_token'];
+            
+            if (refreshToken == null || refreshToken.isEmpty) {
+              throw Exception('No refresh token in OAuth callback');
+            }
+            
+            // This will store the session and fire AuthChangeEvent.signedIn
+            final session = await Supabase.instance.client.auth.setSession(refreshToken);
+            
+            if (session.user == null) {
+              throw Exception('Failed to establish Supabase session after OAuth');
+            }
+            
+            // Session is established - now navigate based on user state
+            if (!mounted) return;
+            
+            final currentUser = session.user!;
+            
+            // Check if account is deactivated
+            final isActive = await _authService.checkAccountActive(currentUser.id);
+            if (!isActive) {
+              await _authService.signOut();
+              if (!mounted) return;
+              setState(() {
+                _errorMessage = 'Your account has been deactivated. Please contact support if you believe this is an error.';
+                _isLoading = false;
+              });
+              return;
+            }
+            
+            // Check if Google user has password set
+            final hasPassword = _authService.hasPasswordAuth;
+            
+            if (!hasPassword) {
+              // Google-only user needs to set password first
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, RouteNames.passwordSetup);
+              return;
+            }
+            
+            // Check if user has nickname
+            bool hasNickname = false;
+            try {
+              hasNickname = await _userProfileService.hasNickname();
+            } catch (e) {
+              // If backend is down, skip nickname check and go to dashboard
+              hasNickname = true;
+            }
+            
+            if (!mounted) return;
+            
+            if (!hasNickname) {
+              Navigator.pushReplacementNamed(context, RouteNames.nicknameSetup);
+            } else {
+              Navigator.pushReplacementNamed(context, RouteNames.dashboard);
+            }
+            
           } catch (e) {
             if (mounted) {
               setState(() {
-                _errorMessage = 'Google sign-in failed. Please try again.';
+                _errorMessage = 'Google sign-in failed: ${e.toString()}';
                 _isLoading = false;
               });
             }
